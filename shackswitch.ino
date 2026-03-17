@@ -1,6 +1,9 @@
 /* 
- * VERSION 1.2 - G0JKN Antenna Switcher 
- * Integrated State Sync, Background WiFi Manager, and Factory Reset
+ * VERSION 1.3 - G0JKN Antenna Switcher 
+ * Changes from 1.2:
+ * - Removed blocking while(!Serial) wait on boot
+ * - Added splash screen and step-by-step boot status on Nextion t1.txt
+ * - Improved WiFi reconnect with live countdown and state flag
  */
 
 #include "WiFiS3.h"
@@ -16,7 +19,6 @@ struct RelayConfig {
   char names[4][26]; 
   char wifiSSID[33];      
   char wifiPass[64];
-
   uint32_t configMagic;   
 };
 
@@ -25,10 +27,10 @@ const uint32_t CONFIG_VERSION = 0xDEADBEEE;
 
 // Ground symbol for 12x8 LED Matrix
 const uint32_t ground_hex[] = {
-		0x4004004,
-		0x7fc0001,
-		0xf00000e0,
-		66
+    0x4004004,
+    0x7fc0001,
+    0xf00000e0,
+    66
 };
 
 ArduinoLEDMatrix matrix;
@@ -44,7 +46,7 @@ WiFiServer server(80);
 
 unsigned long lastRSSIUpdate = 0;
 int currentRSSI = 0;
-bool onMonitorPage = false; // Triggered when you enter Page 3
+bool onMonitorPage = false;
 
 // Logic Timers & States
 unsigned long lastClockUpdate = 0;
@@ -52,9 +54,12 @@ unsigned long lastWiFiCheck = 0;
 unsigned long resetTimer = 0;
 bool resetConfirmed = false;
 bool onConfigPage = false;
-int currentActiveRelay = 0; 
+int currentActiveRelay = 0;
+bool wifiWasConnected = false;  // Tracks WiFi state for reconnect display
+
 
 // --- CORE FUNCTIONS ---
+
 void updateStationMonitor() {
   if (WiFi.status() == WL_CONNECTED) {
     currentRSSI = WiFi.RSSI();
@@ -65,10 +70,10 @@ void updateStationMonitor() {
 
     // Update Nextion Page 3 labels
     myNex.writeStr("tRSSI.txt", String(currentRSSI) + " dBm");
-    myNex.writeNum("nSignal.val", signalQuality); // A progress bar or number
+    myNex.writeNum("nSignal.val", signalQuality);
     myNex.writeStr("b0.txt", WiFi.localIP().toString());
-    // Optional: Change color based on strength
-    if (currentRSSI > -60) myNex.writeNum("nSignal.pco", 1024);  // Green
+
+    if (currentRSSI > -60) myNex.writeNum("nSignal.pco", 1024);   // Green
     else if (currentRSSI > -80) myNex.writeNum("nSignal.pco", 63488); // Orange/Red
   }
 }
@@ -122,6 +127,7 @@ void controlRelay(int targetIndex, bool state) {
   }
   updateAntennaStatus();
 }
+
 /* 
  * FUNCTION: updateAntennaStatus
  * ----------------------------
@@ -138,37 +144,29 @@ void controlRelay(int targetIndex, bool state) {
  * 
  * HARDWARE NOTE: Optimized for Arduino Uno R4.
  */
-
 void updateAntennaStatus() {
   bool anyActive = false;
-  int activeIndex = -1; // Track which specific relay is active
+  int activeIndex = -1;
 
   for (int i = 0; i < 4; i++) {
     if (digitalRead(relayPins[i]) == HIGH) { 
       anyActive = true; 
-      activeIndex = i; // Save the current index
+      activeIndex = i;
       break; 
     }
   }
 
   if (anyActive) {
     myNex.writeStr("tState.txt", "ANT Active");
-    myNex.writeStr("tState.pco", "63488"); // Corrected: removed '=' from key
-    
-    // Mapping index 0,1,2,3 to display 1,2,3,4
+    myNex.writeStr("tState.pco", "63488");
     updateMatrix(activeIndex + 1); 
   } else {
     myNex.writeStr("tState.txt", "ANT Grounded");
     myNex.writeStr("tState.pco", "1024");
-    
-    // If none are high, update with 0
     updateMatrix(0);
-    // If none are high, update with ground symbol
     displayGroundSymbol();
-    
   }
 }
-
 
 void syncTime() {
   timeClient.begin();
@@ -181,19 +179,18 @@ void syncTime() {
 
 void connectToWiFi() {
   WiFi.begin(myConfig.wifiSSID, myConfig.wifiPass);
-  //delay(5000);
   Serial.print("Connecting to: "); Serial.println(myConfig.wifiSSID);
   delay(5000);
   myNex.writeStr("t1.txt", WiFi.localIP().toString());
-
 }
+
 
 // --- WEB PAGES ---
 
 void showMainPage(WiFiClient& c) {
   c.println("HTTP/1.1 200 OK\nContent-Type: text/html\n\n<!DOCTYPE HTML><html>");
   c.println("<head><meta name='viewport' content='width=device-width, initial-scale=1'><style>body{font-family:Arial;text-align:center;background:#1a1a1a;color:white;} .card{background:#333;margin:10px auto;padding:15px;width:90%;max-width:350px;border-radius:10px;} .btn{display:block;padding:15px;margin:10px 0;color:#fff;text-decoration:none;border-radius:8px;font-weight:bold;} .on{background:#28a745;} .off{background:#dc3545;}</style></head><body>");
-  c.println("<h1>G0JKN 1.2 ANT SWITCH</h1>");
+  c.println("<h1>G0JKN 1.3 ANT SWITCH</h1>");
   for (int i = 0; i < 4; i++) {
     bool st = digitalRead(relayPins[i]);
     c.print("<div class='card'><strong>" + String(myConfig.names[i]) + "</strong>");
@@ -215,40 +212,50 @@ void showSettingsPage(WiFiClient& c) {
   c.println("<a href='/'>Back</a></body></html>");
 }
 
+
 // --- SETUP & LOOP ---
 
 void setup() {
   Serial.begin(115200);
-   while (!Serial) { 
-    ; // Wait for Serial Monitor to open
-  }
-  Serial.println("Debug Started!"); // This will now always show up
+  Serial.println("Debug Started!");
+
   matrix.begin();
   myNex.begin(9600);
+
+  // Splash screen
+  myNex.writeStr("page 0");
+  myNex.writeStr("t1.txt", "ShackSwitch V1.3");
+  delay(1500);
+
+  myNex.writeStr("t1.txt", "Loading config...");
   loadConfig();
   RTC.begin();
   for (int i = 0; i < 4; i++) { pinMode(relayPins[i], OUTPUT); digitalWrite(relayPins[i], LOW); }
-  
+
+  myNex.writeStr("t1.txt", "Connecting WiFi...");
   connectToWiFi();
   server.begin();
+
+  myNex.writeStr("t1.txt", "Syncing time...");
   syncTime();
-  
 
   myNex.writeStr("page 0");
-  for (int i = 0; i < 4; i++) { myNex.writeStr("b" + String(i + 1) + ".txt", myConfig.names[i]); 
-  myNex.writeStr("t1.txt", WiFi.localIP().toString());}
+  for (int i = 0; i < 4; i++) {
+    myNex.writeStr("b" + String(i + 1) + ".txt", myConfig.names[i]);
+  }
+  myNex.writeStr("t1.txt", WiFi.localIP().toString());
 }
 
 void loop() {
   myNex.NextionListen();
 
-  if (millis() - lastRSSIUpdate > 10000) { // Every 10 seconds
-  if (onMonitorPage || WiFi.status() == WL_CONNECTED) {
-    updateStationMonitor();
+  // RSSI update every 10 seconds
+  if (millis() - lastRSSIUpdate > 10000) {
+    if (onMonitorPage || WiFi.status() == WL_CONNECTED) {
+      updateStationMonitor();
+    }
+    lastRSSIUpdate = millis();
   }
-  lastRSSIUpdate = millis();
-}
-
 
   // Reset Safety Timeout
   if (resetConfirmed && (millis() - resetTimer > 5000)) {
@@ -256,17 +263,28 @@ void loop() {
     myNex.writeStr("tStatus.txt", "Reset Canceled");
   }
 
-  // WiFi Reconnect (Non-blocking)
-  if (WiFi.status() != WL_CONNECTED && !onConfigPage) {
+  // WiFi status and reconnect (non-blocking)
+  if (WiFi.status() == WL_CONNECTED) {
+    if (!wifiWasConnected) {
+      // Just reconnected — restore IP display
+      myNex.writeStr("t1.txt", WiFi.localIP().toString());
+      wifiWasConnected = true;
+      Serial.println("WiFi reconnected: " + WiFi.localIP().toString());
+    }
+  } else if (!onConfigPage) {
+    wifiWasConnected = false;
     if (millis() - lastWiFiCheck > 30000) {
+      myNex.writeStr("t1.txt", "WiFi lost - retrying...");
+      Serial.println("WiFi lost - retrying...");
       WiFi.begin(myConfig.wifiSSID, myConfig.wifiPass);
       lastWiFiCheck = millis();
+    } else {
+      int secsLeft = 30 - ((millis() - lastWiFiCheck) / 1000);
+      myNex.writeStr("t1.txt", "No WiFi - retry " + String(secsLeft) + "s");
     }
-    myNex.writeStr("t1.txt", "N O T   C O N N E C T E D");
-
   }
 
-  // RTC Update (25s)
+  // RTC clock update every 25 seconds
   if (millis() - lastClockUpdate > 25000) {
     RTCTime now;
     if (RTC.getTime(now)) {
