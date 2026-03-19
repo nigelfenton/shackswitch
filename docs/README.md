@@ -9,7 +9,7 @@
 
 ## Photos
 
-![Nextion Touchscreen Display](docs/images/nextion-display.jpeg)
+![Nextion Touchscreen Display](docs/images/nextion-display.jpeg)https://github.com/nigelfenton/shackswitch/blob/main/docs/images/nextion-display.jpeg
 *Front panel — Nextion 3.5" touchscreen showing all four antenna ports grounded, NTP clock and IP address. 3D printed enclosure designed in Fusion 360.*
 
 ![Back Panel](docs/images/back-panel.jpeg)
