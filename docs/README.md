@@ -9,13 +9,13 @@
 
 ## Photos
 
-![Nextion Touchscreen Display](docs/images/nextion-display.jpeg)https://github.com/nigelfenton/shackswitch/blob/main/docs/images/nextion-display.jpeg
+![Nextion Touchscreen Display](https://raw.githubusercontent.com/nigelfenton/shackswitch/main/docs/images/nextion-display.jpeg)
 *Front panel — Nextion 3.5" touchscreen showing all four antenna ports grounded, NTP clock and IP address. 3D printed enclosure designed in Fusion 360.*
 
-![Back Panel](docs/images/back-panel.jpeg)
+![Back Panel](https://raw.githubusercontent.com/nigelfenton/shackswitch/main/docs/images/back-panel.jpeg)
 *Rear panel — five SO239 connectors (one radio input, four antenna outputs), 12V DC power connector with XT60, and USB port for programming. Blue power LED visible.*
 
-![Web Interface](docs/images/web-interface.jpeg)
+![Web Interface](https://raw.githubusercontent.com/nigelfenton/shackswitch/main/docs/images/web-interface.jpeg)
 *Web interface running on Safari at 10.0.0.86 — all four ports shown with antenna names and current state. Updates automatically every 5 seconds.*
 
 ---
