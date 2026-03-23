@@ -135,24 +135,50 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) conventi
 
 ## Planned / In Development
 
-### Hardware
-- Second relay bank (relays 5–8) via MCP23017 I2C GPIO expander for shack switching (amps, lights, PSU remote)
-- MCP23017 Bank A: relay 5–8 control
-- MCP23017 Bank B: BCD band decoder input (4 pins) and output (4 pins)
+### Near Term — Hardware (v2 Shield + Adafruit Drivers)
+- Two Adafruit 8-channel I2C solenoid driver boards (MCP23017 based, 0x20 and 0x21)
+- Input 1 relay bank (ANT 1-8) via Arduino D2-D9 direct GPIO
+- Input 2 relay bank (ANT 1-8) via MCP23017 0x20 (Adafruit board 1)
+- Shack switching relays 1-4 via MCP23017 0x21 (Adafruit board 2)
+- BCD band decoder input/output via MCP23017 spare GPIO pins
 - Standard 4-pin I2C header (SDA, SCL, 5V, GND) for Radioberry and external devices
-- Two-board split: controller board + relay board (relay board encapsulatable for RFI isolation)
-- Enclosure redesign to accommodate expanded relay bank and additional connectors
-- TX inhibit output pin (D6) for future PA protection interlock
+- TX inhibit output pin for future PA protection interlock
 
-### Software
-- MCP23017 shack relay control (relay 5–8) with web and Nextion integration
+### Near Term — Software (v1.5)
+- Expanded `relayPins[]` array to cover D2-D9 (8 direct channels)
+- Switch mode selector: MODE_1x4, MODE_1x8, MODE_SO2R, MODE_DIV
+- Mode stored in EEPROM — survives power cycles
+- `connectInput(int input, int antenna)` replacing `controlRelay()`
+- SO2R conflict prevention logic — blocks shared antenna between inputs
+- Diversity RX mode — Input 2 flagged RX only, TX blocked on Input 2
+- Antenna names expanded to 8 ports in RelayConfig struct
+- Input 1 and Input 2 names stored in EEPROM
+- MCP23017 shack relay control with web and Nextion integration
+- Extended Nextion pages — 2x8 matrix display, mode selector, conflict warnings
 - Node-RED integration with FlexRadio SmartSDR via `node-red-contrib-flexradio`
 - Automatic antenna switching based on VFO frequency / band
 - BCD band decoder output (to downstream filter banks and accessories)
 - BCD band decoder input (from Radioberry or external band decoder)
 - Radioberry I2C interface — forward/reverse power monitoring and temperature
-- PA protection — auto-switch to dummy load if output power exceeds threshold, with Nextion warning display
-- Extended Nextion pages for shack relay control and band/power monitoring
+- PA protection — auto-switch to dummy load if output power exceeds threshold
+
+### Long Term — Hardware (v3 Unified Board)
+- Single unified PCB replacing Arduino R4 WiFi + shield + driver boards
+- Incorporates Arduino R4 WiFi open source hardware design (RA4M1 + ESP32-S3)
+- Two MCP23017 I2C expanders onboard
+- 16x SMD transistor drivers onboard
+- All connectors: RF, screw terminals, I2C header, Nextion, BCD, power
+- JLCPCB PCBA (PCB Assembly) service for SMD component sourcing and soldering
+- Dramatically reduced footprint and improved reliability (fewer inter-board connectors)
+- RFI encapsulation friendly — relay section separable from controller section
+- Potential kit offering for the amateur radio community
+
+### Long Term — Software (v2.0)
+- AetherSDR native integration panel (feature request #179 on AetherSDR GitHub)
+- Auto antenna switching driven by AetherSDR slice frequency data
+- SO2R aware — AetherSDR slice TX/RX state drives Input 1/2 routing automatically
+- Diversity mode driven by AetherSDR dual-receive slice configuration
+- Full station management dashboard
 
 ---
 
