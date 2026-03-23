@@ -24,6 +24,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) conventi
 - Shield v2 is a drop-in replacement for v1 — Arduino pin assignments unchanged
 - I2C header is passive (no I2C devices populated) — ready for v1.5 firmware expansion
 - Gerber zip can be submitted directly to JLCPCB, PCBWay or similar for fabrication
+- Considering this board for 2 x 6 ports to design https://kk1l.com/store/2x6-relay-board/
 
 ---
 
