@@ -1,0 +1,159 @@
+# Changelog
+## G0JKN SmartSwitch — Open Source Shack Controller
+
+All notable changes to this project are documented here.  
+Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) conventions.
+
+---
+
+## [Hardware v2] - 2026-03-22
+
+### Shield PCB — Version 2
+
+#### Added
+- 8x SMD transistor arrays replacing through-hole components — doubles drive capacity for future 8-relay expansion
+- Additional 4-way screw terminal connectors for easy daisy-chaining to secondary relay/switch PCBs
+- I2C expansion header (SDA, SCL, VCC, GND) — ready for MCP23017 GPIO expander and Radioberry integration
+- Gerber files exported from Fusion 360 and added to `hardware/gerbers/shackswitch-shield-v2.zip`
+
+#### Changed
+- Migrated transistor drivers from through-hole to SMD for significant space saving on the board
+- Improved connector layout for cleaner wiring to external relay boards
+
+#### Notes
+- Shield v2 is a drop-in replacement for v1 — Arduino pin assignments unchanged
+- I2C header is passive (no I2C devices populated) — ready for v1.5 firmware expansion
+- Gerber zip can be submitted directly to JLCPCB, PCBWay or similar for fabrication
+
+---
+
+## [1.4] - 2026-03-22
+
+### Added
+- Antenna name labels on Nextion display (components t3–t6 positioned above each dual-state button)
+- `syncAntennaNames()` function — pushes all four antenna names from EEPROM to display on boot
+- Live JSON status endpoint (`/status`) returning current relay states as `{"r1":0,"r2":1,"r3":0,"r4":0}`
+- JavaScript polling on web page — updates card state and button colour every 5 seconds without page refresh
+- Active antenna card highlighted in green on web page for quick visual identification
+- Web page version bumped to 1.4 in page title
+
+### Changed
+- `connectToWiFi()` — replaced blind `delay(5000)` with a proper connection wait loop (polls every 500ms for up to 15 seconds), improving reliability on slow-starting routers
+- Web page cards now have unique IDs (`card1`–`card4`, `btn1`–`btn4`) for JavaScript targeting
+- Web server request handler order updated — `/status` now checked before `/settings` to prevent partial string matching
+
+### Fixed
+- IP address no longer wiped by `page 0` command on startup — IP write now correctly positioned after page load
+- Antenna names were not displayed on Nextion after migration to dual-state buttons — resolved by adding dedicated text label components and `syncAntennaNames()`
+- Web page rename handler now correctly targets Nextion label components (`rId + 2` offset maps relay 1→t3, relay 2→t4 etc.)
+
+---
+
+## [1.3] - 2026-03
+
+### Added
+- Dual-state image buttons (b1–b4) on Nextion Page 0 replacing plain colour block buttons
+- `syncButtonStates()` function — single source of truth for pushing relay state to all four Nextion buttons via `.val` attribute
+- `syncButtonStates()` called in `trigger7()` to re-sync display after returning from WiFi config page
+
+### Changed
+- `controlRelay()` — replaced `.bco` background colour writes with `syncButtonStates()` call
+- Button state now controlled via `.val` (0=grounded image, 1=active image) instead of `.bco` colour
+- Old plain colour buttons (b1–b4) moved to Page 4 as backup reference, subsequently removed
+- Removed unused `NEXTION_GREEN` and `NEXTION_RED` constants
+- `setup()` — removed `.txt` writes to b1–b4 (dual-state buttons do not support `.txt`)
+- Version string updated to 1.3
+
+### Fixed
+- Button state sync broken after renumbering — old `.bco` commands were targeting image-based components that do not support colour attributes
+- `trigger11()` and `trigger12()` conflict with relocated button IDs resolved by removing page 4 buttons
+
+---
+
+## [1.2] - 2026-01
+
+### Added
+- NTP time synchronisation on startup via `pool.ntp.org`
+- RTC update every 25 seconds, midnight re-sync
+- Station monitor page (Page 3) showing WiFi RSSI, signal quality bar and IP address
+- `onMonitorPage` flag — monitor page updates pause when not on Page 3
+- Factory reset function (`trigger8()`) with double-tap safety confirmation and 5 second timeout
+- WiFi config page (Page 2) with network scan (`trigger6()`), network selection and password entry (`trigger7()`)
+- Auto WiFi scan on entering config page (`trigger9()`)
+- `trigger11()` — sets `onMonitorPage = true` and triggers immediate monitor update on entering Page 3
+- `trigger12()` — clears `onMonitorPage` flag on leaving Page 3
+- Non-blocking WiFi reconnect in main loop (retries every 30 seconds)
+- Reset safety timeout — resets `resetConfirmed` flag after 5 seconds if second tap not received
+
+### Changed
+- WiFi credentials moved to `RelayConfig` struct and stored in EEPROM
+- Web settings page now supports antenna port renaming with URL-encoded input handling
+- `connectToWiFi()` separated into its own function
+
+### Fixed
+- WiFi disconnect message now shows correctly on display when connection is lost
+
+---
+
+## [1.1] - 2025-12
+
+### Added
+- WiFi web server on port 80
+- Main web page showing all four antenna ports with name, state and toggle links
+- Web-based antenna control (`/1/on`, `/1/off` etc.)
+- Web settings page (`/settings`) for renaming antenna ports
+- Antenna names stored in EEPROM and restored on boot
+- `RelayConfig` struct for organised EEPROM storage with magic number version check
+- `loadConfig()` and default name population on first boot
+- `showMainPage()` and `showSettingsPage()` web page generator functions
+
+### Changed
+- `controlRelay()` now updates Nextion button colours (`.bco`) as well as relay pins
+- IP address displayed on Nextion after WiFi connect
+
+---
+
+## [1.0] - 2025-11
+
+### Added
+- Initial release
+- 4-relay antenna switching on Arduino Uno R4 WiFi (pins D2–D5)
+- Nextion 3.5 inch touchscreen control via EasyNextionLibrary on Serial1
+- `trigger1()` – `trigger4()` touch event handlers for antenna selection
+- Single-antenna enforcement — activating one relay grounds all others
+- `updateAntennaStatus()` — monitors relay pins and updates Nextion status text and colour
+- Arduino LED Matrix display showing active relay number (R1–R4) or ground symbol
+- `displayGroundSymbol()` — custom ground schematic symbol on LED matrix
+- `updateMatrix()` — scrolling relay number display on LED matrix
+- Basic WiFi connection on startup
+- 3D printed enclosure designed in Fusion 360 (200 x 70 x 135mm)
+- Custom Arduino shield with relay drivers, transistors and flyback diodes
+- SO239 RF connectors — 1 input, 4 antenna outputs
+- 12V DC powered relay coils, buck converter for Arduino 5V supply
+
+---
+
+## Planned / In Development
+
+### Hardware
+- Second relay bank (relays 5–8) via MCP23017 I2C GPIO expander for shack switching (amps, lights, PSU remote)
+- MCP23017 Bank A: relay 5–8 control
+- MCP23017 Bank B: BCD band decoder input (4 pins) and output (4 pins)
+- Standard 4-pin I2C header (SDA, SCL, 5V, GND) for Radioberry and external devices
+- Two-board split: controller board + relay board (relay board encapsulatable for RFI isolation)
+- Enclosure redesign to accommodate expanded relay bank and additional connectors
+- TX inhibit output pin (D6) for future PA protection interlock
+
+### Software
+- MCP23017 shack relay control (relay 5–8) with web and Nextion integration
+- Node-RED integration with FlexRadio SmartSDR via `node-red-contrib-flexradio`
+- Automatic antenna switching based on VFO frequency / band
+- BCD band decoder output (to downstream filter banks and accessories)
+- BCD band decoder input (from Radioberry or external band decoder)
+- Radioberry I2C interface — forward/reverse power monitoring and temperature
+- PA protection — auto-switch to dummy load if output power exceeds threshold, with Nextion warning display
+- Extended Nextion pages for shack relay control and band/power monitoring
+
+---
+
+*Maintained by G0JKN — 73 de G0JKN* 📻
