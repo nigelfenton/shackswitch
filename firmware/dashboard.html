@@ -1,0 +1,626 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Antenna Switch Controller</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    background: #1a1a1e;
+    color: #e0e0e0;
+    min-height: 100vh;
+    padding: 20px;
+  }
+
+  h1 {
+    font-size: 18px;
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    color: #a0c4ff;
+    margin-bottom: 4px;
+  }
+
+  .subtitle { font-size: 12px; color: #666; margin-bottom: 20px; }
+
+  /* ── Connection bar ─────────────────────────── */
+  .conn-bar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: #24242a;
+    border: 1px solid #333;
+    border-radius: 8px;
+    padding: 10px 14px;
+    margin-bottom: 20px;
+  }
+
+  .conn-bar input {
+    background: #1a1a1e;
+    border: 1px solid #444;
+    border-radius: 6px;
+    color: #e0e0e0;
+    font-size: 13px;
+    padding: 6px 10px;
+    width: 180px;
+  }
+
+  .conn-bar input:focus { outline: none; border-color: #a0c4ff; }
+
+  button {
+    background: #2a3a5a;
+    border: 1px solid #3a5080;
+    border-radius: 6px;
+    color: #a0c4ff;
+    cursor: pointer;
+    font-size: 13px;
+    padding: 6px 14px;
+    transition: background 0.15s;
+  }
+
+  button:hover  { background: #3a4a6a; }
+  button:active { background: #1e2e4a; }
+  button.danger { background: #3a2020; border-color: #6a3030; color: #ff8080; }
+  button.danger:hover { background: #4a2828; }
+
+  .status-dot {
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    background: #444;
+    flex-shrink: 0;
+    transition: background 0.3s;
+  }
+  .status-dot.connected    { background: #40c060; box-shadow: 0 0 6px #40c06088; }
+  .status-dot.connecting   { background: #f0a040; }
+  .status-dot.disconnected { background: #c04040; }
+
+  .status-text { font-size: 12px; color: #888; flex: 1; }
+
+  /* ── Log ────────────────────────────────────── */
+  .log-box {
+    background: #0f0f12;
+    border: 1px solid #2a2a30;
+    border-radius: 8px;
+    font-family: monospace;
+    font-size: 11px;
+    height: 100px;
+    overflow-y: auto;
+    padding: 8px 10px;
+    margin-bottom: 20px;
+    color: #60c080;
+  }
+
+  .log-box .err { color: #e05050; }
+  .log-box .sys { color: #6088c0; }
+
+  /* ── Grid ───────────────────────────────────── */
+  .ports-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-bottom: 20px;
+  }
+
+  @media (max-width: 640px) { .ports-grid { grid-template-columns: 1fr; } }
+
+  /* ── Port card ──────────────────────────────── */
+  .port-card {
+    background: #24242a;
+    border: 1px solid #333;
+    border-radius: 10px;
+    padding: 14px;
+  }
+
+  .port-card.tx-active { border-color: #e05050; box-shadow: 0 0 8px #e0505033; }
+  .port-card.inhibited { border-color: #e09030; box-shadow: 0 0 8px #e0903033; }
+
+  .port-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 10px;
+  }
+
+  .port-title { font-size: 15px; font-weight: 500; color: #a0c4ff; }
+
+  .port-meta { font-size: 11px; color: #666; }
+
+  .band-label {
+    font-size: 12px;
+    color: #80c0a0;
+    margin-bottom: 10px;
+  }
+
+  /* ── Antenna grid ───────────────────────────── */
+  .ant-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 6px;
+    margin-bottom: 10px;
+  }
+
+  .ant-btn {
+    aspect-ratio: 1;
+    border-radius: 6px;
+    background: #1a1a1e;
+    border: 1px solid #333;
+    color: #888;
+    cursor: pointer;
+    font-size: 11px;
+    padding: 4px 2px;
+    text-align: center;
+    transition: background 0.12s, border-color 0.12s;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+  }
+
+  .ant-btn:hover         { background: #2a2a35; border-color: #4a4a60; color: #ccc; }
+  .ant-btn.rx-selected   { background: #1a3a1a; border-color: #40a040; color: #80e080; }
+  .ant-btn.tx-selected   { background: #3a1a1a; border-color: #c04040; color: #ff8080; }
+  .ant-btn.rxtx-selected { background: #1a2a3a; border-color: #4080c0; color: #80c0ff; }
+
+  .ant-num { font-size: 14px; font-weight: 500; }
+  .ant-lbl { font-size: 9px; opacity: 0.7; max-width: 52px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  /* ── Auto / TX row ──────────────────────────── */
+  .port-controls {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+
+  .toggle-label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: #888;
+    cursor: pointer;
+    user-select: none;
+  }
+
+  .toggle-label input[type=checkbox] { accent-color: #a0c4ff; cursor: pointer; }
+
+  .tx-btn {
+    margin-left: auto;
+    font-size: 11px;
+    padding: 4px 12px;
+    border-radius: 6px;
+    border: 1px solid #555;
+    background: #2a2a30;
+    color: #888;
+    cursor: pointer;
+    transition: background 0.12s;
+  }
+
+  .tx-btn.active {
+    background: #3a1a1a;
+    border-color: #c04040;
+    color: #ff8080;
+  }
+
+  /* ── Interlock banner ───────────────────────── */
+  .interlock-banner {
+    background: #2a1a00;
+    border: 1px solid #c07020;
+    border-radius: 8px;
+    color: #f0a040;
+    font-size: 12px;
+    padding: 8px 12px;
+    margin-bottom: 16px;
+    display: none;
+  }
+
+  .interlock-banner.visible { display: block; }
+
+  /* ── Antenna name editor ────────────────────── */
+  .ant-names {
+    background: #24242a;
+    border: 1px solid #333;
+    border-radius: 10px;
+    padding: 14px;
+  }
+
+  .ant-names h3 { font-size: 13px; color: #888; font-weight: 400; margin-bottom: 10px; }
+
+  .name-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: 8px;
+  }
+
+  .name-row { display: flex; align-items: center; gap: 6px; }
+  .name-num { font-size: 11px; color: #555; width: 20px; text-align: right; }
+
+  .name-input {
+    background: #1a1a1e;
+    border: 1px solid #333;
+    border-radius: 5px;
+    color: #c0c0c0;
+    font-size: 12px;
+    padding: 4px 8px;
+    width: 100%;
+  }
+
+  .name-input:focus { outline: none; border-color: #a0c4ff; }
+</style>
+</head>
+<body>
+
+<h1>ANTENNA SWITCH CONTROLLER</h1>
+<p class="subtitle">Bootstrap dashboard — Arduino R4 WiFi</p>
+
+<!-- Connection bar -->
+<div class="conn-bar">
+  <div class="status-dot disconnected" id="dot"></div>
+  <input type="text" id="hostInput" value="localhost" placeholder="Arduino IP">
+  <input type="text" id="portInput" value="9008" placeholder="Port" style="width:70px">
+  <button onclick="toggleConnect()" id="connBtn">Connect</button>
+  <span class="status-text" id="statusText">Disconnected</span>
+</div>
+
+<!-- Interlock warning -->
+<div class="interlock-banner" id="interlockBanner">
+  ⚠ SO2R Interlock active — <span id="interlockMsg"></span>
+</div>
+
+<!-- Protocol log -->
+<div class="log-box" id="log"></div>
+
+<!-- Port cards -->
+<div class="ports-grid">
+
+  <!-- Port A -->
+  <div class="port-card" id="cardA">
+    <div class="port-header">
+      <span class="port-title">Radio A</span>
+      <span class="port-meta" id="metaA">—</span>
+    </div>
+    <div class="band-label" id="bandA">Band: —</div>
+    <div class="ant-grid" id="gridA"></div>
+    <div class="port-controls">
+      <label class="toggle-label">
+        <input type="checkbox" id="autoA" checked onchange="setAuto(1, this.checked)">
+        AUTO
+      </label>
+      <button class="tx-btn" id="txBtnA" onclick="toggleTx(1)">TX</button>
+    </div>
+  </div>
+
+  <!-- Port B -->
+  <div class="port-card" id="cardB">
+    <div class="port-header">
+      <span class="port-title">Radio B</span>
+      <span class="port-meta" id="metaB">—</span>
+    </div>
+    <div class="band-label" id="bandB">Band: —</div>
+    <div class="ant-grid" id="gridB"></div>
+    <div class="port-controls">
+      <label class="toggle-label">
+        <input type="checkbox" id="autoB" checked onchange="setAuto(2, this.checked)">
+        AUTO
+      </label>
+      <button class="tx-btn" id="txBtnB" onclick="toggleTx(2)">TX</button>
+    </div>
+  </div>
+
+</div>
+
+<!-- Antenna name editor -->
+<div class="ant-names">
+  <h3>Antenna labels (local display only)</h3>
+  <div class="name-grid" id="nameGrid"></div>
+</div>
+
+<script>
+// ── State ──────────────────────────────────────────────────────
+const state = {
+  connected: false,
+  antCount: 8,
+  antennas: [],   // [{id, name, txBandMask, rxBandMask}]
+  bands: [],      // [{id, name, freqStart, freqStop}]
+  portA: { portId:1, autoMode:true, band:0, rxAntenna:0, txAntenna:0, transmitting:false, inhibited:false, inhibitReason:'' },
+  portB: { portId:2, autoMode:true, band:0, rxAntenna:0, txAntenna:0, transmitting:false, inhibited:false, inhibitReason:'' },
+};
+
+// Local antenna name overrides
+let antNames = JSON.parse(localStorage.getItem('antNames') || '{}');
+
+// ── WebSocket bridge ───────────────────────────────────────────
+// NOTE: Arduino R4 WiFi supports raw TCP, not WebSocket natively.
+// For browser access you have two options:
+//   A) Run the tiny Node.js bridge (bridge.js) that proxies TCP <-> WS
+//   B) Use the Python bridge (bridge.py)
+// Both are included in the package.
+// Set wsUrl to your bridge address:
+let ws = null;
+let seq = 1;
+let pendingCmds = {};
+
+function wsUrl() {
+  const host = document.getElementById('hostInput').value.trim();
+  const port = document.getElementById('portInput').value.trim();
+  // Bridge runs WebSocket on port+1 by default (e.g. TCP 9008 → WS 9009)
+  return `ws://${host}:${parseInt(port) + 1}`;
+}
+
+function toggleConnect() {
+  if (state.connected) {
+    disconnect();
+  } else {
+    connect();
+  }
+}
+
+function connect() {
+  setStatus('connecting', 'Connecting...');
+  try {
+    ws = new WebSocket(wsUrl());
+  } catch(e) {
+    setStatus('disconnected', 'Invalid address');
+    return;
+  }
+
+  ws.onopen = () => {
+    state.connected = true;
+    setStatus('connected', `Connected to ${document.getElementById('hostInput').value}`);
+    document.getElementById('connBtn').textContent = 'Disconnect';
+    runInitSequence();
+  };
+
+  ws.onmessage = (e) => {
+    e.data.split('\n').forEach(line => {
+      line = line.trim();
+      if (line) processIncoming(line);
+    });
+  };
+
+  ws.onclose = () => { onDisconnected(); };
+  ws.onerror = () => { onDisconnected(); };
+}
+
+function disconnect() {
+  if (ws) ws.close();
+}
+
+function onDisconnected() {
+  state.connected = false;
+  ws = null;
+  setStatus('disconnected', 'Disconnected');
+  document.getElementById('connBtn').textContent = 'Connect';
+}
+
+// ── Protocol ───────────────────────────────────────────────────
+function sendCmd(cmd) {
+  if (!ws || ws.readyState !== WebSocket.OPEN) return -1;
+  const s = seq++;
+  const line = `C${s}|${cmd}\r\n`;
+  ws.send(line);
+  log(`→ ${line.trim()}`, 'sys');
+  return s;
+}
+
+function runInitSequence() {
+  sendCmd('antenna list');
+  sendCmd('band list');
+  sendCmd('port get 1');
+  sendCmd('port get 2');
+  sendCmd('sub port all');
+}
+
+function processIncoming(line) {
+  log(`← ${line}`);
+
+  if (line.startsWith('R')) {
+    // Response: R<seq>|<code>|<body>
+    const parts = line.slice(1).split('|');
+    // responses handled via status pushes after sub
+  } else if (line.startsWith('S0|')) {
+    processStatus(line.slice(3));
+  }
+}
+
+function processStatus(body) {
+  const kv = parseKV(body);
+  const type = body.split(' ')[0];
+
+  if (type === 'antenna') {
+    const ant = {
+      id: parseInt(kv.id || 0),
+      name: kv.name || `Antenna ${kv.id}`,
+      txBandMask: parseInt(kv.txBandMask || 'FFFF', 16),
+      rxBandMask: parseInt(kv.rxBandMask || 'FFFF', 16),
+      rxOnly: kv.rxOnly === '1',
+    };
+    // Update or insert
+    const idx = state.antennas.findIndex(a => a.id === ant.id);
+    if (idx >= 0) state.antennas[idx] = ant;
+    else state.antennas.push(ant);
+    state.antennas.sort((a,b) => a.id - b.id);
+    buildGrids();
+
+  } else if (type === 'band') {
+    const band = {
+      id: parseInt(kv.id || 0),
+      name: kv.name || `Band ${kv.id}`,
+    };
+    const idx = state.bands.findIndex(b => b.id === band.id);
+    if (idx >= 0) state.bands[idx] = band;
+    else state.bands.push(band);
+
+  } else if (type === 'port') {
+    const p = {
+      portId: parseInt(kv.id || 0),
+      autoMode: kv.auto === '1',
+      band: parseInt(kv.band || 0),
+      rxAntenna: parseInt(kv.rxant || 0),
+      txAntenna: parseInt(kv.txant || 0),
+      transmitting: kv.tx === '1',
+      inhibited: kv.inhibited === '1',
+      inhibitReason: kv.reason || '',
+    };
+    if (p.portId === 1) Object.assign(state.portA, p);
+    if (p.portId === 2) Object.assign(state.portB, p);
+    renderPorts();
+
+  } else if (type === 'device') {
+    // Welcome / prologue — trigger init
+    log('Device ready', 'sys');
+  }
+}
+
+function parseKV(text) {
+  const result = {};
+  // Match key=value, handling values that may be empty
+  const re = /(\w+)=([^\s]*)/g;
+  let m;
+  while ((m = re.exec(text)) !== null) {
+    result[m[1]] = m[2];
+  }
+  return result;
+}
+
+// ── Commands ───────────────────────────────────────────────────
+function selectAntenna(portId, antId) {
+  sendCmd(`port set ${portId} rxant=${antId} txant=${antId}`);
+}
+
+function setAuto(portId, on) {
+  sendCmd(`port set ${portId} auto=${on ? 1 : 0}`);
+}
+
+function toggleTx(portId) {
+  const p = portId === 1 ? state.portA : state.portB;
+  const newTx = !p.transmitting;
+  sendCmd(`interlock set radio${portId === 1 ? 'A' : 'B'}=${newTx ? 1 : 0} band=${p.band}`);
+}
+
+// ── Render ─────────────────────────────────────────────────────
+function buildGrids() {
+  buildGrid('gridA', 1);
+  buildGrid('gridB', 2);
+}
+
+function buildGrid(gridId, portId) {
+  const grid = document.getElementById(gridId);
+  grid.innerHTML = '';
+  const count = Math.max(state.antennas.length, state.antCount);
+  for (let i = 1; i <= count; i++) {
+    const ant = state.antennas.find(a => a.id === i);
+    const name = antNames[i] || (ant ? ant.name : `Ant ${i}`);
+    const btn = document.createElement('button');
+    btn.className = 'ant-btn';
+    btn.id = `ant-${portId}-${i}`;
+    btn.innerHTML = `<span class="ant-num">${i}</span><span class="ant-lbl">${name}</span>`;
+    btn.onclick = () => selectAntenna(portId, i);
+    grid.appendChild(btn);
+  }
+}
+
+function renderPorts() {
+  renderPort('A', state.portA);
+  renderPort('B', state.portB);
+  renderInterlock();
+}
+
+function renderPort(letter, p) {
+  const card = document.getElementById(`card${letter}`);
+  card.classList.toggle('tx-active', p.transmitting && !p.inhibited);
+  card.classList.toggle('inhibited', p.inhibited);
+
+  const band = state.bands.find(b => b.id === p.band);
+  document.getElementById(`band${letter}`).textContent =
+    `Band: ${band ? band.name : '—'}  |  RX: Ant ${p.rxAntenna || '—'}  TX: Ant ${p.txAntenna || '—'}`;
+
+  document.getElementById(`meta${letter}`).textContent =
+    p.inhibited ? `⚠ INHIBITED` : (p.transmitting ? '● TX' : '');
+
+  document.getElementById(`auto${letter}`).checked = p.autoMode;
+
+  const txBtn = document.getElementById(`txBtn${letter}`);
+  txBtn.classList.toggle('active', p.transmitting);
+  txBtn.textContent = p.transmitting ? 'TX ●' : 'TX';
+
+  // Update antenna button states
+  const count = Math.max(state.antennas.length, state.antCount);
+  for (let i = 1; i <= count; i++) {
+    const btn = document.getElementById(`ant-${letter === 'A' ? 1 : 2}-${i}`);
+    if (!btn) continue;
+    const isRx = p.rxAntenna === i;
+    const isTx = p.txAntenna === i;
+    btn.className = 'ant-btn';
+    if (isRx && isTx) btn.classList.add('rxtx-selected');
+    else if (isRx)    btn.classList.add('rx-selected');
+    else if (isTx)    btn.classList.add('tx-selected');
+  }
+}
+
+function renderInterlock() {
+  const banner = document.getElementById('interlockBanner');
+  const msg = document.getElementById('interlockMsg');
+  if (state.portA.inhibited || state.portB.inhibited) {
+    const reason = state.portA.inhibited ? state.portA.inhibitReason : state.portB.inhibitReason;
+    msg.textContent = reason;
+    banner.classList.add('visible');
+  } else {
+    banner.classList.remove('visible');
+  }
+}
+
+// ── Status bar ─────────────────────────────────────────────────
+function setStatus(cls, text) {
+  const dot = document.getElementById('dot');
+  dot.className = 'status-dot ' + cls;
+  document.getElementById('statusText').textContent = text;
+}
+
+// ── Log ────────────────────────────────────────────────────────
+function log(text, cls) {
+  const box = document.getElementById('log');
+  const line = document.createElement('div');
+  if (cls) line.className = cls;
+  line.textContent = text;
+  box.appendChild(line);
+  box.scrollTop = box.scrollHeight;
+  // Keep last 200 lines
+  while (box.children.length > 200) box.removeChild(box.firstChild);
+}
+
+// ── Antenna name editor ────────────────────────────────────────
+function buildNameEditor() {
+  const grid = document.getElementById('nameGrid');
+  grid.innerHTML = '';
+  for (let i = 1; i <= 8; i++) {
+    const row = document.createElement('div');
+    row.className = 'name-row';
+    row.innerHTML = `
+      <span class="name-num">${i}</span>
+      <input class="name-input" type="text" placeholder="Antenna ${i}"
+        value="${antNames[i] || ''}"
+        oninput="saveAntName(${i}, this.value)">
+    `;
+    grid.appendChild(row);
+  }
+}
+
+function saveAntName(id, name) {
+  antNames[id] = name;
+  localStorage.setItem('antNames', JSON.stringify(antNames));
+  buildGrids();
+}
+
+// ── Init ───────────────────────────────────────────────────────
+buildGrids();
+buildNameEditor();
+renderPorts();
+log('Dashboard ready. Connect to your Arduino R4 WiFi to begin.', 'sys');
+log('Note: requires WebSocket bridge (bridge.js or bridge.py).', 'sys');
+</script>
+</body>
+</html>
