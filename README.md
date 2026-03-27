@@ -58,7 +58,7 @@ If you are new to Arduino or amateur radio electronics, don't worry — this gui
 |---|---|
 | Arduino Uno R4 WiFi | The brains of the system — includes onboard WiFi and LED matrix |
 | Nextion NX4832T035 | 3.5 inch colour touchscreen display (or similar Nextion model) |
-| 4x 5V relay module | Single pole, for antenna switching (one relay per antenna port) |
+| 4x 12V relay module | Single pole, for antenna switching (one relay per antenna port) |
 | Custom Arduino shield | PCB or veroboard shield carrying relays, transistor drivers and connectors |
 | 12V DC power supply | Powers relay coils via the shield |
 | Buck converter (10A) | Steps 12V down to 5V for the Arduino and shield logic |
