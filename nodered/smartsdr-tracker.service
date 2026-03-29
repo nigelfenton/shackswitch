@@ -1,0 +1,13 @@
+[Unit]
+Description=SmartSDR Band Tracker for ShackSwitch
+After=network.target
+
+[Service]
+Type=simple
+User=nigel
+ExecStart=/usr/bin/python3 /home/nigel/.node-red/smartsdr.py
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
