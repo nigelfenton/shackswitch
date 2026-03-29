@@ -1,8 +1,39 @@
 # Changelog
-## G0JKN SmartSwitch — Open Source Shack Controller
+## G0JKN ShackSwitch — Open Source Shack Controller
 
 All notable changes to this project are documented here.  
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) conventions.
+
+---
+
+## [1.5] - 2026-03-27
+
+### Added
+- **TCP control protocol** on port 9008 — line-based command/response protocol for AetherSDR and Node-RED integration
+  - Commands: `ping`, `antenna list`, `band list`, `port get`, `port set`, `sub port all`, `interlock set`
+  - Responses prefixed `R[seq]|code|body`, unsolicited events prefixed `S0|`
+  - TCP keepalive — `S0|ping` sent every 30 seconds to connected client
+- **UDP discovery beacon** — broadcasts device identity every 5 seconds on port 9008, enabling auto-discovery by AetherSDR and other network clients
+- **Two input port model** — `portA` (Input 1 / Slice A) and `portB` (Input 2 / Slice B) structs track band, antenna selection, TX state and inhibit status independently
+- **FlexRadio band tracking** — band definitions for 160m through 6m with frequency range lookup (`bandForFreq()`) and name reverse lookup for REST endpoint
+- **SO2R interlock** (`evaluateInterlock()`) — inhibits Input 2 when both inputs are simultaneously transmitting on the same band or same antenna. Interlock state pushed to TCP client and Nextion
+- **Nextion band display** — `tBandA`, `tBandB`, `tSO2R` components updated via `updateNextionBandDisplay()` after any relay change, band update or interlock evaluation
+- **REST `/setband` endpoint** — `GET /setband?input=[1|2]&band=[name]` sets band for Input 1 or 2 by name string (e.g. `40m`), performs reverse lookup to band ID, calls `evaluateInterlock()` and updates Nextion. Returns JSON with input, band, bandId and so2r state
+- **`/status` extended** — now returns `bandA`, `bandB` and `so2r` fields alongside relay states
+- **Live web band panel** — band and SO2R status panel on main web page now updates automatically from the existing 5-second `/status` poll. No additional HTTP requests. SO2R OK shown in green, INHIBIT in orange
+- **SmartSDR Python integration service** (`nodered/smartsdr.py`) — runs on a Raspberry Pi, connects to FlexRadio SmartSDR on TCP port 4992, subscribes to slice frequency events, maps frequency to band name, calls `/setband` on band change. Only fires on actual band change, not every VFO movement
+- **systemd service file** (`nodered/smartsdr-tracker.service`) — installs `smartsdr.py` as a persistent system service that starts automatically on Pi boot and restarts on failure
+
+### Changed
+- `showMainPage()` — band and SO2R panel now uses span IDs (`bandA`, `bandB`, `so2r`) targeted by the JavaScript polling loop. CSS classes `so2rok` (green) and `so2rwarn` (orange) added
+- Firmware fully commented throughout — all structs, functions and web server route handlers have doc-style block comments
+- `triggers.ino` fully commented — trigger assignment table in file header, each function has purpose and behaviour documented
+- Version string updated to 1.5.0
+
+### Architecture
+- Two input port architecture clarified — Input 1 and Input 2 are the correct terms. Current setup: Input 1 = FlexRadio Slice A, Input 2 = FlexRadio Slice B. Supports both single-radio dual-slice and two-radio configurations without firmware changes
+- FlexRadio multi-RX noted — TX slice is the safety-critical path for antenna switching. RX-only slice band changes do not drive relay selection. Multi-RX within a single slice is a known future consideration
+- `port set` handler notes that Port B relay bank requires KK1L expansion board (not yet built)
 
 ---
 
@@ -13,61 +44,54 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) conventi
 #### Added
 - 8x SMD transistor arrays replacing through-hole components — doubles drive capacity for future 8-relay expansion
 - Additional 4-way screw terminal connectors for easy daisy-chaining to secondary relay/switch PCBs
-- I2C expansion header (SDA, SCL, VCC, GND) — ready for MCP23017 GPIO expander and Radioberry integration
+- I2C expansion header (SDA, SCL, VCC, GND) — ready for MCP23017 GPIO expander integration
 - Gerber files exported from Fusion 360 and added to `hardware/gerbers/shackswitch-shield-v2.zip`
 
 #### Changed
-- Migrated transistor drivers from through-hole to SMD for significant space saving on the board
+- Migrated transistor drivers from through-hole to SMD for significant space saving
 - Improved connector layout for cleaner wiring to external relay boards
 
 #### Notes
 - Shield v2 is a drop-in replacement for v1 — Arduino pin assignments unchanged
 - I2C header is passive (no I2C devices populated) — ready for v1.5 firmware expansion
-- Gerber zip can be submitted directly to JLCPCB, PCBWay or similar for fabrication
-- Considering this board for 2 x 6 ports to design https://kk1l.com/store/2x6-relay-board/
+- KK1L 2x6 relay board ordered — https://kk1l.com/store/2x6-relay-board/
 
 ---
 
 ## [1.4] - 2026-03-22
 
 ### Added
-- Antenna name labels on Nextion display (components t3–t6 positioned above each dual-state button)
-- `syncAntennaNames()` function — pushes all four antenna names from EEPROM to display on boot
-- Live JSON status endpoint (`/status`) returning current relay states as `{"r1":0,"r2":1,"r3":0,"r4":0}`
+- Antenna name labels on Nextion display (components t3–t6 above each dual-state button)
+- `syncAntennaNames()` — pushes all four antenna names from EEPROM to display on boot
+- Live JSON status endpoint (`/status`) returning `{"r1":0,"r2":1,"r3":0,"r4":0}`
 - JavaScript polling on web page — updates card state and button colour every 5 seconds without page refresh
-- Active antenna card highlighted in green on web page for quick visual identification
-- Web page version bumped to 1.4 in page title
+- Active antenna card highlighted in green on web page
 
 ### Changed
-- `connectToWiFi()` — replaced blind `delay(5000)` with a proper connection wait loop (polls every 500ms for up to 15 seconds), improving reliability on slow-starting routers
-- Web page cards now have unique IDs (`card1`–`card4`, `btn1`–`btn4`) for JavaScript targeting
-- Web server request handler order updated — `/status` now checked before `/settings` to prevent partial string matching
+- `connectToWiFi()` — replaced blind `delay(5000)` with a proper 15-second connection wait loop
+- Web page cards now have unique IDs for JavaScript targeting
+- Web server request handler order updated
 
 ### Fixed
-- IP address no longer wiped by `page 0` command on startup — IP write now correctly positioned after page load
-- Antenna names were not displayed on Nextion after migration to dual-state buttons — resolved by adding dedicated text label components and `syncAntennaNames()`
-- Web page rename handler now correctly targets Nextion label components (`rId + 2` offset maps relay 1→t3, relay 2→t4 etc.)
+- IP address no longer wiped by `page 0` command on startup
+- Antenna names not displayed on Nextion after migration to dual-state buttons
+- Web page rename handler now correctly targets Nextion label components
 
 ---
 
 ## [1.3] - 2026-03
 
 ### Added
-- Dual-state image buttons (b1–b4) on Nextion Page 0 replacing plain colour block buttons
-- `syncButtonStates()` function — single source of truth for pushing relay state to all four Nextion buttons via `.val` attribute
-- `syncButtonStates()` called in `trigger7()` to re-sync display after returning from WiFi config page
+- Dual-state image buttons (b1–b4) on Nextion Page 0
+- `syncButtonStates()` — single source of truth for relay state to Nextion buttons
 
 ### Changed
-- `controlRelay()` — replaced `.bco` background colour writes with `syncButtonStates()` call
-- Button state now controlled via `.val` (0=grounded image, 1=active image) instead of `.bco` colour
-- Old plain colour buttons (b1–b4) moved to Page 4 as backup reference, subsequently removed
-- Removed unused `NEXTION_GREEN` and `NEXTION_RED` constants
-- `setup()` — removed `.txt` writes to b1–b4 (dual-state buttons do not support `.txt`)
-- Version string updated to 1.3
+- `controlRelay()` — replaced `.bco` colour writes with `syncButtonStates()` call
+- Button state controlled via `.val` (0=grounded, 1=active) instead of `.bco` colour
 
 ### Fixed
-- Button state sync broken after renumbering — old `.bco` commands were targeting image-based components that do not support colour attributes
-- `trigger11()` and `trigger12()` conflict with relocated button IDs resolved by removing page 4 buttons
+- Button state sync broken after renumbering
+- `trigger11()` and `trigger12()` conflict resolved
 
 ---
 
@@ -76,23 +100,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) conventi
 ### Added
 - NTP time synchronisation on startup via `pool.ntp.org`
 - RTC update every 25 seconds, midnight re-sync
-- Station monitor page (Page 3) showing WiFi RSSI, signal quality bar and IP address
-- `onMonitorPage` flag — monitor page updates pause when not on Page 3
-- Factory reset function (`trigger8()`) with double-tap safety confirmation and 5 second timeout
-- WiFi config page (Page 2) with network scan (`trigger6()`), network selection and password entry (`trigger7()`)
-- Auto WiFi scan on entering config page (`trigger9()`)
-- `trigger11()` — sets `onMonitorPage = true` and triggers immediate monitor update on entering Page 3
-- `trigger12()` — clears `onMonitorPage` flag on leaving Page 3
+- Station monitor page (Page 3) — WiFi RSSI, signal quality bar and IP address
+- Factory reset (`trigger8()`) with double-tap safety confirmation and 5-second timeout
+- WiFi config page (Page 2) — network scan, selection and password entry
 - Non-blocking WiFi reconnect in main loop (retries every 30 seconds)
-- Reset safety timeout — resets `resetConfirmed` flag after 5 seconds if second tap not received
 
 ### Changed
 - WiFi credentials moved to `RelayConfig` struct and stored in EEPROM
-- Web settings page now supports antenna port renaming with URL-encoded input handling
 - `connectToWiFi()` separated into its own function
-
-### Fixed
-- WiFi disconnect message now shows correctly on display when connection is lost
 
 ---
 
@@ -100,17 +115,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) conventi
 
 ### Added
 - WiFi web server on port 80
-- Main web page showing all four antenna ports with name, state and toggle links
-- Web-based antenna control (`/1/on`, `/1/off` etc.)
+- Main web page with four antenna ports, names, state and toggle links
 - Web settings page (`/settings`) for renaming antenna ports
 - Antenna names stored in EEPROM and restored on boot
-- `RelayConfig` struct for organised EEPROM storage with magic number version check
-- `loadConfig()` and default name population on first boot
-- `showMainPage()` and `showSettingsPage()` web page generator functions
-
-### Changed
-- `controlRelay()` now updates Nextion button colours (`.bco`) as well as relay pins
-- IP address displayed on Nextion after WiFi connect
+- `RelayConfig` struct with EEPROM magic number version check
 
 ---
 
@@ -119,67 +127,35 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) conventi
 ### Added
 - Initial release
 - 4-relay antenna switching on Arduino Uno R4 WiFi (pins D2–D5)
-- Nextion 3.5 inch touchscreen control via EasyNextionLibrary on Serial1
-- `trigger1()` – `trigger4()` touch event handlers for antenna selection
-- Single-antenna enforcement — activating one relay grounds all others
-- `updateAntennaStatus()` — monitors relay pins and updates Nextion status text and colour
-- Arduino LED Matrix display showing active relay number (R1–R4) or ground symbol
-- `displayGroundSymbol()` — custom ground schematic symbol on LED matrix
-- `updateMatrix()` — scrolling relay number display on LED matrix
+- Nextion 3.5" touchscreen control via EasyNextionLibrary on Serial1
+- `trigger1()` – `trigger4()` touch event handlers
+- Single-antenna enforcement
+- Arduino LED Matrix display — active relay number or ground symbol
 - Basic WiFi connection on startup
-- 3D printed enclosure designed in Fusion 360 (200 x 70 x 135mm)
+- 3D printed enclosure (Fusion 360)
 - Custom Arduino shield with relay drivers, transistors and flyback diodes
 - SO239 RF connectors — 1 input, 4 antenna outputs
-- 12V DC powered relay coils, buck converter for Arduino 5V supply
 
 ---
 
 ## Planned / In Development
 
-### Near Term — Hardware (v2 Shield + Adafruit Drivers)
-- Two Adafruit 8-channel I2C solenoid driver boards (MCP23017 based, 0x20 and 0x21)
-- Input 1 relay bank (ANT 1-8) via Arduino D2-D9 direct GPIO
-- Input 2 relay bank (ANT 1-8) via MCP23017 0x20 (Adafruit board 1)
-- Shack switching relays 1-4 via MCP23017 0x21 (Adafruit board 2)
-- BCD band decoder input/output via MCP23017 spare GPIO pins
-- Standard 4-pin I2C header (SDA, SCL, 5V, GND) for Radioberry and external devices
-- TX inhibit output pin for future PA protection interlock
+### Near Term
+- KK1L 2x6 relay board build — hardware ordered. Requires ULN2803 driver stage for 12V relay coils from MCP23017 outputs
+- MCP23017 #1 (0x20) firmware — drives KK1L relay matrix (GPA1-6 = Input 1 ports 1-6, GPB1-6 = Input 2 ports 1-6)
+- MCP23017 #2 (0x21) firmware — boot-time hardware config detection (board type, input count, radio type, PA present). No reflash required when changing hardware configuration
+- Test plan update for v1.5 features and KK1L expansion build
+- Node-RED flow for SmartSDR integration — complements existing Python service, adds visual flow management
+- AetherSDR issue #179 — native antenna switch panel in Qt6 client
 
-### Near Term — Software (v1.5)
-- Expanded `relayPins[]` array to cover D2-D9 (8 direct channels)
-- Switch mode selector: MODE_1x4, MODE_1x8, MODE_SO2R, MODE_DIV
-- Mode stored in EEPROM — survives power cycles
-- `connectInput(int input, int antenna)` replacing `controlRelay()`
-- SO2R conflict prevention logic — blocks shared antenna between inputs
-- Diversity RX mode — Input 2 flagged RX only, TX blocked on Input 2
-- Antenna names expanded to 8 ports in RelayConfig struct
-- Input 1 and Input 2 names stored in EEPROM
-- MCP23017 shack relay control with web and Nextion integration
-- Extended Nextion pages — 2x8 matrix display, mode selector, conflict warnings
-- Node-RED integration with FlexRadio SmartSDR via `node-red-contrib-flexradio`
-- Automatic antenna switching based on VFO frequency / band
-- BCD band decoder output (to downstream filter banks and accessories)
-- BCD band decoder input (from Radioberry or external band decoder)
-- Radioberry I2C interface — forward/reverse power monitoring and temperature
-- PA protection — auto-switch to dummy load if output power exceeds threshold
-
-### Long Term — Hardware (v3 Unified Board)
-- Single unified PCB replacing Arduino R4 WiFi + shield + driver boards
-- Incorporates Arduino R4 WiFi open source hardware design (RA4M1 + ESP32-S3)
-- Two MCP23017 I2C expanders onboard
-- 16x SMD transistor drivers onboard
-- All connectors: RF, screw terminals, I2C header, Nextion, BCD, power
-- JLCPCB PCBA (PCB Assembly) service for SMD component sourcing and soldering
-- Dramatically reduced footprint and improved reliability (fewer inter-board connectors)
-- RFI encapsulation friendly — relay section separable from controller section
-- Potential kit offering for the amateur radio community
-
-### Long Term — Software (v2.0)
-- AetherSDR native integration panel (feature request #179 on AetherSDR GitHub)
-- Auto antenna switching driven by AetherSDR slice frequency data
-- SO2R aware — AetherSDR slice TX/RX state drives Input 1/2 routing automatically
-- Diversity mode driven by AetherSDR dual-receive slice configuration
-- Full station management dashboard
+### Roadmap
+- MCP23017 #3 (0x22) — shack switching (amps, lights, PSU sequencing)
+- PA protection — TX slice tracking feeds into sequencer. Must not fire PA on wrong antenna
+- Multi-RX slice handling — FlexRadio can present up to 4 RX streams, 2 per slice, TX on one only. RX-only paths do not drive antenna switching
+- BCD band decoder input/output
+- Radioberry I2C interface — forward/reverse power and temperature monitoring
+- AetherSDR SO2R aware switching — slice TX/RX state drives Input 1/2 routing automatically
+- Unified PCB (v3) — single board incorporating Arduino R4 WiFi design, two MCP23017 expanders, 16x SMD transistor drivers, all connectors
 
 ---
 

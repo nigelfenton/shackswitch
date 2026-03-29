@@ -1,7 +1,7 @@
-# G0JKN SmartSwitch
+# G0JKN ShackSwitch
 ### Open Source Shack Controller for HF Stations
 
-![Version](https://img.shields.io/badge/version-1.4-blue)
+![Version](https://img.shields.io/badge/version-1.5-blue)
 ![Platform](https://img.shields.io/badge/platform-Arduino%20Uno%20R4%20WiFi-green)
 ![License](https://img.shields.io/badge/license-MIT-orange)
 
@@ -10,19 +10,19 @@
 ## Photos
 
 ![Nextion Touchscreen Display](https://raw.githubusercontent.com/nigelfenton/shackswitch/main/images/nextion-display.jpeg)
-*Front panel — Nextion 3.5" touchscreen showing all four antenna ports grounded, NTP clock and IP address. 3D printed enclosure designed in Fusion 360.*
+*Front panel — Nextion 3.5" touchscreen showing antenna ports, band display, SO2R status, NTP clock and IP address. 3D printed enclosure designed in Fusion 360.*
 
 ![Back Panel](https://raw.githubusercontent.com/nigelfenton/shackswitch/main/images/back-panel.jpeg)
 *Rear panel — five SO239 connectors (one radio input, four antenna outputs), 12V DC power connector with XT60, and USB port for programming. Blue power LED visible.*
 
 ![Web Interface](https://raw.githubusercontent.com/nigelfenton/shackswitch/main/images/web-interface.jpeg)
-*Web interface running on Safari at 10.0.0.86 — all four ports shown with antenna names and current state. Updates automatically every 5 seconds.*
+*Web interface — four antenna ports with live band and SO2R status panel. Updates automatically every 5 seconds.*
 
 ---
 
 ## What Is This?
 
-The G0JKN SmartSwitch is an open source shack controller designed and built by **G0JKN** as a hobby project. It started life as a simple 4-port antenna switcher and has grown into a full station management system covering antenna switching, shack power control, and network integration with modern SDR radios like the FlexRadio 6000 series.
+The G0JKN ShackSwitch is an open source shack controller designed and built by **G0JKN** as a hobby project. It started life as a simple 4-port antenna switcher and has grown into a full station management system covering antenna switching, SO2R interlock, automatic band tracking via FlexRadio SmartSDR, and network integration via a TCP control protocol and REST API.
 
 If you are new to Arduino or amateur radio electronics, don't worry — this guide explains everything step by step. If you are an experienced builder, feel free to skip ahead to the sections most relevant to you.
 
@@ -31,22 +31,27 @@ If you are new to Arduino or amateur radio electronics, don't worry — this gui
 ## Features
 
 - **4-port antenna switching** — select between up to 4 antennas with a single button press
-- **Touchscreen control** — Nextion colour display with image-based dual-state buttons
+- **Touchscreen control** — Nextion colour display with dual-state image buttons
 - **Web interface** — control and monitor the switcher from any browser on your network, including mobile devices
-- **Live web updates** — the web page reflects changes made on the touchscreen within 5 seconds automatically, no page refresh needed
-- **Antenna labels** — each port displays its assigned antenna name (up to 22 characters) on the touchscreen
+- **Live web updates** — relay state, band display and SO2R status all update automatically every 5 seconds
+- **Band display** — tBandA and tBandB show current band for Input 1 and Input 2 on the Nextion and web page
+- **SO2R interlock** — inhibits second input if both are transmitting on the same band or same antenna
+- **FlexRadio band tracking** — automatic antenna switching driven by SmartSDR frequency data via Raspberry Pi Python service
+- **TCP control protocol** — port 9008, compatible with AetherSDR and Node-RED integration
+- **UDP discovery beacon** — auto-discovery by network clients every 5 seconds
+- **REST API** — full HTTP endpoint set including /setband for band updates
+- **Antenna labels** — each port displays its assigned antenna name on the touchscreen and web page
 - **WiFi connected** — built-in web server, NTP time sync, and network integration
 - **LED Matrix display** — shows active relay or grounded state on the Arduino's onboard matrix
 - **EEPROM storage** — antenna names and WiFi credentials survive power cycles
 - **Factory reset** — double-tap safety reset accessible from the touchscreen
-- **Web-based renaming** — rename antenna ports from any browser without reprogramming
 
-### Coming Soon
-- 4 additional shack switching relays (amps, lights, PSU remote) via MCP23017 I2C expander
-- Node-RED integration with FlexRadio SmartSDR for automatic band-based antenna switching
+### Planned / Coming Soon
+- KK1L 2x6 relay board expansion — upgrades to 2-input, 6-output matrix via MCP23017 I2C expanders
+- Additional shack switching relays (amps, lights, PSU remote) via MCP23017
 - BCD band decoder input and output
-- Radioberry I2C interface for power, SWR and temperature monitoring
-- PA protection / dummy load auto-switching
+- PA protection / sequencer integration
+- AetherSDR native integration panel (issue #179)
 
 ---
 
@@ -58,17 +63,15 @@ If you are new to Arduino or amateur radio electronics, don't worry — this gui
 |---|---|
 | Arduino Uno R4 WiFi | The brains of the system — includes onboard WiFi and LED matrix |
 | Nextion NX4832T035 | 3.5 inch colour touchscreen display (or similar Nextion model) |
-| 4x 12V relay module | Single pole, for antenna switching (one relay per antenna port) |
+| 4x relay module | Single pole, for antenna switching (one relay per antenna port) |
 | Custom Arduino shield | PCB or veroboard shield carrying relays, transistor drivers and connectors |
 | 12V DC power supply | Powers relay coils via the shield |
-| Buck converter (10A) | Steps 12V down to 5V for the Arduino and shield logic |
+| Buck converter | Steps 12V down to 5V for the Arduino and shield logic |
+| Raspberry Pi (any model) | Required for SmartSDR band tracking (runs smartsdr.py service) |
 
 ### RF Connectors
 - 1x SO239 input (from radio)
 - 4x SO239 outputs (to antennas)
-
-### Back Panel Connectors
-- All RF and control connections are brought out to the rear panel for a clean installation
 
 ---
 
@@ -76,84 +79,145 @@ If you are new to Arduino or amateur radio electronics, don't worry — this gui
 
 ### The Basic Idea
 
-The SmartSwitch sits between your radio and your antennas. Your radio connects to the single RF input, and each of your antennas connects to one of the four RF output ports. Pressing a button on the touchscreen (or clicking in the web interface) activates the corresponding relay, connecting that antenna to the radio and grounding all others.
+The ShackSwitch sits between your radio and your antennas. Your radio connects to the single RF input, and each of your antennas connects to one of the four RF output ports. Pressing a button on the touchscreen (or clicking in the web interface) activates the corresponding relay, connecting that antenna to the radio and grounding all others.
 
 ```
 Radio TX/RX
     │
     │  SO239 in
     ▼
-┌─────────────────┐
-│  G0JKN          │
-│  SmartSwitch    │──── Relay 1 ──► SO239 ──► Antenna 1 (e.g. 20m Inverted V)
-│                 │──── Relay 2 ──► SO239 ──► Antenna 2 (e.g. 40m Dipole)
-│  Arduino R4     │──── Relay 3 ──► SO239 ──► Antenna 3
-│  Nextion 3.5"   │──── Relay 4 ──► SO239 ──► Antenna 4
-└─────────────────┘
-    │
-    │  WiFi
-    ▼
-Web Browser / Node-RED / SmartSDR
+┌─────────────────────┐
+│  G0JKN ShackSwitch  │──── Relay 1 ──► SO239 ──► Antenna 1
+│                     │──── Relay 2 ──► SO239 ──► Antenna 2
+│  Arduino R4 WiFi    │──── Relay 3 ──► SO239 ──► Antenna 3
+│  Nextion 3.5"       │──── Relay 4 ──► SO239 ──► Antenna 4
+└─────────────────────┘
+    │              ▲
+    │  WiFi        │ HTTP /setband
+    ▼              │
+Web Browser    Raspberry Pi
+               smartsdr.py
+                   ▲
+                   │ TCP port 4992
+                   │
+              FlexRadio SmartSDR
 ```
 
-### Only One Antenna Active at a Time
+### Two Input Ports
 
-The SmartSwitch enforces a single-antenna rule — activating any antenna automatically grounds all others. This prevents accidentally connecting multiple antennas to the radio at the same time, which could cause damage or interference.
+The ShackSwitch is architecturally a two-input device, reflecting the KK1L 2x6 expansion board and the FlexRadio dual-slice model:
 
-### Touchscreen Buttons
+- **Input 1** = FlexRadio Slice A (TX capable)
+- **Input 2** = FlexRadio Slice B
 
-The Nextion display uses **dual-state image buttons** — each button has two images, one for the active (connected) state and one for the grounded state. When you press a button, the Arduino reads the touch event, toggles the relay, and sends the new button image state back to the screen. The antenna name for each port is displayed above its button.
+In a two-radio setup, Input 1 and Input 2 map to Radio A and Radio B respectively. The firmware tracks band and TX state for each input independently.
 
-### Web Interface
+### Automatic Band Tracking
 
-The Arduino runs a small web server on port 80. You can access it by typing the IP address shown on the touchscreen into any browser. The web page shows all four antenna ports with their names and current state, and updates automatically every 5 seconds without any page refresh.
+A Python service (`smartsdr.py`) runs on a Raspberry Pi on the same network. It connects to SmartSDR on TCP port 4992, subscribes to slice frequency events, and calls the ShackSwitch `/setband` REST endpoint whenever the band changes. The Nextion display and web page update automatically.
+
+### SO2R Interlock
+
+When both inputs are transmitting simultaneously, the firmware evaluates interlock conditions:
+- **Same antenna conflict** — Input 2 inhibited
+- **Same band conflict** — Input 2 inhibited
+
+The Nextion tSO2R component shows **SO2R OK** (green) or **INHIBIT** (orange).
 
 ---
 
 ## Software Setup
 
-### What You Need
+### Arduino Firmware
 
-- [Arduino IDE](https://www.arduino.cc/en/software) (version 2.x recommended)
-- Arduino Uno R4 WiFi board support package (install via Boards Manager in the IDE)
-- [EasyNextionLibrary](https://github.com/Seithan/EasyNextionLibrary) (install via Library Manager)
-- [NTPClient](https://github.com/arduino-libraries/NTPClient) (install via Library Manager)
-- Nextion Editor (for uploading the HMI file to the display)
+**Libraries required** (install via Arduino IDE Library Manager):
+- `EasyNextionLibrary` by Seithan
+- `NTPClient` by Fabrice Weinberg
+- WiFi, RTC, EEPROM, LED Matrix and ArduinoGraphics are included with the R4 board package
 
-### Installing the Libraries
+**Upload:**
+1. Open `shackswitch.ino` and `triggers.ino` in the Arduino IDE — both must be in the same folder
+2. Select **Tools → Board → Arduino Uno R4 WiFi**
+3. Select the correct COM port
+4. Click **Upload**
 
-1. Open the Arduino IDE
-2. Go to **Sketch → Include Library → Manage Libraries**
-3. Search for and install:
-   - `EasyNextionLibrary` by Seithan
-   - `NTPClient` by Fabrice Weinberg
-4. The WiFi, RTC, EEPROM, LED Matrix and ArduinoGraphics libraries are all included with the R4 board package
+**Configure WiFi:**
+Edit the `loadConfig()` function defaults before uploading, or use the touchscreen WiFi config page after upload.
 
-### Configuring Your WiFi
+**Important — boot order:**
+Always apply 12V power before or simultaneously with USB. The Nextion runs from 12V — if the Arduino boots before 12V is connected, the boot-time display sync commands are lost.
 
-Open `shackswitch.ino` and find the `loadConfig()` function. The default credentials are:
+### Nextion HMI
 
-```cpp
-strncpy(myConfig.wifiSSID, "your_wifi_name", 33);
-strncpy(myConfig.wifiPass, "your_wifi_password", 64);
+Copy the `.HMI` file to a FAT32 microSD card, insert into the Nextion, and power the display. It flashes automatically. Remove the card when complete.
+
+### SmartSDR Band Tracker (Raspberry Pi)
+
+The `smartsdr.py` script connects to your FlexRadio and calls `/setband` automatically on band changes.
+
+**Install:**
+```bash
+# Copy the script
+cp smartsdr.py ~/.node-red/smartsdr.py
+
+# Edit the IP addresses at the top of the file
+nano ~/.node-red/smartsdr.py
+# FLEX_IP = "your.flex.ip.address"
+# SHACKSWITCH_IP = "your.shackswitch.ip.address"
+
+# Install as a systemd service
+sudo cp smartsdr-tracker.service /etc/systemd/system/
+sudo systemctl enable smartsdr-tracker.service
+sudo systemctl start smartsdr-tracker.service
 ```
 
-Replace these with your own network details before uploading. Once uploaded, you can also change WiFi settings through the touchscreen config page without reprogramming.
+**Check it's running:**
+```bash
+sudo systemctl status smartsdr-tracker.service
+```
 
-### Uploading to the Arduino
+---
 
-1. Connect the Arduino Uno R4 WiFi to your PC via USB
-2. Open both `shackswitch.ino` and `triggers.ino` in the Arduino IDE — they must be in the same folder
-3. Select **Tools → Board → Arduino Uno R4 WiFi**
-4. Select the correct COM port under **Tools → Port**
-5. Click **Upload**
+## REST API
 
-### Uploading the Nextion HMI File
+| Endpoint | Description |
+|---|---|
+| `GET /status` | Returns relay states, bandA, bandB and so2r as JSON |
+| `GET /[n]/on` | Activate relay n (1–4), ground all others |
+| `GET /[n]/off` | Ground relay n |
+| `GET /rename?id=[n]&name=[name]` | Rename antenna port n, persist to EEPROM |
+| `GET /setband?input=[1\|2]&band=[name]` | Set band for Input 1 or 2 (e.g. 40m) |
+| `GET /settings` | Settings web page |
 
-1. Copy the `.HMI` file to a microSD card (FAT32 formatted)
-2. Insert the card into the Nextion display
-3. Power the display — it will flash the new firmware automatically
-4. Remove the card when complete
+**Example /status response:**
+```json
+{"r1":0,"r2":1,"r3":0,"r4":0,"bandA":"40m","bandB":"20m","so2r":0}
+```
+
+**Example /setband response:**
+```json
+{"input":1,"band":"40m","bandId":4,"so2r":false}
+```
+
+---
+
+## TCP Control Protocol (Port 9008)
+
+The ShackSwitch listens for TCP connections on port 9008. Commands are prefixed `C[seq]|`, responses are prefixed `R[seq]|code|` or `S0|` for unsolicited events.
+
+| Command | Description |
+|---|---|
+| `C1\|ping` | Keepalive check |
+| `C1\|antenna list` | List all configured antennas |
+| `C1\|band list` | List all bands with frequency ranges |
+| `C1\|port get [n]` | Get full state of input port n |
+| `C1\|port set [n] rxant=[n] band=[n]` | Set port parameters and drive relay |
+| `C1\|interlock set radioA=[0\|1] band=[n]` | Update TX state and trigger interlock |
+
+A UDP discovery beacon is broadcast every 5 seconds on port 9008:
+```
+SS name=ShackSwitch serial=SS-001 version=1.5.0 ip=[IP] port=9008 ant=4 radio=2
+```
 
 ---
 
@@ -186,138 +250,61 @@ Replace these with your own network details before uploading. Once uploaded, you
 
 ---
 
-## Nextion Display Layout (Page 0 — Main Page)
+## Nextion HMI Components (Page 0)
 
 | Component | Type | Purpose |
 |---|---|---|
-| b1 – b4 | Dual-state button | Antenna select (image-based, active/grounded) |
+| b1 – b4 | Dual-state button | Antenna select (active/grounded image) |
 | t3 – t6 | Text label | Antenna name above each button |
-| t1 | Text label | WiFi IP address |
-| t2 | Text label | Page header |
-| tState | Text label | ANT Active / ANT Grounded status |
+| tBandA | Text label | Current band for Input 1 / Slice A |
+| tBandB | Text label | Current band for Input 2 / Slice B |
+| tSO2R | Text label | SO2R OK (green) or INHIBIT (orange) |
+| tState | Text label | ANT Active / ANT Grounded |
 | tClock | Text label | Current time (NTP synced) |
-
-### Nextion Touch Events
-
-Each button sends a trigger command to the Arduino on touch release using the EasyNextionLibrary protocol:
-
-```
-printh 23 02 54 01   ← Button b1 (Antenna 1)
-printh 23 02 54 02   ← Button b2 (Antenna 2)
-printh 23 02 54 03   ← Button b3 (Antenna 3)
-printh 23 02 54 04   ← Button b4 (Antenna 4)
-```
-
-These map to `trigger1()` through `trigger4()` in `triggers.ino`.
-
----
-
-## Web Interface
-
-Once the Arduino is connected to WiFi, the IP address is shown on the Nextion display. Open that address in any browser on the same network.
-
-### Main Page (`/`)
-Shows all four antenna ports with their names. Active antenna is highlighted with a green card. Grounded antennas show in red. Click any button to switch.
-
-### Settings Page (`/settings`)
-Rename any antenna port. Changes are saved to EEPROM immediately and pushed live to the Nextion display — no reboot required.
-
-### Status Endpoint (`/status`)
-Returns a JSON object with current relay states — used by the web page's automatic 5-second update polling:
-
-```json
-{"r1":0,"r2":1,"r3":0,"r4":0}
-```
-
-This endpoint can also be used by external tools like Node-RED to monitor the switcher state.
-
----
-
-## Node-RED Integration (Advanced)
-
-For automatic antenna switching based on your radio's frequency, the SmartSwitch can be integrated with [Node-RED](https://nodered.org/) running on a Raspberry Pi.
-
-### What You Need
-- Raspberry Pi (any model — a Pi Zero 2W works perfectly)
-- Node-RED installed on the Pi
-- [node-red-contrib-flexradio](https://github.com/stephenhouser/node-red-contrib-flexradio) nodes for FlexRadio SmartSDR integration
-
-### How It Works
-
-```
-FlexRadio SmartSDR
-    │ TCP/IP API (network)
-    ▼
-Node-RED (Raspberry Pi)
-  [flexradio node] → reads VFO frequency
-  [band lookup]    → maps frequency to antenna port
-  [http request]   → POST to Arduino /setrelay
-    │
-    ▼
-G0JKN SmartSwitch
-  → activates correct antenna automatically
-  → updates Nextion display
-  → updates web interface
-```
-
-Node-RED handles all the SmartSDR protocol complexity, sending simple HTTP commands to the Arduino. The Arduino does not need to understand SmartSDR at all.
-
-*Full Node-RED flow files will be added to this repository when the integration is complete.*
-
----
-
-## Antenna Name Configuration
-
-Antenna names are stored in EEPROM and survive power cycles. They can be set in two ways:
-
-1. **Via the web settings page** — browse to `/settings`, type the new name (up to 22 characters) and click Save. The Nextion display updates immediately.
-
-2. **Via factory defaults** — edit the `loadConfig()` function in `shackswitch.ino` before uploading.
-
----
-
-## Factory Reset
-
-A factory reset clears all stored settings (antenna names and WiFi credentials) and restores defaults.
-
-**To reset:** Navigate to the config page on the Nextion and press the Reset button. A warning message appears — press Reset a second time within 5 seconds to confirm. The Arduino will reboot with default settings.
+| t1 | Text label | WiFi IP address |
 
 ---
 
 ## Troubleshooting
 
-**Display shows "N O T   C O N N E C T E D"**
-The Arduino cannot reach your WiFi network. Check your SSID and password in the sketch, or use the touchscreen WiFi config page to scan for and connect to your network.
+**Display shows "N O T C O N N E C T E D"**
+Check SSID and password in the sketch, or use the touchscreen WiFi config page.
 
-**Antenna names not showing on display after boot**
-Make sure your Nextion HMI file matches the component names expected by the firmware (t3–t6 for antenna labels). Re-upload the HMI file if in doubt.
+**tBandA / tBandB show "---" after boot**
+Normal — no band data has been received yet. Start `smartsdr.py` on the Pi and change band in SmartSDR. The display updates within seconds.
+
+**Nextion shows default antenna names after reflash**
+Boot order issue — ensure 12V is applied before or with USB power so the Nextion is ready when the Arduino runs setup().
+
+**Web page band panel not updating**
+Check `/status` returns `bandA` and `bandB` fields. If they show `---`, the `smartsdr.py` service is not running — check with `sudo systemctl status smartsdr-tracker.service`.
+
+**SmartSDR band tracker not connecting**
+Confirm the FlexRadio IP address in `smartsdr.py`. Test TCP connectivity with `nc -zv [flex-ip] 4992`. Check SmartSDR is running with an active slice.
 
 **Web page not updating after touchscreen button press**
-The web page polls for updates every 5 seconds. Wait a few seconds and it will update automatically. If it never updates, check that the Arduino's web server is accessible by browsing to the IP address directly.
-
-**Buttons show wrong image state after power-on**
-All relays are set to LOW (grounded) on startup. If your display shows buttons in the active state, check that the `syncButtonStates()` call in `setup()` is running after the `page 0` command.
+The web page polls every 5 seconds. Wait a few seconds — it will update automatically.
 
 ---
 
 ## Repository Structure
 
 ```
-G0JKN-SmartSwitch/
+shackswitch/
 ├── firmware/
-│   ├── shackswitch.ino       — main sketch, web server, relay control
-│   └── triggers.ino          — Nextion touch event handlers
+│   ├── shackswitch.ino           — main sketch, web server, TCP protocol, relay control
+│   └── triggers.ino              — Nextion touch event handlers
+├── nodered/
+│   ├── smartsdr.py               — SmartSDR band tracker (runs on Raspberry Pi)
+│   └── smartsdr-tracker.service  — systemd service file for auto-start on boot
 ├── nextion/
-│   └── shackswitch.HMI       — Nextion Editor project file
-├── hardware/
-│   ├── shield-schematic.pdf  — Arduino shield schematic
-│   └── BOM.csv               — Bill of materials
-├── enclosure/
-│   └── fusion360/            — 3D printable enclosure files
-│       ├── main-body.f3d
-│       └── back-panel.f3d
-├── node-red/
-│   └── smartsdr-flow.json    — Node-RED flow for FlexRadio integration (coming soon)
+│   └── shackswitch.HMI           — Nextion Editor project file
+├── hardwear/
+│   ├── shield-schematic.pdf      — Arduino shield schematic
+│   └── BOM.csv                   — Bill of materials
+├── docs/
+│   └── project-brief.docx        — full project brief and architecture document
+├── images/
 └── README.md
 ```
 
@@ -328,10 +315,11 @@ G0JKN-SmartSwitch/
 | Version | Changes |
 |---|---|
 | 1.0 | Initial release — basic 4 relay antenna switching, Nextion display |
-| 1.1 | Added WiFi web server and web-based antenna control |
-| 1.2 | Added NTP time sync, station monitor page, factory reset |
-| 1.3 | Migrated to dual-state image buttons on Nextion |
-| 1.4 | Added antenna name labels (t3–t6), live JSON web updates, improved WiFi connection handling |
+| 1.1 | WiFi web server, web-based antenna control, EEPROM name storage |
+| 1.2 | NTP time sync, station monitor page, factory reset, WiFi config page |
+| 1.3 | Dual-state image buttons on Nextion |
+| 1.4 | Antenna name labels, live JSON web updates, improved WiFi handling |
+| 1.5 | TCP control protocol (port 9008), UDP discovery beacon, FlexRadio band tracking, SO2R interlock, /setband REST endpoint, Nextion band display, live web band panel, SmartSDR Python integration service |
 
 ---
 
@@ -343,7 +331,7 @@ This project is released as open source under the **MIT Licence**. You are free 
 
 ## About
 
-Built by **G0JKN** — a retired amateur radio operator keeping the mind sharp one solder joint at a time. Designed in Fusion 360, coded in Arduino IDE, and tested in a real HF shack.
+Built by **G0JKN** — a retired amateur radio operator keeping the mind sharp one solder joint at a time. Designed in Fusion 360, coded in Arduino IDE, tested in a real HF shack with a FlexRadio 6700.
 
 Feedback, suggestions and pull requests welcome. If you build one, please share a photo!
 
