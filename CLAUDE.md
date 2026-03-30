@@ -17,9 +17,19 @@ Paste the raw URL of this file at the start of each session:
 
 ## Current Firmware Version
 
+**V2.0** - Arduino uno Q 
 **v1.5** — Arduino Uno R4 WiFi
 
 ### Files
+new v 2.0
+-- arduino-apps/first-app/sketch/sketch.ino
+-- arduino-apps/first-app/python/main.py
+-- arduino-apps/first-app/python/smartsdr.py
+-- arduino-apps/first-app/python/config.json (host: /home/arduino/shackswitch_config.json)
+
+
+
+
 - `firmware/shackswitch.ino` — main sketch
 - `firmware/triggers.ino` — Nextion touch event handlers
 - `nodered/smartsdr.py` — SmartSDR band tracker (runs on Raspberry Pi)
@@ -28,6 +38,8 @@ Paste the raw URL of this file at the start of each session:
 ---
 
 ## Hardware — Built and Verified
+
+move Uno R4 WiFi and Raspberry Pi 4 to "retired"
 
 | Item | Detail |
 |---|---|
@@ -47,6 +59,8 @@ Paste the raw URL of this file at the start of each session:
 ---
 
 ## Architecture
+update to show Uno Q with Flask/Bridge
+
 ```
 FlexRadio 6700 (10.0.0.250)
     TCP port 4992
