@@ -1,77 +1,148 @@
+// ============================================================
+//  G0JKN ShackSwitch — triggers.ino
+//  Nextion trigger callback functions v1.5
+//
+//  Trigger number map:
+//
+//  INPUT 1 (bA buttons) — printh 23 02 54 01-08
+//    trigger1  = bA1    printh 23 02 54 01
+//    trigger2  = bA2    printh 23 02 54 02
+//    trigger3  = bA3    printh 23 02 54 03
+//    trigger4  = bA4    printh 23 02 54 04
+//    trigger5  = bA5    printh 23 02 54 05
+//    trigger6  = bA6    printh 23 02 54 06
+//    trigger7  = bA7    printh 23 02 54 07
+//    trigger8  = bA8    printh 23 02 54 08
+//
+//  INPUT 2 (bB buttons) — printh 23 02 54 11-18
+//    trigger17 = bB1    printh 23 02 54 11
+//    trigger18 = bB2    printh 23 02 54 12
+//    trigger19 = bB3    printh 23 02 54 13
+//    trigger20 = bB4    printh 23 02 54 14
+//    trigger21 = bB5    printh 23 02 54 15
+//    trigger22 = bB6    printh 23 02 54 16
+//    trigger23 = bB7    printh 23 02 54 17
+//    trigger24 = bB8    printh 23 02 54 18
+//
+//  CONTROL functions — printh 23 02 54 21-26
+//    trigger33 = WiFi scan        printh 23 02 54 21
+//    trigger34 = WiFi connect     printh 23 02 54 22
+//    trigger35 = Factory reset    printh 23 02 54 23
+//    trigger36 = Enter config     printh 23 02 54 24
+//    trigger37 = Enter monitor    printh 23 02 54 25
+//    trigger38 = Leave monitor    printh 23 02 54 26
+//
+//  Unused slots: trigger9-16, trigger25-32
+// ============================================================
+
+
+// ============================================================
+//  INPUT 1 (bA) ANTENNA SELECTION
+//  Toggle: press active antenna to deselect,
+//          press inactive antenna to select
+// ============================================================
+
+void selectInputA(int ant) {
+  if (portA.rxAntenna == ant) {
+    // Deselect
+    portA.rxAntenna    = 0;
+    currentActiveRelay = 0;
+    if (ant <= RELAY_COUNT) digitalWrite(relayPins[ant - 1], LOW);
+  } else {
+    // Select — ground all relays first, then fire target
+    portA.rxAntenna    = ant;
+    currentActiveRelay = ant;
+    for (int i = 0; i < RELAY_COUNT; i++) {
+      digitalWrite(relayPins[i], (i == ant - 1) ? HIGH : LOW);
+    }
+  }
+  evaluateInterlock();
+  syncButtonStates();
+  syncAntennaNames();
+  updateAntennaStatus();
+  updateNextionBandDisplay();
+  Serial.print(F("[bA] Input 1 -> ANT ")); Serial.println(ant);
+}
+
+void trigger1() { selectInputA(1); }
+void trigger2() { selectInputA(2); }
+void trigger3() { selectInputA(3); }
+void trigger4() { selectInputA(4); }
+void trigger5() { selectInputA(5); }
+void trigger6() { selectInputA(6); }
+void trigger7() { selectInputA(7); }
+void trigger8() { selectInputA(8); }
+
+
+// ============================================================
+//  INPUT 2 (bB) ANTENNA SELECTION
+//  Interlock prevents selecting same antenna as Input 1.
+//  Physical relay not driven until KK1L board fitted.
+// ============================================================
+
+void selectInputB(int ant) {
+  // Interlock check — can't use same antenna as Input 1
+  if (portA.rxAntenna == ant) {
+    Serial.print(F("[INTERLOCK] bB")); Serial.print(ant);
+    Serial.println(F(" blocked — same as Input 1"));
+    // Flash tSO2R to warn user
+    myNex.writeStr("tSO2R.txt", "CONFLICT!");
+    myNex.writeNum("tSO2R.pco", 63488);  // red
+    delay(800);
+    updateNextionBandDisplay();  // restore correct state
+    return;
+  }
+
+  if (portB.rxAntenna == ant) {
+    // Deselect
+    portB.rxAntenna = 0;
+  } else {
+    // Select
+    portB.rxAntenna = ant;
+    // TODO: drive Port B relay bank when KK1L board fitted
+  }
+
+  evaluateInterlock();
+  syncButtonStates();
+  updateNextionBandDisplay();
+  Serial.print(F("[bB] Input 2 -> ANT ")); Serial.println(ant);
+}
+
+void trigger17() { selectInputB(1); }
+void trigger18() { selectInputB(2); }
+void trigger19() { selectInputB(3); }
+void trigger20() { selectInputB(4); }
+void trigger21() { selectInputB(5); }
+void trigger22() { selectInputB(6); }
+void trigger23() { selectInputB(7); }
+void trigger24() { selectInputB(8); }
+
+
+// ============================================================
+//  CONTROL FUNCTIONS
+// ============================================================
+
 /*
- * ============================================================
- *  G0JKN ShackSwitch — triggers.ino
- *  Nextion trigger callback functions
- *
- *  The EasyNextionLibrary calls trigger1() through trigger12()
- *  in response to Nextion touch events. Each Nextion button
- *  is configured in the HMI to send a printNum command on
- *  press, which the library maps to the corresponding
- *  trigger function here.
- *
- *  Trigger assignments:
- *    trigger1()  — Antenna 1 button (b1) pressed
- *    trigger2()  — Antenna 2 button (b2) pressed
- *    trigger3()  — Antenna 3 button (b3) pressed
- *    trigger4()  — Antenna 4 button (b4) pressed
- *    trigger6()  — WiFi manual scan (config page)
- *    trigger7()  — WiFi connect to selected network (config page)
- *    trigger8()  — Factory reset (double-tap, config page)
- *    trigger9()  — Enter config page (auto-scans on entry)
- *    trigger11() — Enter monitor page
- *    trigger12() — Leave monitor page
- *
- *  Note: trigger5() and trigger10() are intentionally unused.
- * ============================================================
+ * trigger33 — Manual WiFi network scan
+ * Disconnects, scans, writes up to 6 SSIDs to Nextion t0-t5
  */
-
-
-// ============================================================
-//  ANTENNA SELECTION TRIGGERS
-//  Each trigger toggles the corresponding relay. Because
-//  controlRelay() enforces the single-antenna rule, pressing
-//  an active button will ground it; pressing an inactive
-//  button will activate it and ground all others.
-// ============================================================
-
-void trigger1() { controlRelay(1, !digitalRead(relayPins[0])); }
-void trigger2() { controlRelay(2, !digitalRead(relayPins[1])); }
-void trigger3() { controlRelay(3, !digitalRead(relayPins[2])); }
-void trigger4() { controlRelay(4, !digitalRead(relayPins[3])); }
-
-
-// ============================================================
-//  WIFI CONFIG TRIGGERS
-// ============================================================
-
-/*
- * trigger6 — Manual WiFi network scan
- * ------------------------------------
- * Disconnects from current network, scans for available
- * SSIDs, and writes up to 6 results to Nextion text
- * components t0-t5 on the config page.
- * Unused slots are cleared to "-".
- */
-void trigger6() {
+void trigger33() {
   WiFi.disconnect();
   delay(500);
   int n = WiFi.scanNetworks();
-  for (int i = 0; i < 6; i++) {
+  for (int i = 0; i < 6; i++)
     myNex.writeStr("t" + String(i) + ".txt", (i < n) ? WiFi.SSID(i) : "-");
-  }
 }
 
 /*
- * trigger7 — Connect to selected WiFi network
- * --------------------------------------------
- * Reads the selected network index from Nextion numeric
- * component n0 and the password from tPass. Saves credentials
- * to EEPROM and attempts connection. Returns to page 0.
+ * trigger34 — Connect to selected WiFi network
+ * Reads selected index from n0, password from tPass.
+ * Saves to EEPROM and reconnects. Returns to correct page
+ * for current port mode.
  */
-void trigger7() {
+void trigger34() {
   int    idx  = myNex.readNumber("n0.val");
   String pass = myNex.readStr("tPass.txt");
-
   if (WiFi.SSID(idx) != nullptr) {
     strncpy(myConfig.wifiSSID, WiFi.SSID(idx), 33);
     pass.toCharArray(myConfig.wifiPass, 64);
@@ -79,30 +150,26 @@ void trigger7() {
     EEPROM.put(0, myConfig);
     onConfigPage = false;
     connectToWiFi();
-    myNex.writeStr("page 0");
+    switch (myConfig.portMode) {
+      case 1:  myNex.writeStr("page 1"); break;
+      case 2:  myNex.writeStr("page 2"); break;
+      default: myNex.writeStr("page 0"); break;
+    }
   }
 }
 
 /*
- * trigger8 — Factory reset (double-tap with 5-second window)
- * -----------------------------------------------------------
- * First tap: sets resetConfirmed flag, starts 5-second
- *            timeout, shows "TAP AGAIN!" on Nextion.
- * Second tap (within 5 seconds): clears EEPROM and reboots.
- *
- * If the second tap does not arrive within 5 seconds, the
- * main loop clears resetConfirmed and shows "Reset Canceled".
- *
- * WARNING: This erases all antenna names and WiFi credentials.
+ * trigger35 — Factory reset (double-tap, 5-second window)
+ * First tap: arms reset, shows TAP AGAIN! warning.
+ * Second tap within 5 seconds: wipes EEPROM and reboots.
+ * WARNING: clears all antenna names and WiFi credentials.
  */
-void trigger8() {
+void trigger35() {
   if (!resetConfirmed) {
-    // First tap — arm the reset, start safety timer
     resetConfirmed = true;
     resetTimer     = millis();
     myNex.writeStr("tStatus.txt", "TAP AGAIN!");
   } else {
-    // Second tap within timeout — perform factory reset
     for (int i = 0; i < (int)sizeof(myConfig); i++) EEPROM.write(i, 0xFF);
     delay(1000);
     NVIC_SystemReset();
@@ -110,39 +177,67 @@ void trigger8() {
 }
 
 /*
- * trigger9 — Enter WiFi config page
- * -----------------------------------
- * Sets the onConfigPage flag (suppresses background WiFi
- * reconnect attempts during config) and immediately triggers
- * a network scan so the list is populated on page entry.
+ * trigger36 — Enter WiFi config page
+ * Sets onConfigPage flag and auto-scans on entry.
  */
-void trigger9() {
+void trigger36() {
   onConfigPage = true;
-  trigger6();   // Auto-scan on page entry
+  trigger33();   // auto-scan on entry
 }
 
-
-// ============================================================
-//  MONITOR PAGE TRIGGERS
-// ============================================================
-
 /*
- * trigger11 — Enter station monitor page
- * ----------------------------------------
- * Sets the onMonitorPage flag and immediately pushes a
- * fresh RSSI and signal quality update to the display.
+ * trigger37 — Enter station monitor page
+ * Sets onMonitorPage flag and pushes fresh RSSI update.
  */
-void trigger11() {
+void trigger37() {
   onMonitorPage = true;
   updateStationMonitor();
 }
 
 /*
- * trigger12 — Leave station monitor page
- * ----------------------------------------
- * Clears the onMonitorPage flag. Place this trigger on the
- * Back button of the monitor page.
+ * trigger38 — Leave station monitor page
+ * Clears onMonitorPage flag. Place on Back button.
  */
-void trigger12() {
+void trigger38() {
   onMonitorPage = false;
 }
+/*
+
+---
+
+**Nextion editor — printh commands to enter for every button:**
+
+**All pages — bA buttons (Touch Release Event):**
+```
+bA1: printh 23 02 54 01
+bA2: printh 23 02 54 02
+bA3: printh 23 02 54 03
+bA4: printh 23 02 54 04
+bA5: printh 23 02 54 05  (pages 1 and 2 only)
+bA6: printh 23 02 54 06  (pages 1 and 2 only)
+bA7: printh 23 02 54 07  (page 2 only)
+bA8: printh 23 02 54 08  (page 2 only)
+```
+
+**All pages — bB buttons (Touch Release Event):**
+```
+bB1: printh 23 02 54 11
+bB2: printh 23 02 54 12
+bB3: printh 23 02 54 13
+bB4: printh 23 02 54 14
+bB5: printh 23 02 54 15  (pages 1 and 2 only)
+bB6: printh 23 02 54 16  (pages 1 and 2 only)
+bB7: printh 23 02 54 17  (page 2 only)
+bB8: printh 23 02 54 18  (page 2 only)
+```
+
+**Control buttons (config page, monitor page):**
+```
+WiFi scan button:     printh 23 02 54 21
+WiFi connect button:  printh 23 02 54 22
+Factory reset button: printh 23 02 54 23
+Enter config button:  printh 23 02 54 24
+Enter monitor button: printh 23 02 54 25
+Leave monitor button: printh 23 02 54 26
+
+*/

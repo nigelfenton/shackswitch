@@ -24,15 +24,16 @@
  *    - Background WiFi reconnect
  *    - Factory reset with double-tap confirmation and 5-second safety timeout
  *
- *  Nextion HMI components (page 0):
- *    b1-b4   Dual-state antenna selector buttons
- *    t3-t6   Antenna name labels (t3=b1, t4=b2, t5=b3, t6=b4)
- *    tBandA  Current band for Input 1 / Slice A
- *    tBandB  Current band for Input 2 / Slice B
- *    tSO2R   SO2R status — "SO2R OK" (green) or "INHIBIT" (orange)
- *    tState  Antenna state — "ANT Active" or "ANT Grounded"
- *    tClock  RTC time display
- *    t1      WiFi IP address
+ *  Nextion HMI components:
+ *    Page 0 (4-port):  bA1-bA4, t3-t6
+ *    Page 1 (2x6):     bA1-bA6, t3-t8, bB1-bB6
+ *    Page 2 (2x8):     bA1-bA8, t3-t10, bB1-bB8
+ *    All pages:        tBandA, tBandB, tSO2R, tState, tClock, t1
+ *
+ *  Trigger number map:
+ *    01-08  Input 1 bA1-bA8
+ *    11-18  Input 2 bB1-bB8 (hex 11=trigger17 through 18=trigger24)
+ *    21-26  Control functions (hex 21=trigger33 through 26=trigger38)
  *
  *  REST API endpoints:
  *    GET /status                          — relay states, band, SO2R as JSON
@@ -70,14 +71,15 @@
 //  are loaded and written to EEPROM.
 // ============================================================
 struct RelayConfig {
-  char     names[4][26];   // Antenna names, up to 25 chars + null
+  char     names[8][26];   // Antenna names, up to 25 chars + null extended from 4 to 8
   char     wifiSSID[33];
   char     wifiPass[64];
+  uint8_t  portMode;      // 0=4port, 1=2x6, 2=2x8   debug port type setting
   uint32_t configMagic;    // Must equal CONFIG_VERSION to be valid
 };
 
 RelayConfig myConfig;
-const uint32_t CONFIG_VERSION = 0xDEADBEEE;
+const uint32_t CONFIG_VERSION = 0xDEADC001;
 
 
 // ============================================================
@@ -86,7 +88,7 @@ const uint32_t CONFIG_VERSION = 0xDEADBEEE;
 
 // Relay output pins — one relay per antenna port
 const int relayPins[] = {2, 3, 4, 5};
-const int RELAY_COUNT = 4;
+const int RELAY_COUNT = 8;
 
 // Ground symbol bitmap for the 12x8 LED matrix
 const uint32_t ground_hex[] = {
@@ -289,30 +291,76 @@ void displayGroundSymbol() {
 }
 
 /*
- * FUNCTION: syncButtonStates
- * ---------------------------
- * Pushes the current relay states to the Nextion dual-state
- * buttons (b1-b4). Called after any relay change to keep
- * the display in sync.
+ * FUNCTION: getRowCount
+ * ----------------------
+ * Returns the number of antenna rows for the current port mode.
+ * Used by syncButtonStates() and syncAntennaNames() to know
+ * how many components to update on the current Nextion page.
  */
-void syncButtonStates() {
-  for (int i = 0; i < RELAY_COUNT; i++) {
-    int val = (digitalRead(relayPins[i]) == HIGH) ? 1 : 0;
-    myNex.writeNum("b" + String(i + 1) + ".val", val);
-  }
+int getRowCount() {
+  if (myConfig.portMode == 1) return 6;
+  if (myConfig.portMode == 2) return 8;
+  return 4;
 }
 
+/*
+ * FUNCTION: syncButtonStates
+ * ---------------------------
+ * Pushes current antenna selection state to Nextion bA/bB buttons
+ * and antenna name labels for all pages.
+ *
+ * All three pages now use consistent naming:
+ *   bA1-bA8 = Input 1 buttons (green when active)
+ *   bB1-bB8 = Input 2 buttons (orange when active)
+ *   t3-t10  = Antenna name labels
+ *
+ * Colours:
+ *   33840  = grey   (unselected)
+ *   1024   = green  (Input 1 active)
+ *   65504  = orange (Input 2 active)
+ */
+void syncButtonStates() {
+  int rows = getRowCount();
+  for (int i = 1; i <= rows; i++) {
+
+    // Input 1 button — green when active, grey when not
+    bool aActive = (portA.rxAntenna == i);
+    uint32_t aColour = aActive ? NEXTION_GREEN : 33840;
+    myNex.writeNum("bA" + String(i) + ".bco",  aColour);
+    myNex.writeNum("bA" + String(i) + ".bco2", aColour);
+    myNex.writeNum("bA" + String(i) + ".pco",  65535);   // white text always
+    myNex.writeNum("bA" + String(i) + ".pco2", 65535);
+
+    // Input 2 button — orange when active, grey when not
+    bool bActive = (portB.rxAntenna == i);
+    uint32_t bColour = bActive ? NEXTION_ORANGE : 33840;
+    myNex.writeNum("bB" + String(i) + ".bco",  bColour);
+    myNex.writeNum("bB" + String(i) + ".bco2", bColour);
+    myNex.writeNum("bB" + String(i) + ".pco",  65535);
+    myNex.writeNum("bB" + String(i) + ".pco2", 65535);
+  }
+}
 /*
  * FUNCTION: syncAntennaNames
  * ---------------------------
  * Writes all antenna names from myConfig to the Nextion
  * label components t3-t6. Called on boot and after rename.
  */
+/*
+ * FUNCTION: syncAntennaNames
+ * ---------------------------
+ * Writes antenna names to Nextion label components t3-t10.
+ * Labels beyond stored RELAY_COUNT get a generic "ANT n" name.
+ * Called on boot and after any rename.
+ */
 void syncAntennaNames() {
-  for (int i = 0; i < RELAY_COUNT; i++) {
-    myNex.writeStr("t" + String(i + 3) + ".txt", myConfig.names[i]);
+  int rows = getRowCount();
+  for (int i = 0; i < rows; i++) {
+    String name = (i < RELAY_COUNT) ? String(myConfig.names[i]) : "ANT " + String(i + 1);
+    myNex.writeStr("t" + String(i + 3) + ".txt", name);
   }
 }
+
 
 /*
  * FUNCTION: updateAntennaStatus
@@ -342,40 +390,37 @@ void updateAntennaStatus() {
 /*
  * FUNCTION: controlRelay
  * ----------------------
- * Central relay control function. Activates or deactivates
- * a single relay by 1-based index.
+ * Activates or deactivates a relay by 1-based antenna index.
+ * When state == HIGH, grounds all other relays first (single
+ * antenna rule). Updates portA.rxAntenna to track selection.
  *
- * When state == HIGH: all other relays are first grounded
- * before the target relay is activated, enforcing the
- * single-antenna-at-a-time rule.
- *
- * When state == LOW: only the target relay is grounded.
- *
- * After any relay change, syncs the Nextion button states
- * and updates the antenna status display.
- *
- * Called by: web server handlers, TCP protocol, Nextion
- * trigger functions, SO2R band-change logic.
+ * Note: Only Input 1 (portA) drives physical relays on the
+ * original 4-port shield. Port B relay support requires the
+ * KK1L expansion board.
  */
 void controlRelay(int targetIndex, bool state) {
   int idx = targetIndex - 1;
   if (idx < 0 || idx >= RELAY_COUNT) return;
 
   if (state == HIGH) {
-    currentActiveRelay = targetIndex;
+    currentActiveRelay    = targetIndex;
+    portA.rxAntenna       = targetIndex;   // track Input 1 selection
     for (int i = 0; i < RELAY_COUNT; i++) {
       digitalWrite(relayPins[i], (i == idx) ? HIGH : LOW);
     }
   } else {
     digitalWrite(relayPins[idx], LOW);
-    if (currentActiveRelay == targetIndex) currentActiveRelay = 0;
+    if (currentActiveRelay == targetIndex) {
+      currentActiveRelay = 0;
+      portA.rxAntenna    = 0;
+    }
   }
 
   syncButtonStates();
+  syncAntennaNames();
   updateAntennaStatus();
   updateNextionBandDisplay();
 }
-
 /*
  * FUNCTION: updateNextionBandDisplay
  * ------------------------------------
@@ -749,9 +794,10 @@ void handleDiscoveryBeacon() {
  */
 void loadConfig() {
   EEPROM.get(0, myConfig);
+ 
   if (myConfig.configMagic != CONFIG_VERSION) {
     Serial.println(F("EEPROM empty or version mismatch — loading factory defaults"));
-    for (int i = 0; i < RELAY_COUNT; i++) {
+    for (int i = 0; i < 8; i++) {    // hard code set to 8 not relay_count
       String dName = "Relay " + String(i + 1);
       dName.toCharArray(myConfig.names[i], 26);
     }
@@ -834,79 +880,131 @@ void updateStationMonitor() {
  * Also displays current band and SO2R status.
  */
 void showMainPage(WiFiClient& c) {
+  // Determine row count from stored port mode
+  int rowCount = 4;
+  if (myConfig.portMode == 1) rowCount = 6;
+  if (myConfig.portMode == 2) rowCount = 8;
+
   c.println("HTTP/1.1 200 OK\nContent-Type: text/html\n");
   c.println("<!DOCTYPE HTML><html>");
   c.println("<head><meta name='viewport' content='width=device-width, initial-scale=1'>");
   c.println("<style>");
-  c.println("body{font-family:Arial;text-align:center;background:#1a1a1a;color:white;}");
-  c.println(".card{background:#333;margin:10px auto;padding:15px;width:90%;max-width:350px;border-radius:10px;transition:background 0.3s;}");
-  c.println(".card.active{background:#1a472a;border:2px solid #28a745;}");
-  c.println(".btn{display:block;padding:15px;margin:10px 0;color:#fff;text-decoration:none;border-radius:8px;font-weight:bold;}");
-  c.println(".on{background:#28a745;} .off{background:#dc3545;}");
+  c.println("*{box-sizing:border-box;margin:0;padding:0;}");
+  c.println("body{font-family:Arial;background:#1a1a1a;color:white;padding:10px;}");
+  c.println("h1{text-align:center;font-size:18px;margin-bottom:10px;color:#aaa;}");
+  c.println(".layout{display:flex;gap:10px;max-width:900px;margin:0 auto;}");
+  c.println(".matrix{flex:1;}");
+  c.println(".row{display:flex;align-items:center;gap:6px;margin-bottom:6px;}");
+  c.println(".antname{width:120px;flex-shrink:0;background:#333;border-radius:6px;padding:8px 10px;font-size:13px;font-weight:bold;text-align:center;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;}");
+  c.println(".sel{width:50px;padding:8px 0;border:none;border-radius:6px;font-size:12px;font-weight:bold;color:white;cursor:pointer;text-decoration:none;display:block;text-align:center;}");
+  c.println(".sel-a{background:#555;} .sel-b{background:#555;}");
+  c.println(".sel-a.active{background:#28a745;} .sel-b.active{background:#ff9800;}");
+  c.println(".status{width:180px;flex-shrink:0;background:#1a2a3a;border-radius:10px;padding:12px;font-size:13px;line-height:2;}");
+  c.println(".status h2{font-size:14px;color:#aaa;margin-bottom:8px;text-align:center;}");
+  c.println(".so2rok{color:#28a745;font-weight:bold;} .so2rwarn{color:#ff9800;font-weight:bold;}");
+  c.println(".lbl{color:#888;font-size:11px;}");
+  c.println(".mode{text-align:center;font-size:10px;color:#555;margin-top:8px;}");
+  c.println("a.settings{display:block;text-align:center;color:#555;margin-top:10px;font-size:12px;text-decoration:none;}");
   c.println("</style></head><body>");
-  c.println("<h1>G0JKN 1.5 ANT SWITCH</h1>");
 
-  for (int i = 0; i < RELAY_COUNT; i++) {
-    bool   st        = digitalRead(relayPins[i]);
-    String cardClass = st ? " active" : "";
-    c.print("<div class='card" + cardClass + "' id='card" + String(i + 1) + "'>");
-    c.print("<strong>" + String(myConfig.names[i]) + "</strong>");
-    if (st) c.print("<a href='/" + String(i + 1) + "/off' class='btn on'  id='btn" + String(i + 1) + "'>ACTIVE</a>");
-    else    c.print("<a href='/" + String(i + 1) + "/on'  class='btn off' id='btn" + String(i + 1) + "'>GROUNDED</a>");
-    c.print("</div>");
+  // Mode label in title for debug clarity
+  String modeLabel = "4-port";
+  if (myConfig.portMode == 1) modeLabel = "2x6";
+  if (myConfig.portMode == 2) modeLabel = "2x8";
+  c.println("<h1>G0JKN ShackSwitch v1.5 <span style='color:#555;font-size:13px;'>[" + modeLabel + "]</span></h1>");
+
+  c.println("<div class='layout'>");
+
+  // ── Antenna matrix ─────────────────────────────────────
+  c.println("<div class='matrix'>");
+  for (int i = 0; i < rowCount; i++) {
+    bool aActive = (portA.rxAntenna == i + 1);
+    bool bActive = (portB.rxAntenna == i + 1);
+    String aClass = aActive ? " active" : "";
+    String bClass = bActive ? " active" : "";
+
+    // Antenna name — use stored name if within RELAY_COUNT, else generic label
+    String antLabel = (i < RELAY_COUNT) ? String(myConfig.names[i]) : "ANT " + String(i + 1);
+
+    c.print("<div class='row'>");
+    c.print("<a href='/a/" + String(i+1) + "/sel' class='sel sel-a" + aClass + "' id='bA" + String(i+1) + "'>1</a>");
+    c.print("<div class='antname'>" + antLabel + "</div>");
+    c.print("<a href='/b/" + String(i+1) + "/sel' class='sel sel-b" + bClass + "' id='bB" + String(i+1) + "'>2</a>");
+    c.println("</div>");
   }
+  c.println("</div>"); // end matrix
 
-  // Band and SO2R status panel
-  c.println("<div style='background:#1a2a3a;margin:10px auto;padding:10px;width:90%;max-width:350px;border-radius:10px;font-size:13px;'>");
-  c.println("<strong>Input 1:</strong> " + String(bandName(portA.band)) + " &nbsp; <strong>Input 2:</strong> " + String(bandName(portB.band)));
-  c.println("<br><strong>SO2R:</strong> " + String((portA.inhibited || portB.inhibited) ? "&#9888; INHIBIT" : "OK"));
+  // ── Status panel ───────────────────────────────────────
+  bool inhibit = portA.inhibited || portB.inhibited;
+  c.println("<div class='status'>");
+  c.println("<h2>Status</h2>");
+  c.println("<div class='lbl'>Input 1</div>");
+  c.println("<div id='bandA'>" + String(bandName(portA.band)) + "</div>");
+  c.println("<div class='lbl'>Input 2</div>");
+  c.println("<div id='bandB'>" + String(bandName(portB.band)) + "</div>");
+  c.println("<div class='lbl'>SO2R</div>");
+  c.println("<div id='so2r' class='" + String(inhibit ? "so2rwarn" : "so2rok") + "'>");
+  c.println(inhibit ? "&#9888; INHIBIT" : "OK");
   c.println("</div>");
+  c.println("<div class='lbl' style='margin-top:8px;'>IP</div>");
+  c.println("<div style='font-size:11px;'>" + WiFi.localIP().toString() + "</div>");
+  c.println("<div class='mode'>mode: " + modeLabel + "</div>");
+  c.println("</div>"); // end status
 
-  c.println("<br><a href='/settings' style='color:#666;'>[ SETTINGS ]</a>");
+  c.println("</div>"); // end layout
+  c.println("<a href='/settings' class='settings'>[ SETTINGS ]</a>");
 
-  // Auto-poll /status every 5 seconds to reflect Nextion changes
+  // ── JavaScript — poll /status every 5 seconds ──────────
   c.println("<script>");
+  c.println("const rows=" + String(rowCount) + ";");
   c.println("function updateStatus(){");
   c.println(" fetch('/status').then(r=>r.json()).then(d=>{");
-  c.println(" for(let i=1;i<=4;i++){");
-  c.println("  const on=d['r'+i]===1;");
-  c.println("  const card=document.getElementById('card'+i);");
-  c.println("  const btn=document.getElementById('btn'+i);");
-  c.println("  if(on){card.className='card active';btn.className='btn on';btn.textContent='ACTIVE';btn.href='/'+i+'/off';}");
-  c.println("  else{card.className='card';btn.className='btn off';btn.textContent='GROUNDED';btn.href='/'+i+'/on';}");
-  c.println(" }");
+  c.println("  for(let i=1;i<=rows;i++){");
+  c.println("   const bA=document.getElementById('bA'+i);");
+  c.println("   const bB=document.getElementById('bB'+i);");
+  c.println("   if(bA)bA.className='sel sel-a'+(d['a'+i]===1?' active':'');");
+  c.println("   if(bB)bB.className='sel sel-b'+(d['b'+i]===1?' active':'');");
+  c.println("  }");
+  c.println("  document.getElementById('bandA').textContent=d.bandA||'---';");
+  c.println("  document.getElementById('bandB').textContent=d.bandB||'---';");
+  c.println("  const inh=d.so2r===1;");
+  c.println("  const s=document.getElementById('so2r');");
+  c.println("  s.textContent=inh?'\\u26a0 INHIBIT':'OK';");
+  c.println("  s.className=inh?'so2rwarn':'so2rok';");
   c.println(" }).catch(()=>{});");
   c.println("}");
   c.println("setInterval(updateStatus,5000);");
   c.println("</script>");
   c.println("</body></html>");
 }
-
-/*
- * FUNCTION: showSettingsPage
- * ---------------------------
- * Serves the antenna name configuration page. Each port has
- * a text input and Save button that submits to GET /rename.
- */
 void showSettingsPage(WiFiClient& c) {
   c.println("HTTP/1.1 200 OK\nContent-Type: text/html\n");
   c.println("<!DOCTYPE HTML><html><head><meta name='viewport' content='width=device-width, initial-scale=1'></head>");
-  c.println("<body style='font-family:Arial;padding:20px;'>");
-  c.println("<h2>Antenna Names</h2>");
+  c.println("<body style='font-family:Arial;padding:20px;background:#1a1a1a;color:white;'>");
+  c.println("<h2>ShackSwitch Settings</h2>");
+
+  // ── Debug — port mode selector ──────────────────────────
+  c.println("<div style='background:#2a1a1a;border:1px solid #ff9800;border-radius:8px;padding:15px;margin-bottom:20px;'>");
+  c.println("<strong style='color:#ff9800;'>&#9888; Debug — Port Mode</strong>");
+  c.println("<form action='/setmode' style='margin-top:10px;'>");
+  c.println("<label style='margin-right:20px;'><input type='radio' name='mode' value='0'" + String(myConfig.portMode == 0 ? " checked" : "") + "> 4-port (original)</label>");
+  c.println("<label style='margin-right:20px;'><input type='radio' name='mode' value='1'" + String(myConfig.portMode == 1 ? " checked" : "") + "> 2x6 matrix</label>");
+  c.println("<label style='margin-right:20px;'><input type='radio' name='mode' value='2'" + String(myConfig.portMode == 2 ? " checked" : "") + "> 2x8 matrix</label>");
+  c.println("<br><br><button type='submit' style='background:#ff9800;color:white;border:none;padding:8px 20px;border-radius:6px;cursor:pointer;'>Apply Mode</button>");
+  c.println("</form></div>");
+
+  // ── Antenna names ────────────────────────────────────────
+  c.println("<h3>Antenna Names</h3>");
   for (int i = 0; i < RELAY_COUNT; i++) {
-    c.print("<div style='margin-bottom:20px;'><strong>" + String(myConfig.names[i]) + "</strong>");
+    c.print("<div style='margin-bottom:15px;'><strong>ANT " + String(i+1) + ": " + String(myConfig.names[i]) + "</strong>");
     c.print("<form action='/rename'>");
-    c.print("<input type='hidden' name='id' value='" + String(i + 1) + "'>");
-    c.print("<input type='text' name='name' maxlength='25'>");
+    c.print("<input type='hidden' name='id' value='" + String(i+1) + "'>");
+    c.print("<input type='text' name='name' maxlength='25' style='margin:0 8px;padding:4px;'>");
     c.print("<button type='submit'>Save</button></form></div>");
   }
-  c.println("<br><a href='/'>Back</a></body></html>");
+  c.println("<br><a href='/' style='color:#666;'>Back</a></body></html>");
 }
 
-
-// ============================================================
-//  SETUP
-// ============================================================
 void setup() {
   Serial.begin(115200);
   while (!Serial) { ; }
@@ -914,6 +1012,7 @@ void setup() {
 
   matrix.begin();
   myNex.begin(9600);
+  delay(1500);             // Give Nextion time to finish booting
   loadConfig();
   RTC.begin();
 
@@ -932,8 +1031,28 @@ void setup() {
 
   syncTime();
 
-  // Initialise Nextion display state
-  myNex.writeStr("page 0");
+  // Initialise Nextion display state — page switch LAST
+  // after everything else is ready
+  // Initialise Nextion display state — page switch LAST
+  // Extra delay for 7" Nextion boot time
+ 
+  delay(3000);
+
+  switch (myConfig.portMode) {
+    case 1:
+      Serial.println(F("[SETUP] Sending page 1"));
+      myNex.writeStr("page 1");
+      break;
+    case 2:
+      Serial.println(F("[SETUP] Sending page 2"));
+      myNex.writeStr("page 2");
+      break;
+    default:
+      Serial.println(F("[SETUP] Sending page 0"));
+      myNex.writeStr("page 0");
+      break;
+  }
+  delay(200);
   syncButtonStates();
   syncAntennaNames();
   myNex.writeStr("t1.txt", WiFi.localIP().toString());
@@ -941,9 +1060,8 @@ void setup() {
 
   Serial.print(F("Web server: port 80  TCP: port 9008  IP: "));
   Serial.println(WiFi.localIP());
+  Serial.println(F("[SETUP] Complete"));
 }
-
-
 // ============================================================
 //  LOOP
 // ============================================================
@@ -1023,15 +1141,118 @@ void loop() {
     // SO2R interlock status as JSON.
     if (request.indexOf("GET /status") != -1) {
       String json = "{";
+      // Relay states r1-r4 (physical relay pins)
       for (int i = 0; i < RELAY_COUNT; i++) {
-        json += "\"r" + String(i + 1) + "\":" + String(digitalRead(relayPins[i]));
-        if (i < RELAY_COUNT - 1) json += ",";
+        json += "\"r" + String(i+1) + "\":" + String(digitalRead(relayPins[i]));
+        json += ",";
+      }
+      // Input 1 antenna selection (1-based, 0=none)
+      for (int i = 1; i <= RELAY_COUNT; i++) {
+        json += "\"a" + String(i) + "\":" + String(portA.rxAntenna == i ? 1 : 0);
+        json += ",";
+      }
+      // Input 2 antenna selection
+      for (int i = 1; i <= RELAY_COUNT; i++) {
+        json += "\"b" + String(i) + "\":" + String(portB.rxAntenna == i ? 1 : 0);
+        if (i < RELAY_COUNT) json += ",";
       }
       json += ",\"bandA\":\"" + String(bandName(portA.band)) + "\"";
       json += ",\"bandB\":\"" + String(bandName(portB.band)) + "\"";
       json += ",\"so2r\":"   + String((portA.inhibited || portB.inhibited) ? "1" : "0");
       json += "}";
       webClient.println("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nAccess-Control-Allow-Origin: *\r\n\r\n" + json);
+    }
+
+else if (request.indexOf("GET /setmode") != -1) {
+  int modeIdx = request.indexOf("mode=") + 5;
+  int mode    = request.substring(modeIdx, modeIdx + 1).toInt();
+  
+  Serial.print(F("[SETMODE] Received mode="));
+  Serial.println(mode);
+  
+  if (mode >= 0 && mode <= 2) {
+    myConfig.portMode    = mode;
+    myConfig.configMagic = CONFIG_VERSION;
+    EEPROM.put(0, myConfig);
+    
+    // Verify EEPROM write by reading back
+    RelayConfig verify;
+    EEPROM.get(0, verify);
+   
+
+    switch (mode) {
+      case 0:
+        Serial.println(F("[SETMODE] Switching to page 0 (4-port)"));
+        myNex.writeStr("page 0");
+        break;
+      case 1:
+        Serial.println(F("[SETMODE] Switching to page 1 (2x6)"));
+        myNex.writeStr("page 1");
+        break;
+      case 2:
+        Serial.println(F("[SETMODE] Switching to page 2 (2x8)"));
+        myNex.writeStr("page 2");
+        break;
+    }
+    syncButtonStates();
+    syncAntennaNames();
+    updateNextionBandDisplay();
+  } else {
+    Serial.print(F("[SETMODE] Invalid mode rejected: "));
+    Serial.println(mode);
+  }
+  webClient.println("HTTP/1.1 303 See Other\r\nLocation: /settings\r\n\r\n");
+}
+
+
+else if (request.indexOf("GET /a/") != -1 && request.indexOf("/sel") != -1) {
+      // Parse antenna number from /a/[n]/sel
+      int aIdx = request.indexOf("GET /a/") + 7;
+      int ant  = request.substring(aIdx, aIdx + 1).toInt();
+
+      if (ant >= 1 && ant <= RELAY_COUNT) {
+        // Toggle — if already selected, deselect
+        if (portA.rxAntenna == ant) {
+          portA.rxAntenna = 0;
+          controlRelay(ant, LOW);
+        } else {
+          portA.rxAntenna = ant;
+          controlRelay(ant, HIGH);
+        }
+        evaluateInterlock();
+        updateNextionBandDisplay();
+        Serial.print(F("[WEB] Input 1 -> ANT ")); Serial.println(ant);
+      }
+      webClient.println("HTTP/1.1 303 See Other\r\nLocation: /\r\n\r\n");
+    }
+
+else if (request.indexOf("GET /b/") != -1 && request.indexOf("/sel") != -1) {
+      // Parse antenna number from /b/[n]/sel
+      int bIdx = request.indexOf("GET /b/") + 7;
+      int ant  = request.substring(bIdx, bIdx + 1).toInt();
+
+      if (ant >= 1 && ant <= RELAY_COUNT) {
+        // Toggle — if already selected, deselect
+        if (portB.rxAntenna == ant) {
+          portB.rxAntenna = 0;
+          // Only ground relay if Input 1 isn't also using it
+          if (portA.rxAntenna != ant) controlRelay(ant, LOW);
+        } else {
+          // Check interlock — can't use same antenna as Input 1
+          if (portA.rxAntenna == ant) {
+            // Blocked — redirect back without change
+            webClient.println("HTTP/1.1 303 See Other\r\nLocation: /\r\n\r\n");
+            return; // Note: won't work inside if/else chain — see note below
+          }
+          portB.rxAntenna = ant;
+          // TODO: Port B relay bank requires KK1L board
+          // For now just tracks selection without driving relay
+        }
+        evaluateInterlock();
+        updateNextionBandDisplay();
+        Serial.print(F("[WEB] Input 2 -> ANT ")); Serial.println(ant);
+      }
+      webClient.println("HTTP/1.1 303 See Other\r\nLocation: /\r\n\r\n");
     }
 
     // ── GET /settings ────────────────────────────────────────
