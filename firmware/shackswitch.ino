@@ -843,8 +843,6 @@ void showMainPage(WiFiClient& c) {
   c.println(".card.active{background:#1a472a;border:2px solid #28a745;}");
   c.println(".btn{display:block;padding:15px;margin:10px 0;color:#fff;text-decoration:none;border-radius:8px;font-weight:bold;}");
   c.println(".on{background:#28a745;} .off{background:#dc3545;}");
-  c.println(".bandpanel{background:#1a2a3a;margin:10px auto;padding:12px;width:90%;max-width:350px;border-radius:10px;font-size:13px;line-height:1.8;}");
-  c.println(".so2rok{color:#28a745;font-weight:bold;} .so2rwarn{color:#ff9800;font-weight:bold;}");
   c.println("</style></head><body>");
   c.println("<h1>G0JKN 1.5 ANT SWITCH</h1>");
 
@@ -858,38 +856,25 @@ void showMainPage(WiFiClient& c) {
     c.print("</div>");
   }
 
-  // Band and SO2R status panel — IDs wired to JS updater below
-  bool inhibit = portA.inhibited || portB.inhibited;
-  c.println("<div class='bandpanel'>");
-  c.println("<strong>Input 1:</strong> <span id='bandA'>" + String(bandName(portA.band)) + "</span>");
-  c.println(" &nbsp; <strong>Input 2:</strong> <span id='bandB'>" + String(bandName(portB.band)) + "</span>");
-  c.println("<br><strong>SO2R:</strong> <span id='so2r' class='" + String(inhibit ? "so2rwarn" : "so2rok") + "'>" + String(inhibit ? "&#9888; INHIBIT" : "OK") + "</span>");
+  // Band and SO2R status panel
+  c.println("<div style='background:#1a2a3a;margin:10px auto;padding:10px;width:90%;max-width:350px;border-radius:10px;font-size:13px;'>");
+  c.println("<strong>Input 1:</strong> " + String(bandName(portA.band)) + " &nbsp; <strong>Input 2:</strong> " + String(bandName(portB.band)));
+  c.println("<br><strong>SO2R:</strong> " + String((portA.inhibited || portB.inhibited) ? "&#9888; INHIBIT" : "OK"));
   c.println("</div>");
 
   c.println("<br><a href='/settings' style='color:#666;'>[ SETTINGS ]</a>");
 
-  // Auto-poll /status every 5 seconds.
-  // Updates relay button states AND band/SO2R panel from the
-  // same JSON response — no extra requests needed.
+  // Auto-poll /status every 5 seconds to reflect Nextion changes
   c.println("<script>");
   c.println("function updateStatus(){");
   c.println(" fetch('/status').then(r=>r.json()).then(d=>{");
-  // Relay buttons
-  c.println("  for(let i=1;i<=4;i++){");
-  c.println("   const on=d['r'+i]===1;");
-  c.println("   const card=document.getElementById('card'+i);");
-  c.println("   const btn=document.getElementById('btn'+i);");
-  c.println("   if(on){card.className='card active';btn.className='btn on';btn.textContent='ACTIVE';btn.href='/'+i+'/off';}");
-  c.println("   else{card.className='card';btn.className='btn off';btn.textContent='GROUNDED';btn.href='/'+i+'/on';}");
-  c.println("  }");
-  // Band display
-  c.println("  document.getElementById('bandA').textContent=d.bandA||'---';");
-  c.println("  document.getElementById('bandB').textContent=d.bandB||'---';");
-  // SO2R status
-  c.println("  const inh=d.so2r===1;");
-  c.println("  const s=document.getElementById('so2r');");
-  c.println("  s.textContent=inh?'\\u26a0 INHIBIT':'OK';");
-  c.println("  s.className=inh?'so2rwarn':'so2rok';");
+  c.println(" for(let i=1;i<=4;i++){");
+  c.println("  const on=d['r'+i]===1;");
+  c.println("  const card=document.getElementById('card'+i);");
+  c.println("  const btn=document.getElementById('btn'+i);");
+  c.println("  if(on){card.className='card active';btn.className='btn on';btn.textContent='ACTIVE';btn.href='/'+i+'/off';}");
+  c.println("  else{card.className='card';btn.className='btn off';btn.textContent='GROUNDED';btn.href='/'+i+'/on';}");
+  c.println(" }");
   c.println(" }).catch(()=>{});");
   c.println("}");
   c.println("setInterval(updateStatus,5000);");
