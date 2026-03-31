@@ -21,6 +21,9 @@ Paste the raw URL of this file at the start of each session.
 **v2.0** — Arduino Uno Q
 
 ### Files (on Uno Q at 10.0.0.145)
+```
+|| `index.html` | `ArduinoApps/first-app/python/templates/` | Main web UI |
+```
 - `ArduinoApps/first-app/sketch/sketch.ino` — STM32 firmware, relay control, Bridge RPC
 - `ArduinoApps/first-app/python/main.py` — Flask REST API, smartsdr launcher
 - `ArduinoApps/first-app/python/smartsdr.py` — SmartSDR band tracker
@@ -92,7 +95,7 @@ G0JKN relay shield (NPN/PNP, 3.3V logic, 12V coils)
 | GET /assign?band=[name]&relay=[n] | Assign a band to a relay in config |
 | GET /bandmap | Returns full band-to-relay map and antenna names |
 | GET /rename?id=[n]&name=[name] | Rename antenna port in config |
-
+ GET /select?input=[1\|2]&relay=[n] | Manually select relay for input, enforces interlock, toggles if already selected |
 ---
 
 ## Bridge RPC Methods (STM32 side)
@@ -164,7 +167,10 @@ Stored at `/home/arduino/shackswitch_config.json` on host, mounted into containe
 ---
 
 ## Roadmap
-
+```
+| Immediate | Interlock warning flash on web UI |
+| Immediate | Settings page — band/antenna assignment grid |
+```
 | Priority | Item |
 |---|---|
 | Immediate | Band/antenna lookup table settings UI |
@@ -188,7 +194,12 @@ Stored at `/home/arduino/shackswitch_config.json` on host, mounted into containe
 - **AetherSDR** — Linux Qt6 FlexRadio client, issue #179 proposes native ShackSwitch panel
 - **K3NG rotator controller** — separate project, Arduino Mega, Az/El satellite tracking
 
----
+---Under **Session Log** add:
+```
+| 31 Mar 2026 | Web UI built — dark theme, 3-column matrix, Input 1/2 status cards |
+| 31 Mar 2026 | /select endpoint added for manual relay switching with interlock |
+| 31 Mar 2026 | index.html served via Flask render_template from templates/ folder |
+```
 
 ## Session Notes
 
