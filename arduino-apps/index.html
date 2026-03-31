@@ -1,0 +1,154 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>G0JKN ShackSwitch</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: #1a1a1a; color: #e0e0e0; font-family: monospace; padding: 16px; }
+    h1 { color: #00cc66; font-size: 20px; margin-bottom: 2px; }
+    h3 { color: #555; font-size: 12px; font-weight: normal; margin-bottom: 16px; }
+
+    .status-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px; }
+    .card { background: #2a2a2a; border: 1px solid #333; border-radius: 6px; padding: 12px; }
+    .card-title { font-size: 11px; color: #666; text-transform: uppercase; margin-bottom: 4px; }
+    .card-band { font-size: 28px; font-weight: bold; color: #00cc66; }
+    .card-relay { font-size: 12px; color: #666; margin-top: 2px; }
+
+    .matrix { width: 100%; border-collapse: collapse; }
+    .matrix td { padding: 3px 4px; vertical-align: middle; }
+
+    .btn-input { 
+      width: 100%; padding: 8px 4px; border: none; border-radius: 4px; 
+      font-family: monospace; font-size: 12px; cursor: pointer; 
+      background: #333; color: #666;
+    }
+    .btn-input.active-1 { background: #00cc66; color: #000; font-weight: bold; }
+    .btn-input.active-2 { background: #ff8800; color: #000; font-weight: bold; }
+
+    .ant-name {
+      text-align: center; padding: 8px 6px; border-radius: 4px;
+      background: #252525; color: #888; font-size: 12px;
+      border: 1px solid #333;
+    }
+    .ant-name.used-1 { background: #1a3329; color: #00cc66; border-color: #00cc66; }
+    .ant-name.used-2 { background: #332200; color: #ff8800; border-color: #ff8800; }
+    .ant-name.used-both { background: #2a1a2a; color: #fff; border-color: #888; }
+
+    .status-bar { font-size: 11px; color: #444; margin-top: 12px; text-align: right; }
+
+    .legend { display: flex; gap: 16px; margin-bottom: 12px; font-size: 11px; }
+    .leg { display: flex; align-items: center; gap: 5px; }
+    .leg-dot { width: 10px; height: 10px; border-radius: 2px; }
+    .leg-green { background: #00cc66; }
+    .leg-orange { background: #ff8800; }
+    .leg-grey { background: #333; }
+  </style>
+</head>
+<body>
+  <h1>G0JKN ShackSwitch</h1>
+  <h3>v2.0 — Arduino Uno Q — 10.0.0.145</h3>
+
+  <div class="status-row">
+    <div class="card">
+      <div class="card-title">Input 1 — Slice A</div>
+      <div class="card-band" id="band1">—</div>
+      <div class="card-relay" id="relay1-label">No antenna selected</div>
+    </div>
+    <div class="card">
+      <div class="card-title">Input 2 — Slice B</div>
+      <div class="card-band" id="band2">—</div>
+      <div class="card-relay" id="relay2-label">No antenna selected</div>
+    </div>
+  </div>
+
+  <div class="legend">
+    <div class="leg"><div class="leg-dot leg-green"></div> Input 1</div>
+    <div class="leg"><div class="leg-dot leg-orange"></div> Input 2</div>
+    <div class="leg"><div class="leg-dot leg-grey"></div> Idle</div>
+  </div>
+
+  <table class="matrix">
+    <tbody id="matrix-body"></tbody>
+  </table>
+
+  <div class="status-bar" id="status-bar">Connecting...</div>
+
+  <script>
+    let currentState = {};
+
+function toggle(input, relay, currentRelay) {
+  fetch('/select?input=' + input + '&relay=' + relay)
+    .then(() => poll());
+}
+
+    function buildMatrix(data, antennas) {
+      const body = document.getElementById('matrix-body');
+      body.innerHTML = '';
+      const in1 = data.input1_relay;
+      const in2 = data.input2_relay;
+
+      for (let i = 1; i <= 8; i++) {
+        const name = antennas[i.toString()] || '— port ' + i;
+        const tr = document.createElement('tr');
+
+        // Input 1 button
+        const td1 = document.createElement('td');
+        const btn1 = document.createElement('button');
+        btn1.className = 'btn-input' + (in1 == i ? ' active-1' : '');
+        btn1.textContent = in1 == i ? 'ON' : 'OFF';
+        btn1.onclick = () => toggle(1, i, in1);
+        td1.appendChild(btn1);
+
+        // Antenna name
+        const tdName = document.createElement('td');
+        tdName.style.width = '60%';
+        const nameDiv = document.createElement('div');
+        nameDiv.className = 'ant-name' +
+          (in1 == i && in2 == i ? ' used-both' :
+           in1 == i ? ' used-1' :
+           in2 == i ? ' used-2' : '');
+        nameDiv.textContent = name;
+        tdName.appendChild(nameDiv);
+
+        // Input 2 button
+        const td2 = document.createElement('td');
+        const btn2 = document.createElement('button');
+        btn2.className = 'btn-input' + (in2 == i ? ' active-2' : '');
+        btn2.textContent = in2 == i ? 'ON' : 'OFF';
+        btn2.onclick = () => toggle(2, i, in2);
+        td2.appendChild(btn2);
+
+        tr.appendChild(td1);
+        tr.appendChild(tdName);
+        tr.appendChild(td2);
+        body.appendChild(tr);
+      }
+
+      // Update status cards
+      document.getElementById('band1').textContent = in1 ? antennas[in1.toString()] || 'Relay ' + in1 : '—';
+      document.getElementById('relay1-label').textContent = in1 ? 'Relay ' + in1 + ' active' : 'No antenna selected';
+      document.getElementById('band2').textContent = in2 ? antennas[in2.toString()] || 'Relay ' + in2 : '—';
+      document.getElementById('relay2-label').textContent = in2 ? 'Relay ' + in2 + ' active' : 'No antenna selected';
+    }
+
+    function poll() {
+      Promise.all([
+        fetch('/status').then(r => r.json()),
+        fetch('/bandmap').then(r => r.json())
+      ]).then(([status, bm]) => {
+        buildMatrix(status, bm.antennas);
+        document.getElementById('status-bar').textContent =
+          'Last update: ' + new Date().toLocaleTimeString();
+      }).catch(() => {
+        document.getElementById('status-bar').textContent = 'Connection error — retrying...';
+      });
+    }
+
+    poll();
+    setInterval(poll, 5000);
+  </script>
+</body>
+</html>
