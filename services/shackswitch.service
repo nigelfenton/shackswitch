@@ -1,0 +1,15 @@
+[Unit]
+Description=ShackSwitch Startup Boot Sequence
+After=network.target arduino-router.service
+Requires=arduino-router.service
+
+[Service]
+Type=simple
+ExecStart=/bin/bash /home/arduino/shackswitch-boot.sh
+RemainAfterExit=yes
+User=arduino
+WorkingDirectory=/home/arduino
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
