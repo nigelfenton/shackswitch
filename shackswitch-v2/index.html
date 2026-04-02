@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -10,128 +9,269 @@
     body { background: #1a1a1a; color: #e0e0e0; font-family: monospace; padding: 16px; }
     h1 { color: #00cc66; font-size: 20px; margin-bottom: 2px; }
     h3 { color: #555; font-size: 12px; font-weight: normal; margin-bottom: 16px; }
-
+    .nav { display: flex; gap: 8px; margin-bottom: 16px; }
+    .nav-btn {
+      padding: 6px 14px; border: 1px solid #444; border-radius: 4px;
+      background: #222; color: #888; font-family: monospace; font-size: 12px; cursor: pointer;
+    }
+    .nav-btn.active { background: #00cc66; color: #000; border-color: #00cc66; font-weight: bold; }
+    .page { display: none; }
+    .page.active { display: block; }
     .status-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px; }
     .card { background: #2a2a2a; border: 1px solid #333; border-radius: 6px; padding: 12px; }
     .card-title { font-size: 11px; color: #666; text-transform: uppercase; margin-bottom: 4px; }
-    .card-band { font-size: 28px; font-weight: bold; color: #00cc66; }
+    .card-band { font-size: 22px; font-weight: bold; color: #00cc66; }
     .card-relay { font-size: 12px; color: #666; margin-top: 2px; }
-
     .matrix { width: 100%; border-collapse: collapse; }
     .matrix td { padding: 3px 4px; vertical-align: middle; }
-
-    .btn-input { 
-      width: 100%; padding: 8px 4px; border: none; border-radius: 4px; 
-      font-family: monospace; font-size: 12px; cursor: pointer; 
+    .btn-input {
+      width: 100%; padding: 8px 4px; border: none; border-radius: 4px;
+      font-family: monospace; font-size: 12px; cursor: pointer;
       background: #333; color: #666;
     }
     .btn-input.active-1 { background: #00cc66; color: #000; font-weight: bold; }
     .btn-input.active-2 { background: #ff8800; color: #000; font-weight: bold; }
-
+    .btn-input:disabled { opacity: 0.25; cursor: not-allowed; }
     .ant-name {
       text-align: center; padding: 8px 6px; border-radius: 4px;
-      background: #252525; color: #888; font-size: 12px;
-      border: 1px solid #333;
+      background: #252525; color: #888; font-size: 12px; border: 1px solid #333;
+      transition: background 0.15s, border-color 0.15s, color 0.15s;
     }
     .ant-name.used-1 { background: #1a3329; color: #00cc66; border-color: #00cc66; }
     .ant-name.used-2 { background: #332200; color: #ff8800; border-color: #ff8800; }
-    .ant-name.used-both { background: #2a1a2a; color: #fff; border-color: #888; }
-
-    .status-bar { font-size: 11px; color: #444; margin-top: 12px; text-align: right; }
-
+    .ant-name.inactive { opacity: 0.25; }
+    .ant-name.interlock-flash {
+      background: #4a0000 !important; color: #ff4444 !important;
+      border-color: #ff4444 !important;
+    }
     .legend { display: flex; gap: 16px; margin-bottom: 12px; font-size: 11px; }
     .leg { display: flex; align-items: center; gap: 5px; }
     .leg-dot { width: 10px; height: 10px; border-radius: 2px; }
     .leg-green { background: #00cc66; }
     .leg-orange { background: #ff8800; }
     .leg-grey { background: #333; }
+    .status-bar { font-size: 11px; color: #444; margin-top: 12px; text-align: right; }
+    .ph-wrap { overflow-x: auto; margin-top: 8px; }
+    .ph-table { border-collapse: collapse; font-size: 11px; }
+    .ph-table th {
+      padding: 4px 6px; color: #555; font-weight: normal;
+      border-bottom: 1px solid #2a2a2a; text-align: center; white-space: nowrap;
+    }
+    .ph-table td { padding: 3px 4px; }
+    .ph-port-label { font-size: 11px; color: #666; white-space: nowrap; padding-right: 8px; text-align: right; }
+    .ph-port-label.active-port { color: #aaa; }
+    .ph-cell {
+      width: 32px; height: 28px; border: 1px solid #2a2a2a; border-radius: 3px;
+      background: #222; cursor: pointer; text-align: center; vertical-align: middle;
+      font-size: 14px; color: transparent;
+      transition: background 0.1s, border-color 0.1s;
+    }
+    .ph-cell:hover { border-color: #444; background: #2a2a2a; }
+    .ph-cell.assigned { background: #1a3329; border-color: #00cc66; color: #00cc66; }
+    .ph-cell.inactive-port { opacity: 0.2; cursor: not-allowed; }
+    .settings-section { margin-bottom: 24px; }
+    .settings-section h4 {
+      color: #00cc66; font-size: 13px; margin-bottom: 10px;
+      border-bottom: 1px solid #333; padding-bottom: 6px;
+    }
+    .settings-grid { width: 100%; border-collapse: collapse; }
+    .settings-grid th {
+      font-size: 11px; color: #555; text-align: left;
+      padding: 4px 6px; border-bottom: 1px solid #2a2a2a;
+    }
+    .settings-grid td { padding: 4px 6px; }
+    .settings-grid tr:nth-child(even) td { background: #222; }
+    .band-label { font-size: 12px; color: #aaa; white-space: nowrap; }
+    input.ant-rename {
+      background: #2a2a2a; color: #ccc; border: 1px solid #444;
+      border-radius: 3px; font-family: monospace; font-size: 12px;
+      padding: 4px 8px; width: 100%;
+    }
+    input.ant-rename:focus { outline: none; border-color: #00cc66; }
+    .row-save-btn {
+      padding: 4px 10px; background: #2a2a2a; color: #00cc66;
+      border: 1px solid #00cc66; border-radius: 3px;
+      font-family: monospace; font-size: 11px; cursor: pointer; white-space: nowrap;
+    }
+    .row-save-btn:hover { background: #1a3329; }
+    .save-btn {
+      margin-top: 12px; padding: 8px 20px; background: #00cc66; color: #000;
+      border: none; border-radius: 4px; font-family: monospace; font-size: 13px;
+      font-weight: bold; cursor: pointer;
+    }
+    .save-btn:hover { background: #00ee77; }
+    .save-msg { font-size: 11px; color: #00cc66; margin-top: 8px; min-height: 16px; }
+    .port-count-row { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
+    .port-count-row label { font-size: 12px; color: #aaa; }
+    .port-btn {
+      padding: 6px 16px; border: 1px solid #444; border-radius: 4px;
+      background: #222; color: #888; font-family: monospace; font-size: 12px; cursor: pointer;
+    }
+    .port-btn.selected { background: #00cc66; color: #000; border-color: #00cc66; font-weight: bold; }
+    .port-save-msg { font-size: 11px; color: #00cc66; }
   </style>
 </head>
 <body>
   <h1>G0JKN ShackSwitch</h1>
-  <h3>v2.0 — Arduino Uno Q — 10.0.0.145</h3>
-
-  <div class="status-row">
-    <div class="card">
-      <div class="card-title">Input 1 — Slice A</div>
-      <div class="card-band" id="band1">—</div>
-      <div class="card-relay" id="relay1-label">No antenna selected</div>
-    </div>
-    <div class="card">
-      <div class="card-title">Input 2 — Slice B</div>
-      <div class="card-band" id="band2">—</div>
-      <div class="card-relay" id="relay2-label">No antenna selected</div>
-    </div>
+  <h3 id="subtitle">v2.0 — Arduino Uno Q — 10.0.0.145</h3>
+  <div class="nav">
+    <button class="nav-btn active" onclick="showPage('main', this)">Status</button>
+    <button class="nav-btn" onclick="showPage('settings', this)">Settings</button>
   </div>
 
-  <div class="legend">
-    <div class="leg"><div class="leg-dot leg-green"></div> Input 1</div>
-    <div class="leg"><div class="leg-dot leg-orange"></div> Input 2</div>
-    <div class="leg"><div class="leg-dot leg-grey"></div> Idle</div>
+  <!-- MAIN PAGE -->
+  <div class="page active" id="page-main">
+    <div class="status-row">
+      <div class="card">
+        <div class="card-title" id="label1">Input A</div>
+        <div class="card-band" id="band1">&#8212;</div>
+        <div class="card-relay" id="relay1-label">No antenna selected</div>
+      </div>
+      <div class="card">
+        <div class="card-title" id="label2">Input B</div>
+        <div class="card-band" id="band2">&#8212;</div>
+        <div class="card-relay" id="relay2-label">No antenna selected</div>
+      </div>
+    </div>
+    <div class="legend">
+      <div class="leg"><div class="leg-dot leg-green"></div> Input A</div>
+      <div class="leg"><div class="leg-dot leg-orange"></div> Input B</div>
+      <div class="leg"><div class="leg-dot leg-grey"></div> Idle</div>
+    </div>
+    <table class="matrix"><tbody id="matrix-body"></tbody></table>
+    <div class="status-bar" id="status-bar">Connecting...</div>
   </div>
 
-  <table class="matrix">
-    <tbody id="matrix-body"></tbody>
-  </table>
-
-  <div class="status-bar" id="status-bar">Connecting...</div>
+  <!-- SETTINGS PAGE -->
+  <div class="page" id="page-settings">
+    <div class="settings-section">
+      <h4>Hardware Port Count</h4>
+      <div class="port-count-row">
+        <label>Active ports:</label>
+        <button class="port-btn" id="pb4" onclick="setPortCount(4)">4</button>
+        <button class="port-btn" id="pb6" onclick="setPortCount(6)">6</button>
+        <button class="port-btn" id="pb8" onclick="setPortCount(8)">8</button>
+        <span class="port-save-msg" id="port-save-msg"></span>
+      </div>
+    </div>
+    <div class="settings-section">
+      <h4>Input Labels</h4>
+      <table class="settings-grid">
+        <thead><tr><th>Input</th><th>Label (max 20 chars)</th><th></th></tr></thead>
+        <tbody>
+          <tr>
+            <td class="band-label">Input A</td>
+            <td><input class="ant-rename" id="label-input-1" maxlength="20" placeholder="e.g. Flex 6700 Port 1"></td>
+            <td><button class="row-save-btn" onclick="saveLabel(1)">Save</button></td>
+          </tr>
+          <tr>
+            <td class="band-label">Input B</td>
+            <td><input class="ant-rename" id="label-input-2" maxlength="20" placeholder="e.g. Yaesu FT-847"></td>
+            <td><button class="row-save-btn" onclick="saveLabel(2)">Save</button></td>
+          </tr>
+        </tbody>
+      </table>
+      <div class="save-msg" id="save-label-msg"></div>
+    </div>
+    <div class="settings-section">
+      <h4>Antenna Names</h4>
+      <table class="settings-grid">
+        <thead><tr><th>Port</th><th>Name</th><th></th></tr></thead>
+        <tbody id="rename-body"></tbody>
+      </table>
+      <button class="save-btn" onclick="saveAllNames()">Save All Names</button>
+      <div class="save-msg" id="save-names-msg"></div>
+    </div>
+    <div class="settings-section">
+      <h4>Band to Antenna Assignment</h4>
+      <p style="font-size:11px;color:#555;margin-bottom:8px;">
+        Click a cell to assign that band to that port. Click again to clear.
+        Greyed rows are beyond active port count.
+      </p>
+      <div class="ph-wrap">
+        <table class="ph-table" id="ph-table"></table>
+      </div>
+      <div class="save-msg" id="save-bands-msg"></div>
+    </div>
+  </div>
 
   <script>
-    let currentState = {};
+    const BANDS = ["160m","80m","60m","40m","30m","20m","17m","15m","12m","10m","6m"];
+    const ALL_PORTS = 8;
+    let portCount = 4;
+    let cachedAntennas = {};
+    let cachedBandMap = {};
 
-function toggle(input, relay, currentRelay) {
-  fetch('/select?input=' + input + '&relay=' + relay)
-    .then(() => poll());
-}
+    function showPage(name, btn) {
+      document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+      document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+      document.getElementById('page-' + name).classList.add('active');
+      btn.classList.add('active');
+      if (name === 'settings') loadSettings();
+      if (name === 'main') poll();
+    }
+
+    function toggle(input, relay) {
+      fetch('/select?input=' + input + '&relay=' + relay)
+        .then(r => {
+          if (r.status === 409) {
+            const cell = document.getElementById('ant-cell-' + relay);
+            if (cell) {
+              cell.classList.add('interlock-flash');
+              setTimeout(() => cell.classList.remove('interlock-flash'), 800);
+            }
+          } else { poll(); }
+        });
+    }
 
     function buildMatrix(data, antennas) {
+      cachedAntennas = antennas;
+      portCount = data.port_count || 4;
       const body = document.getElementById('matrix-body');
       body.innerHTML = '';
       const in1 = data.input1_relay;
       const in2 = data.input2_relay;
-
-      for (let i = 1; i <= 8; i++) {
-        const name = antennas[i.toString()] || '— port ' + i;
+      document.getElementById('subtitle').textContent =
+        'v2.0 — Arduino Uno Q — 10.0.0.145 — ' + portCount + '-port';
+      if (data.input1_label) document.getElementById('label1').textContent = data.input1_label;
+      if (data.input2_label) document.getElementById('label2').textContent = data.input2_label;
+      for (let i = 1; i <= ALL_PORTS; i++) {
+        const active = i <= portCount;
+        const name = antennas[i.toString()] || 'Port ' + i;
         const tr = document.createElement('tr');
-
-        // Input 1 button
         const td1 = document.createElement('td');
         const btn1 = document.createElement('button');
         btn1.className = 'btn-input' + (in1 == i ? ' active-1' : '');
-        btn1.textContent = in1 == i ? 'ON' : 'OFF';
-        btn1.onclick = () => toggle(1, i, in1);
+        btn1.textContent = in1 == i ? 'A' : '.';
+        btn1.disabled = !active;
+        if (active) btn1.onclick = () => toggle(1, i);
         td1.appendChild(btn1);
-
-        // Antenna name
         const tdName = document.createElement('td');
         tdName.style.width = '60%';
         const nameDiv = document.createElement('div');
+        nameDiv.id = 'ant-cell-' + i;
         nameDiv.className = 'ant-name' +
-          (in1 == i && in2 == i ? ' used-both' :
-           in1 == i ? ' used-1' :
-           in2 == i ? ' used-2' : '');
+          (!active ? ' inactive' : in1 == i ? ' used-1' : in2 == i ? ' used-2' : '');
         nameDiv.textContent = name;
         tdName.appendChild(nameDiv);
-
-        // Input 2 button
         const td2 = document.createElement('td');
         const btn2 = document.createElement('button');
         btn2.className = 'btn-input' + (in2 == i ? ' active-2' : '');
-        btn2.textContent = in2 == i ? 'ON' : 'OFF';
-        btn2.onclick = () => toggle(2, i, in2);
+        btn2.textContent = in2 == i ? 'B' : '.';
+        btn2.disabled = !active;
+        if (active) btn2.onclick = () => toggle(2, i);
         td2.appendChild(btn2);
-
-        tr.appendChild(td1);
-        tr.appendChild(tdName);
-        tr.appendChild(td2);
+        tr.appendChild(td1); tr.appendChild(tdName); tr.appendChild(td2);
         body.appendChild(tr);
       }
-
-      // Update status cards
-      document.getElementById('band1').textContent = in1 ? antennas[in1.toString()] || 'Relay ' + in1 : '—';
-      document.getElementById('relay1-label').textContent = in1 ? 'Relay ' + in1 + ' active' : 'No antenna selected';
-      document.getElementById('band2').textContent = in2 ? antennas[in2.toString()] || 'Relay ' + in2 : '—';
-      document.getElementById('relay2-label').textContent = in2 ? 'Relay ' + in2 + ' active' : 'No antenna selected';
+      document.getElementById('band1').textContent =
+        data.bandA || (in1 ? antennas[in1.toString()] || 'Port ' + in1 : '&#8212;');
+      document.getElementById('relay1-label').textContent =
+        in1 ? (antennas[in1.toString()] || 'Port ' + in1) + ' active' : 'No antenna selected';
+      document.getElementById('band2').textContent =
+        data.bandB || (in2 ? antennas[in2.toString()] || 'Port ' + in2 : '&#8212;');
+      document.getElementById('relay2-label').textContent =
+        in2 ? (antennas[in2.toString()] || 'Port ' + in2) + ' active' : 'No antenna selected';
     }
 
     function poll() {
@@ -139,6 +279,7 @@ function toggle(input, relay, currentRelay) {
         fetch('/status').then(r => r.json()),
         fetch('/bandmap').then(r => r.json())
       ]).then(([status, bm]) => {
+        cachedBandMap = bm.band_map;
         buildMatrix(status, bm.antennas);
         document.getElementById('status-bar').textContent =
           'Last update: ' + new Date().toLocaleTimeString();
@@ -149,6 +290,166 @@ function toggle(input, relay, currentRelay) {
 
     poll();
     setInterval(poll, 5000);
+
+    function setPortCount(n) {
+      fetch('/config/ports', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({port_count: n})
+      }).then(r => r.json()).then(d => {
+        if (d.ok) {
+          portCount = n;
+          showMsg('port-save-msg', 'Set to ' + n + ' ports');
+          updatePortButtons();
+          loadSettings();
+          poll();
+        } else { showMsg('port-save-msg', 'Error: ' + d.error); }
+      });
+    }
+
+    function updatePortButtons() {
+      [4, 6, 8].forEach(n => {
+        const btn = document.getElementById('pb' + n);
+        if (btn) btn.classList.toggle('selected', n === portCount);
+      });
+    }
+
+    function loadSettings() {
+      Promise.all([
+        fetch('/status').then(r => r.json()),
+        fetch('/bandmap').then(r => r.json())
+      ]).then(([status, bm]) => {
+        portCount = status.port_count || 4;
+        cachedAntennas = bm.antennas;
+        cachedBandMap = bm.band_map;
+        updatePortButtons();
+        const el1 = document.getElementById('label-input-1');
+        const el2 = document.getElementById('label-input-2');
+        if (el1) el1.value = status.input1_label || 'Input A';
+        if (el2) el2.value = status.input2_label || 'Input B';
+        const renameBody = document.getElementById('rename-body');
+        renameBody.innerHTML = '';
+        for (let i = 1; i <= ALL_PORTS; i++) {
+          const active = i <= portCount;
+          const tr = document.createElement('tr');
+          tr.style.opacity = active ? '1' : '0.35';
+          tr.innerHTML =
+            '<td class="band-label">Port ' + i + (active ? '' : ' (inactive)') + '</td>' +
+            '<td><input class="ant-rename" id="rename-' + i + '" ' +
+            'value="' + (bm.antennas[i.toString()] || '').replace(/"/g, '&quot;') + '" ' +
+            'placeholder="Antenna ' + i + '" ' + (active ? '' : 'disabled') + '></td>' +
+            '<td>' + (active ? '<button class="row-save-btn" onclick="saveSingleName(' + i + ')">Save</button>' : '') + '</td>';
+          renameBody.appendChild(tr);
+        }
+        buildPigeonhole(bm.antennas, bm.band_map);
+      });
+    }
+
+    function buildPigeonhole(antennas, bandMap) {
+      const tbl = document.getElementById('ph-table');
+      tbl.innerHTML = '';
+      const thead = document.createElement('thead');
+      let hrow = '<tr><th></th>';
+      BANDS.forEach(b => { hrow += '<th>' + b + '</th>'; });
+      hrow += '</tr>';
+      thead.innerHTML = hrow;
+      tbl.appendChild(thead);
+      const tbody = document.createElement('tbody');
+      for (let i = 1; i <= ALL_PORTS; i++) {
+        const active = i <= portCount;
+        const name = antennas[i.toString()] || 'Port ' + i;
+        const tr = document.createElement('tr');
+        const tdLabel = document.createElement('td');
+        tdLabel.className = 'ph-port-label' + (active ? ' active-port' : '');
+        tdLabel.textContent = i + ' ' + name;
+        tr.appendChild(tdLabel);
+        BANDS.forEach(band => {
+          const assigned = bandMap[band];
+          const isAssigned = assigned != null && parseInt(assigned) === i;
+          const td = document.createElement('td');
+          const cell = document.createElement('div');
+          cell.className = 'ph-cell' + (isAssigned ? ' assigned' : '') + (!active ? ' inactive-port' : '');
+          cell.textContent = isAssigned ? 'v' : '';
+          cell.id = 'ph-' + band + '-' + i;
+          if (active) cell.onclick = () => toggleBandPort(band, i);
+          td.appendChild(cell);
+          tr.appendChild(td);
+        });
+        tbody.appendChild(tr);
+      }
+      tbl.appendChild(tbody);
+    }
+
+    function toggleBandPort(band, port) {
+      const cell = document.getElementById('ph-' + band + '-' + port);
+      const isAssigned = cell.classList.contains('assigned');
+      if (isAssigned) {
+        fetch('/assign/clear?band=' + band).then(r => r.json()).then(() => {
+          cachedBandMap[band] = null;
+          for (let i = 1; i <= ALL_PORTS; i++) {
+            const c = document.getElementById('ph-' + band + '-' + i);
+            if (c) { c.classList.remove('assigned'); c.textContent = ''; }
+          }
+          showMsg('save-bands-msg', band + ' cleared');
+        });
+      } else {
+        fetch('/assign?band=' + band + '&relay=' + port).then(r => r.json()).then(() => {
+          cachedBandMap[band] = port;
+          for (let i = 1; i <= ALL_PORTS; i++) {
+            const c = document.getElementById('ph-' + band + '-' + i);
+            if (c) { c.classList.remove('assigned'); c.textContent = ''; }
+          }
+          cell.classList.add('assigned');
+          cell.textContent = 'v';
+          showMsg('save-bands-msg', band + ' Port ' + port + ' saved');
+        });
+      }
+    }
+
+    function saveLabel(n) {
+      const name = document.getElementById('label-input-' + n).value.trim();
+      fetch('/label?input=' + n + '&name=' + encodeURIComponent(name))
+        .then(r => r.json())
+        .then(d => {
+          if (d.ok) showMsg('save-label-msg', 'Input ' + (n === 1 ? 'A' : 'B') + ' label saved');
+          else showMsg('save-label-msg', 'Error: ' + d.error);
+          poll();
+        });
+    }
+
+    function saveSingleName(i) {
+      const name = document.getElementById('rename-' + i).value.trim();
+      fetch('/rename?id=' + i + '&name=' + encodeURIComponent(name))
+        .then(r => r.json())
+        .then(d => {
+          if (d.ok) showMsg('save-names-msg', 'Port ' + i + ' saved');
+          else showMsg('save-names-msg', 'Error: ' + d.error);
+          poll();
+        });
+    }
+
+    function saveAllNames() {
+      const antennas = {};
+      for (let i = 1; i <= portCount; i++) {
+        const el = document.getElementById('rename-' + i);
+        if (el) antennas[i] = el.value.trim();
+      }
+      fetch('/rename/bulk', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({antennas})
+      }).then(r => r.json()).then(d => {
+        if (d.ok) showMsg('save-names-msg', 'All names saved');
+        else showMsg('save-names-msg', 'Error: ' + d.error);
+        poll();
+      });
+    }
+
+    function showMsg(id, text) {
+      const el = document.getElementById(id);
+      el.textContent = text;
+      setTimeout(() => el.textContent = '', 3000);
+    }
   </script>
 </body>
 </html>
