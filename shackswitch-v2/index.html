@@ -118,18 +118,17 @@
     <button class="nav-btn active" onclick="showPage('main', this)">Status</button>
     <button class="nav-btn" onclick="showPage('settings', this)">Settings</button>
   </div>
-
   <!-- MAIN PAGE -->
   <div class="page active" id="page-main">
     <div class="status-row">
       <div class="card">
         <div class="card-title" id="label1">Input A</div>
-        <div class="card-band" id="band1">&#8212;</div>
+        <div class="card-band" id="band1">—</div>
         <div class="card-relay" id="relay1-label">No antenna selected</div>
       </div>
       <div class="card">
         <div class="card-title" id="label2">Input B</div>
-        <div class="card-band" id="band2">&#8212;</div>
+        <div class="card-band" id="band2">—</div>
         <div class="card-relay" id="relay2-label">No antenna selected</div>
       </div>
     </div>
@@ -140,9 +139,7 @@
     </div>
     <table class="matrix"><tbody id="matrix-body"></tbody></table>
     <div class="status-bar" id="status-bar">Connecting...</div>
-  </div>
-
-  <!-- SETTINGS PAGE -->
+  </div><!-- SETTINGS PAGE -->
   <div class="page" id="page-settings">
     <div class="settings-section">
       <h4>Hardware Port Count</h4>
@@ -161,12 +158,14 @@
         <tbody>
           <tr>
             <td class="band-label">Input A</td>
-            <td><input class="ant-rename" id="label-input-1" maxlength="20" placeholder="e.g. Flex 6700 Port 1"></td>
+            <td><input class="ant-rename" id="label-input-1" maxlength="20"
+              placeholder="e.g. Flex 6700 Port 1"></td>
             <td><button class="row-save-btn" onclick="saveLabel(1)">Save</button></td>
           </tr>
           <tr>
             <td class="band-label">Input B</td>
-            <td><input class="ant-rename" id="label-input-2" maxlength="20" placeholder="e.g. Yaesu FT-847"></td>
+            <td><input class="ant-rename" id="label-input-2" maxlength="20"
+              placeholder="e.g. Yaesu FT-847"></td>
             <td><button class="row-save-btn" onclick="saveLabel(2)">Save</button></td>
           </tr>
         </tbody>
@@ -183,10 +182,10 @@
       <div class="save-msg" id="save-names-msg"></div>
     </div>
     <div class="settings-section">
-      <h4>Band to Antenna Assignment</h4>
+      <h4>Band → Antenna Assignment</h4>
       <p style="font-size:11px;color:#555;margin-bottom:8px;">
         Click a cell to assign that band to that port. Click again to clear.
-        Greyed rows are beyond active port count.
+        One antenna per band. Greyed rows are beyond active port count.
       </p>
       <div class="ph-wrap">
         <table class="ph-table" id="ph-table"></table>
@@ -194,7 +193,6 @@
       <div class="save-msg" id="save-bands-msg"></div>
     </div>
   </div>
-
   <script>
     const BANDS = ["160m","80m","60m","40m","30m","20m","17m","15m","12m","10m","6m"];
     const ALL_PORTS = 8;
@@ -212,17 +210,20 @@
     }
 
     function toggle(input, relay) {
-      fetch('/select?input=' + input + '&relay=' + relay)
-        .then(r => {
-          if (r.status === 409) {
-            const cell = document.getElementById('ant-cell-' + relay);
-            if (cell) {
-              cell.classList.add('interlock-flash');
-              setTimeout(() => cell.classList.remove('interlock-flash'), 800);
-            }
-          } else { poll(); }
-        });
-    }
+  const url = window._kk1lAvailable
+    ? '/kk1l/select?input=' + input + '&port=' + relay
+    : '/select?input=' + input + '&relay=' + relay;
+  fetch(url)
+    .then(r => {
+      if (r.status === 409) {
+        const cell = document.getElementById('ant-cell-' + relay);
+        if (cell) {
+          cell.classList.add('interlock-flash');
+          setTimeout(() => cell.classList.remove('interlock-flash'), 800);
+        }
+      } else { poll(); }
+    });
+}
 
     function buildMatrix(data, antennas) {
       cachedAntennas = antennas;
@@ -231,6 +232,7 @@
       body.innerHTML = '';
       const in1 = data.input1_relay;
       const in2 = data.input2_relay;
+      window._kk1lAvailable = data.kk1l_available || false;    
       document.getElementById('subtitle').textContent =
         'v2.0 — Arduino Uno Q — 10.0.0.145 — ' + portCount + '-port';
       if (data.input1_label) document.getElementById('label1').textContent = data.input1_label;
@@ -242,8 +244,9 @@
         const td1 = document.createElement('td');
         const btn1 = document.createElement('button');
         btn1.className = 'btn-input' + (in1 == i ? ' active-1' : '');
-        btn1.textContent = in1 == i ? 'A' : '.';
+        btn1.textContent = in1 == i ? '1' : '·';
         btn1.disabled = !active;
+        btn1.title = active ? 'Input A → ' + name : 'Port not active';
         if (active) btn1.onclick = () => toggle(1, i);
         td1.appendChild(btn1);
         const tdName = document.createElement('td');
@@ -257,21 +260,22 @@
         const td2 = document.createElement('td');
         const btn2 = document.createElement('button');
         btn2.className = 'btn-input' + (in2 == i ? ' active-2' : '');
-        btn2.textContent = in2 == i ? 'B' : '.';
+        btn2.textContent = in2 == i ? '2' : '·';
         btn2.disabled = !active;
+        btn2.title = active ? 'Input B → ' + name : 'Port not active';
         if (active) btn2.onclick = () => toggle(2, i);
         td2.appendChild(btn2);
         tr.appendChild(td1); tr.appendChild(tdName); tr.appendChild(td2);
         body.appendChild(tr);
       }
       document.getElementById('band1').textContent =
-        data.bandA || (in1 ? antennas[in1.toString()] || 'Port ' + in1 : '&#8212;');
+        data.bandA || (in1 ? antennas[in1.toString()] || 'Port ' + in1 : '—');
       document.getElementById('relay1-label').textContent =
-        in1 ? (antennas[in1.toString()] || 'Port ' + in1) + ' active' : 'No antenna selected';
+        in1 ? (antennas[in1.toString()] || 'Port ' + in1) + ' — active' : 'No antenna selected';
       document.getElementById('band2').textContent =
-        data.bandB || (in2 ? antennas[in2.toString()] || 'Port ' + in2 : '&#8212;');
+        data.bandB || (in2 ? antennas[in2.toString()] || 'Port ' + in2 : '—');
       document.getElementById('relay2-label').textContent =
-        in2 ? (antennas[in2.toString()] || 'Port ' + in2) + ' active' : 'No antenna selected';
+        in2 ? (antennas[in2.toString()] || 'Port ' + in2) + ' — active' : 'No antenna selected';
     }
 
     function poll() {
@@ -289,9 +293,7 @@
     }
 
     poll();
-    setInterval(poll, 5000);
-
-    function setPortCount(n) {
+    setInterval(poll, 5000);function setPortCount(n) {
       fetch('/config/ports', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
@@ -299,7 +301,7 @@
       }).then(r => r.json()).then(d => {
         if (d.ok) {
           portCount = n;
-          showMsg('port-save-msg', 'Set to ' + n + ' ports');
+          showMsg('port-save-msg', 'Set to ' + n + ' ports ✓');
           updatePortButtons();
           loadSettings();
           poll();
@@ -321,7 +323,7 @@
       ]).then(([status, bm]) => {
         portCount = status.port_count || 4;
         cachedAntennas = bm.antennas;
-        cachedBandMap = bm.band_map;
+        cachedBandMap  = bm.band_map;
         updatePortButtons();
         const el1 = document.getElementById('label-input-1');
         const el2 = document.getElementById('label-input-2');
@@ -329,7 +331,7 @@
         if (el2) el2.value = status.input2_label || 'Input B';
         const renameBody = document.getElementById('rename-body');
         renameBody.innerHTML = '';
-        for (let i = 1; i <= ALL_PORTS; i++) {
+        for (let i = 1; i <= portCount; i++) {
           const active = i <= portCount;
           const tr = document.createElement('tr');
           tr.style.opacity = active ? '1' : '0.35';
@@ -361,7 +363,7 @@
         const tr = document.createElement('tr');
         const tdLabel = document.createElement('td');
         tdLabel.className = 'ph-port-label' + (active ? ' active-port' : '');
-        tdLabel.textContent = i + ' ' + name;
+        tdLabel.textContent = i + ' — ' + name;
         tr.appendChild(tdLabel);
         BANDS.forEach(band => {
           const assigned = bandMap[band];
@@ -369,7 +371,7 @@
           const td = document.createElement('td');
           const cell = document.createElement('div');
           cell.className = 'ph-cell' + (isAssigned ? ' assigned' : '') + (!active ? ' inactive-port' : '');
-          cell.textContent = isAssigned ? 'v' : '';
+          cell.textContent = isAssigned ? '✓' : '';
           cell.id = 'ph-' + band + '-' + i;
           if (active) cell.onclick = () => toggleBandPort(band, i);
           td.appendChild(cell);
@@ -400,8 +402,8 @@
             if (c) { c.classList.remove('assigned'); c.textContent = ''; }
           }
           cell.classList.add('assigned');
-          cell.textContent = 'v';
-          showMsg('save-bands-msg', band + ' Port ' + port + ' saved');
+          cell.textContent = '✓';
+          showMsg('save-bands-msg', band + ' → Port ' + port + ' saved ✓');
         });
       }
     }
@@ -411,7 +413,7 @@
       fetch('/label?input=' + n + '&name=' + encodeURIComponent(name))
         .then(r => r.json())
         .then(d => {
-          if (d.ok) showMsg('save-label-msg', 'Input ' + (n === 1 ? 'A' : 'B') + ' label saved');
+          if (d.ok) showMsg('save-label-msg', 'Input ' + (n === 1 ? 'A' : 'B') + ' label saved ✓');
           else showMsg('save-label-msg', 'Error: ' + d.error);
           poll();
         });
@@ -422,7 +424,7 @@
       fetch('/rename?id=' + i + '&name=' + encodeURIComponent(name))
         .then(r => r.json())
         .then(d => {
-          if (d.ok) showMsg('save-names-msg', 'Port ' + i + ' saved');
+          if (d.ok) showMsg('save-names-msg', 'Port ' + i + ' saved ✓');
           else showMsg('save-names-msg', 'Error: ' + d.error);
           poll();
         });
@@ -439,7 +441,7 @@
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({antennas})
       }).then(r => r.json()).then(d => {
-        if (d.ok) showMsg('save-names-msg', 'All names saved');
+        if (d.ok) showMsg('save-names-msg', 'All names saved ✓');
         else showMsg('save-names-msg', 'Error: ' + d.error);
         poll();
       });

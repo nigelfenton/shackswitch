@@ -37,15 +37,15 @@ bool mcp_found = false;
 // =============================================================
 
 void mcp_write(uint8_t reg, uint8_t val) {
-    Wire.beginTransmission(MCP23017_ADDR);
-  Wire.write(reg);
-  Wire.write(val);
-  Wire.endTransmission();
+    Wire1.beginTransmission(MCP23017_ADDR);
+  Wire1.write(reg);
+  Wire1.write(val);
+  Wire1.endTransmission();
 }
 
 void mcp_init() {
-    Wire.beginTransmission(MCP23017_ADDR);
-  if (Wire.endTransmission() == 0) {
+    Wire1.beginTransmission(MCP23017_ADDR);
+  if (Wire1.endTransmission() == 0) {
     mcp_found = true;
     mcp_write(MCP_IODIRA, 0x00);  // GPA all outputs
     mcp_write(MCP_IODIRB, 0xC0);  // GPB0-5 outputs, GPB6-7 inputs
@@ -178,7 +178,7 @@ String get_config() {
 void setup() {
     Bridge.begin();
   Monitor.begin();
-  Wire.begin();
+  Wire1.begin();
 
   // Original relay shield
   for (int i = 0; i < NUM_RELAYS; i++) {
