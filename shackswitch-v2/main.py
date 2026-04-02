@@ -59,8 +59,8 @@ def status():
         "input2_relay": config.get("input2_relay"),
         "input1_port": config.get("input1_port"),
         "input2_port": config.get("input2_port"),
-        "input1_label": config.get("input1_label", "Input 1"),
-        "input2_label": config.get("input2_label", "Input 2")
+        "input1_label": config.get("input1_label", "Input A"),
+        "input2_label": config.get("input2_label", "Input B")
     })
 
 
@@ -117,8 +117,8 @@ def kk1l_status():
         "ports": {str(i+1): states[i] for i in range(len(states))},
         "input1_port": config.get("input1_port"),
         "input2_port": config.get("input2_port"),
-        "input1_label": config.get("input1_label", "Input 1"),
-        "input2_label": config.get("input2_label", "Input 2"),
+        "input1_label": config.get("input1_label", "Input A"),
+        "input2_label": config.get("input2_label", "Input B"),
         "antennas": config.get("antennas", {})
     })
 
@@ -166,9 +166,9 @@ def select():
     config = load_config()
     other = "input2_relay" if input_n == "1" else "input1_relay"
     this = "input1_relay" if input_n == "1" else "input2_relay"
-    if config[other] == relay:
+    if config.get(other) == relay:
         return jsonify({"ok": False, "error": "Interlock"}), 409
-    old_relay = config[this]
+    old_relay = config.get(this)
     if old_relay == relay:
         bridge_call("relay_off", relay)
         config[this] = None
@@ -192,9 +192,9 @@ def setband():
     relay = int(relay)
     other = "input2_relay" if input_n == "1" else "input1_relay"
     this = "input1_relay" if input_n == "1" else "input2_relay"
-    if config[other] == relay:
+    if config.get(other) == relay:
         return jsonify({"ok": False, "error": "Interlock"}), 409
-    old_relay = config[this]
+    old_relay = config.get(this)
     if old_relay is not None:
         bridge_call("relay_off", int(old_relay))
     bridge_call("relay_on", relay)
@@ -215,6 +215,18 @@ def rename():
     return jsonify({"ok": True, "id": port_id, "name": name})
 
 
+@flask_app.route('/rename/bulk', methods=['POST'])
+def rename_bulk():
+    data = request.get_json()
+    if not data or 'antennas' not in data:
+        return jsonify({"ok": False, "error": "antennas required"}), 400
+    config = load_config()
+    for k, v in data['antennas'].items():
+        config["antennas"][str(k)] = v
+    save_config(config)
+    return jsonify({"ok": True})
+
+
 @flask_app.route('/bandmap')
 def bandmap():
     config = load_config()
@@ -229,13 +241,51 @@ def bandmap():
 @flask_app.route('/assign')
 def assign():
     band = request.args.get('band')
-    port = request.args.get('port')
+    port = request.args.get('relay') or request.args.get('port')
     if not band or not port:
         return jsonify({"ok": False, "error": "band and port required"}), 400
     config = load_config()
     config["band_map"][band] = int(port)
     save_config(config)
     return jsonify({"ok": True, "band": band, "port": port})
+
+
+@flask_app.route('/assign/clear')
+def assign_clear():
+    band = request.args.get('band')
+    if not band:
+        return jsonify({"ok": False, "error": "band required"}), 400
+    config = load_config()
+    config["band_map"][band] = None
+    save_config(config)
+    return jsonify({"ok": True, "band": band})
+
+
+@flask_app.route('/label')
+def label():
+    input_n = request.args.get('input')
+    name = request.args.get('name', '')
+    if not input_n:
+        return jsonify({"ok": False, "error": "input required"}), 400
+    config = load_config()
+    key = "input1_label" if input_n == "1" else "input2_label"
+    config[key] = name
+    save_config(config)
+    return jsonify({"ok": True, "input": input_n, "name": name})
+
+
+@flask_app.route('/config/ports', methods=['POST'])
+def config_ports():
+    data = request.get_json()
+    if not data or 'port_count' not in data:
+        return jsonify({"ok": False, "error": "port_count required"}), 400
+    count = int(data['port_count'])
+    if count not in [4, 6, 8]:
+        return jsonify({"ok": False, "error": "port_count must be 4, 6 or 8"}), 400
+    config = load_config()
+    config["port_count"] = count
+    save_config(config)
+    return jsonify({"ok": True, "port_count": count})
 
 
 @flask_app.route('/set_port_count')
@@ -256,8 +306,8 @@ def set_port_count():
 def factory_reset():
     config = load_config()
     pc = get_port_count(config)
-    il1 = config.get("input1_label", "Input 1")
-    il2 = config.get("input2_label", "Input 2")
+    il1 = config.get("input1_label", "Input A")
+    il2 = config.get("input2_label", "Input B")
     fresh = {
         "antennas": {str(i+1): "" for i in range(pc)},
         "band_map": {
