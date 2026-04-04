@@ -42,6 +42,7 @@ Paste the raw URL of this file at the start of each session:
               ├── CLAUDE-UNO-Q.md         — this file
               ├── README.md               — project overview
               ├── CHANGELOG.md            — version history
+              ├── TEST-PLAN-v2.md         — v2.0 test plan (98 tests, 11 sections)
               ├── shackswitch-v2/         — current source files (reference copies from first-app)
               │   ├── main.py             — Flask REST API + smartsdr launcher + rfkit integration
               │   ├── index.html          — web UI (Status, Amplifier, Settings pages)
@@ -341,6 +342,7 @@ Paste the raw URL of this file at the start of each session:
                                                                                             - [ ] | Roadmap | Binaural/diversity RX handling |
                                                                                             - [ ] | Roadmap | AetherSDR issue #179 native panel |
                                                                                             - [ ] | Roadmap | Node-RED integration (deferred) |
+                                                                                            - [ ] | Future | Automated test runner — `shackswitch-test` App Lab app, Flask on port 5001, auto-runs REST API/relay/KK1L/rfkit tests, prompted manual tests, generates timestamped pass/fail log matching TEST-PLAN-v2.md |
                                                                                             - [ ] | Future | TCP control protocol port 9008 |
                                                                                            
                                                                                             - [ ] ---
@@ -375,6 +377,8 @@ Paste the raw URL of this file at the start of each session:
                                                                                             - [ ] | 04 Apr 2026 | Full repo sync — shackswitch-v2 backed up to GitHub from live first-app |
                                                                                             - [ ] | 04 Apr 2026 | Pi clone (10.0.0.57) rebased and pushed — all locations in sync |
                                                                                             - [ ] | 04 Apr 2026 | CLAUDE-UNO-Q.md updated to reflect current state |
+                                                                                            - [ ] | 04 Apr 2026 | TEST-PLAN-v2.md created — 98 tests across 11 sections |
+                                                                                            - [ ] | 04 Apr 2026 | Automated test runner app scoped — added to roadmap for next session |
                                                                                            
                                                                                             - [ ] ---
                                                                                            
