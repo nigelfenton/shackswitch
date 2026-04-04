@@ -358,5 +358,53 @@ t2 = threading.Thread(target=run_smartsdr, daemon=True)
 t2.start()
 print("SmartSDR tracker started")
 
+
+# -- RF-Kit RF2K-S integration --
+import rfkit
+
+@flask_app.route("/rfkit/config", methods=["GET"])
+def rfkit_config_get():
+    cfg = load_config()
+    return jsonify({"ok": True, "rfkit_ip": cfg.get("rfkit_ip"), "rfkit_enabled": cfg.get("rfkit_enabled", False)})
+
+@flask_app.route("/rfkit/config", methods=["POST"])
+def rfkit_config_post():
+    data = request.get_json(force=True)
+    cfg = load_config()
+    if "rfkit_ip" in data:
+        cfg["rfkit_ip"] = data["rfkit_ip"]
+    if "rfkit_enabled" in data:
+        cfg["rfkit_enabled"] = data["rfkit_enabled"]
+    save_config(cfg)
+    rfkit.set_ip(cfg.get("rfkit_ip"))
+    return jsonify({"ok": True})
+
+@flask_app.route("/rfkit/status")
+def rfkit_status():
+    cfg = load_config()
+    ip = cfg.get("rfkit_ip")
+    if not ip:
+        return jsonify({"ok": True, "available": False, "reason": "No IP configured"})
+    return jsonify(rfkit.get_status(ip))
+
+@flask_app.route("/rfkit/operate", methods=["PUT"])
+def rfkit_operate():
+    cfg = load_config()
+    ip = cfg.get("rfkit_ip")
+    if not ip:
+        return jsonify({"ok": False, "error": "No amp IP configured"})
+    data = request.get_json(force=True)
+    mode = data.get("operate_mode", "STANDBY")
+    return jsonify(rfkit.set_operate_mode(ip, mode))
+
+@flask_app.route("/rfkit/fault/reset", methods=["POST"])
+def rfkit_fault_reset():
+    cfg = load_config()
+    ip = cfg.get("rfkit_ip")
+    if not ip:
+        return jsonify({"ok": False, "error": "No amp IP configured"})
+    return jsonify(rfkit.reset_fault(ip))
+# -- End RF-Kit --
+
 setup()
 App.run(user_loop=loop)

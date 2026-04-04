@@ -109,6 +109,34 @@
     }
     .port-btn.selected { background: #00cc66; color: #000; border-color: #00cc66; font-weight: bold; }
     .port-save-msg { font-size: 11px; color: #00cc66; }
+  
+    .amp-status-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px; }
+    .amp-metric { background: #2a2a2a; border: 1px solid #333; border-radius: 6px; padding: 12px; }
+    .amp-metric-title { font-size: 11px; color: #666; text-transform: uppercase; margin-bottom: 4px; }
+    .amp-metric-value { font-size: 26px; color: #00cc66; font-weight: bold; }
+    .amp-metric-unit { font-size: 12px; color: #555; margin-top: 2px; }
+    .amp-metric-value.warn { color: #ff8800; }
+    .amp-metric-value.danger { color: #ff4444; }
+    .amp-operate-row { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
+    .amp-mode-badge { padding: 6px 18px; border-radius: 4px; font-size: 13px; font-weight: bold; font-family: monospace; letter-spacing: 1px; }
+    .amp-mode-badge.operate { background: #00cc66; color: #000; }
+    .amp-mode-badge.standby { background: #333; color: #888; border: 1px solid #555; }
+    .amp-toggle-btn { padding: 6px 16px; border: 1px solid #00cc66; border-radius: 4px; background: #222; color: #00cc66; font-family: monospace; font-size: 12px; cursor: pointer; }
+    .amp-toggle-btn:hover { background: #1a3329; }
+    .amp-fault-row { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
+    .amp-fault-badge { padding: 5px 14px; border-radius: 4px; font-size: 12px; font-family: monospace; background: #2a0000; color: #ff4444; border: 1px solid #ff4444; display: none; }
+    .amp-fault-badge.visible { display: inline-block; }
+    .amp-reset-btn { padding: 5px 14px; border: 1px solid #ff4444; border-radius: 4px; background: #2a0000; color: #ff4444; font-family: monospace; font-size: 11px; cursor: pointer; display: none; }
+    .amp-reset-btn.visible { display: inline-block; }
+    .amp-reset-btn:hover { background: #4a0000; }
+    .amp-unreachable { background: #222; border: 1px solid #333; border-radius: 6px; padding: 24px; text-align: center; color: #555; font-size: 13px; }
+    .amp-ip-row { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; }
+    .amp-ip-label { font-size: 12px; color: #666; }
+    input.amp-ip-input { background: #2a2a2a; color: #ccc; border: 1px solid #444; border-radius: 3px; font-family: monospace; font-size: 12px; padding: 4px 8px; width: 160px; }
+    input.amp-ip-input:focus { outline: none; border-color: #00cc66; }
+    .amp-save-btn { padding: 4px 12px; background: #2a2a2a; color: #00cc66; border: 1px solid #00cc66; border-radius: 3px; font-family: monospace; font-size: 11px; cursor: pointer; }
+    .amp-save-btn:hover { background: #1a3329; }
+    .amp-status-bar { font-size: 11px; color: #444; text-align: right; margin-top: 8px; }
   </style>
 </head>
 <body>
@@ -116,6 +144,7 @@
   <h3 id="subtitle">v2.0 — Arduino Uno Q — 10.0.0.145</h3>
   <div class="nav">
     <button class="nav-btn active" onclick="showPage('main', this)">Status</button>
+    <button class="nav-btn" onclick="showPage('amplifier', this); loadAmplifier()">Amplifier</button>
     <button class="nav-btn" onclick="showPage('settings', this)">Settings</button>
   </div>
   <!-- MAIN PAGE -->
@@ -200,14 +229,7 @@
     let cachedAntennas = {};
     let cachedBandMap = {};
 
-    function showPage(name, btn) {
-      document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-      document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
-      document.getElementById('page-' + name).classList.add('active');
-      btn.classList.add('active');
-      if (name === 'settings') loadSettings();
-      if (name === 'main') poll();
-    }
+    // showPage defined below in amplifier section
 
     function toggle(input, relay) {
   const url = window._kk1lAvailable
@@ -230,8 +252,8 @@
       portCount = data.port_count || 4;
       const body = document.getElementById('matrix-body');
       body.innerHTML = '';
-      const in1 = data.input1_relay;
-      const in2 = data.input2_relay;
+      const in1 = data.kk1l_available ? data.input1_port : data.input1_relay;
+      const in2 = data.kk1l_available ? data.input2_port : data.input2_relay;
       window._kk1lAvailable = data.kk1l_available || false;    
       document.getElementById('subtitle').textContent =
         'v2.0 — Arduino Uno Q — 10.0.0.145 — ' + portCount + '-port';
@@ -452,6 +474,192 @@
       el.textContent = text;
       setTimeout(() => el.textContent = '', 3000);
     }
-  </script>
+  
+// -- Amplifier page --
+let ampPollTimer = null;
+let currentAmpMode = "STANDBY";
+
+function showPage(name, btn) {
+  if (name !== "amplifier" && ampPollTimer) {
+    clearInterval(ampPollTimer);
+    ampPollTimer = null;
+  }
+  document.querySelectorAll(".page").forEach(p => p.classList.remove("active"));
+  document.querySelectorAll(".nav-btn").forEach(b => b.classList.remove("active"));
+  document.getElementById("page-" + name).classList.add("active");
+  btn.classList.add("active");
+  if (name === "settings") loadSettings();
+  if (name === "main") poll();
+}
+
+function loadAmplifier() {
+  fetch("/rfkit/config").then(r => r.json()).then(d => {
+    if (d.rfkit_ip) document.getElementById("amp-ip-input").value = d.rfkit_ip;
+  }).catch(() => {});
+  pollAmp();
+  if (ampPollTimer) clearInterval(ampPollTimer);
+  ampPollTimer = setInterval(pollAmp, 5000);
+}
+
+function pollAmp() {
+  fetch("/rfkit/status")
+    .then(r => r.json())
+    .then(d => {
+      if (!d.ok || !d.available) { showAmpUnreachable(); return; }
+      showAmpContent(d);
+      document.getElementById("amp-status-bar").textContent = "Last update: " + new Date().toLocaleTimeString();
+    })
+    .catch(() => showAmpUnreachable());
+}
+
+function showAmpUnreachable() {
+  document.getElementById("amp-unreachable").style.display = "block";
+  document.getElementById("amp-content").style.display = "none";
+  document.getElementById("amp-status-bar").textContent = "Amp unreachable - " + new Date().toLocaleTimeString();
+}
+
+function showAmpContent(d) {
+  document.getElementById("amp-unreachable").style.display = "none";
+  document.getElementById("amp-content").style.display = "block";
+  currentAmpMode = d.operate_mode || "STANDBY";
+  const badge = document.getElementById("amp-mode-badge");
+  const toggleBtn = document.getElementById("amp-toggle-btn");
+  badge.textContent = currentAmpMode;
+  badge.className = "amp-mode-badge " + (currentAmpMode === "OPERATE" ? "operate" : "standby");
+  toggleBtn.textContent = currentAmpMode === "OPERATE" ? "Switch to Standby" : "Switch to Operate";
+  const hasFault = d.fault && d.fault !== "" && d.fault !== "OK";
+  document.getElementById("amp-fault-badge").className = "amp-fault-badge" + (hasFault ? " visible" : "");
+  document.getElementById("amp-reset-btn").className = "amp-reset-btn" + (hasFault ? " visible" : "");
+  if (hasFault) document.getElementById("amp-fault-badge").textContent = "FAULT: " + d.fault;
+  setText("amp-band", d.band ? d.band + "m" : "--");
+  setMetric("amp-fwd", d.forward_power, null, 1000, 1300);
+  setMetric("amp-ref", d.reflected_power, null, 50, 100);
+  setMetric("amp-swr", d.swr != null ? d.swr.toFixed(1) : null, null, 2.0, 3.0);
+  setMetric("amp-temp", d.temperature, null, 60, 70);
+  setText("amp-volts", d.voltage != null ? d.voltage.toFixed(1) : "--");
+  setText("amp-amps", d.current != null ? d.current.toFixed(1) : "--");
+}
+
+function setText(id, val) {
+  document.getElementById(id).textContent = (val != null) ? val : "--";
+}
+
+function setMetric(id, val, warnLow, warnHigh, dangerHigh) {
+  const el = document.getElementById(id);
+  if (val == null) { el.textContent = "--"; el.className = "amp-metric-value"; return; }
+  el.textContent = val;
+  if (dangerHigh != null && parseFloat(val) >= dangerHigh) {
+    el.className = "amp-metric-value danger";
+  } else if (warnHigh != null && parseFloat(val) >= warnHigh) {
+    el.className = "amp-metric-value warn";
+  } else {
+    el.className = "amp-metric-value";
+  }
+}
+
+function toggleAmpMode() {
+  const newMode = currentAmpMode === "OPERATE" ? "STANDBY" : "OPERATE";
+  fetch("/rfkit/operate", {
+    method: "PUT",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({operate_mode: newMode})
+  }).then(r => r.json()).then(d => {
+    if (d.ok) pollAmp();
+    else showMsg("amp-fault-msg", "Error: " + (d.error || "unknown"));
+  }).catch(e => showMsg("amp-fault-msg", "Error: " + e));
+}
+
+function resetAmpFault() {
+  fetch("/rfkit/fault/reset", {method: "POST"})
+    .then(r => r.json())
+    .then(d => {
+      showMsg("amp-fault-msg", d.ok ? "Fault cleared" : "Error: " + d.error);
+      if (d.ok) setTimeout(pollAmp, 800);
+    })
+    .catch(e => showMsg("amp-fault-msg", "Error: " + e));
+}
+
+function saveAmpIp() {
+  const ip = document.getElementById("amp-ip-input").value.trim();
+  fetch("/rfkit/config", {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({rfkit_ip: ip})
+  }).then(r => r.json()).then(d => {
+    showMsg("amp-ip-msg", d.ok ? "IP saved" : "Error: " + d.error);
+    if (d.ok) setTimeout(pollAmp, 500);
+  }).catch(e => showMsg("amp-ip-msg", "Error: " + e));
+}
+// -- End Amplifier page --
+</script>
+
+  <div id="page-amplifier" class="page">
+    <div class="settings-section">
+      <h4>RF-Kit RF2K-S</h4>
+      <div class="amp-ip-row">
+        <span class="amp-ip-label">Amp IP:</span>
+        <input class="amp-ip-input" id="amp-ip-input" placeholder="e.g. 10.0.0.200" />
+        <button class="amp-save-btn" onclick="saveAmpIp()">Save</button>
+        <span class="save-msg" id="amp-ip-msg"></span>
+      </div>
+      <div class="amp-unreachable" id="amp-unreachable" style="display:none;">
+        Amplifier unreachable - check IP and network connection.
+      </div>
+      <div id="amp-content" style="display:none;">
+        <div class="amp-operate-row">
+          <span class="amp-metric-title">MODE</span>
+          <span class="amp-mode-badge standby" id="amp-mode-badge">STANDBY</span>
+          <button class="amp-toggle-btn" id="amp-toggle-btn" onclick="toggleAmpMode()">Switch to Operate</button>
+        </div>
+        <div class="amp-fault-row">
+          <span class="amp-fault-badge" id="amp-fault-badge">FAULT</span>
+          <button class="amp-reset-btn" id="amp-reset-btn" onclick="resetAmpFault()">Reset Fault</button>
+          <span class="save-msg" id="amp-fault-msg"></span>
+        </div>
+        <div class="amp-metric" style="margin-bottom:16px;">
+            <div class="amp-metric-title">Band</div>
+            <div class="amp-metric-value" id="amp-band" style="font-size:22px;">--</div>
+          </div>
+
+        </div>
+        <div class="amp-status-row">
+          <div class="amp-metric">
+            <div class="amp-metric-title">Forward Power</div>
+            <div class="amp-metric-value" id="amp-fwd">--</div>
+            <div class="amp-metric-unit">Watts</div>
+          </div>
+          <div class="amp-metric">
+            <div class="amp-metric-title">Reflected Power</div>
+            <div class="amp-metric-value" id="amp-ref">--</div>
+            <div class="amp-metric-unit">Watts</div>
+          </div>
+        </div>
+        <div class="amp-status-row">
+          <div class="amp-metric">
+            <div class="amp-metric-title">SWR</div>
+            <div class="amp-metric-value" id="amp-swr">--</div>
+          </div>
+          <div class="amp-metric">
+            <div class="amp-metric-title">Temperature</div>
+            <div class="amp-metric-value" id="amp-temp">--</div>
+            <div class="amp-metric-unit">deg C</div>
+          </div>
+        </div>
+        <div class="amp-status-row">
+          <div class="amp-metric">
+            <div class="amp-metric-title">Supply Voltage</div>
+            <div class="amp-metric-value" id="amp-volts">--</div>
+            <div class="amp-metric-unit">V</div>
+          </div>
+          <div class="amp-metric">
+            <div class="amp-metric-title">Current</div>
+            <div class="amp-metric-value" id="amp-amps">--</div>
+            <div class="amp-metric-unit">A</div>
+          </div>
+        </div>
+      </div>
+      <div class="amp-status-bar" id="amp-status-bar"></div>
+    </div>
+  </div>
 </body>
 </html>
