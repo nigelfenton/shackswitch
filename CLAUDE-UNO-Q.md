@@ -454,6 +454,93 @@ Enable blind/visually impaired amateur radio operators to use ShackSwitch indepe
 - Announce page load state on entry to voice mode
 - No reliance on colour alone for state (buttons already show 1/2 not just colour)
 
+## Accessibility — Spoken Feedback for Visually Impaired Operators
+
+### Goal
+
+Enable blind/visually impaired amateur radio operators to use ShackSwitch independently via spoken audio feedback and voice commands. Real-time TTS announcements of antenna selection, band changes, amplifier state, faults, and interlock events — plus voice command input for hands-free control.
+
+---
+
+### Audio Paths
+
+**Path A — Browser + Web Speech API (Phase 1 and 2)**
+- Browser (phone/tablet/laptop) handles TTS output and speech recognition input
+- AirPods or BT headset pair to the *browser device*, not the Uno Q
+- Uno Q serves the web app as normal — no firmware or Flask changes
+- Apple AirPods on iPhone/iPad with Safari recommended — Apple TTS voices are excellent
+- Web Speech Recognition API well supported in Chrome and Safari
+
+**Path B — Uno Q BT direct (Phase 3)**
+- Uno Q QRB2210 has Bluetooth via Murata module
+- `espeak-ng` on Uno Q Linux host (outside Docker or in sidecar container)
+- BT audio via BlueZ paired to dedicated earpiece
+- Always-on, no browser required — better for a dedicated shack setup
+- BT audio stack on embedded Linux is non-trivial — defer until logic proven in browser
+
+---
+
+### Phased Plan
+
+**Phase 1 — Spoken announcements (JS in index.html, no server changes)**
+- Detect state changes on existing 5-second poll
+- Speak antenna selections, band changes, amp mode, interlock blocks, faults
+- Toggle button in nav bar — "Voice OFF" / "Voice ON"
+- On enable: announces current state immediately
+
+**Phase 2 — Voice commands (JS in index.html, no server changes)**
+- Web Speech Recognition API listens for commands via headset mic
+- Command grammar:
+  - `"input one antenna two"` / `"switch input 1 to antenna 3"`
+  - `"status"` — full spoken status readout
+  - `"amplifier standby"` / `"amplifier operate"`
+  - `"what band"` / `"what antenna"`
+- Commands translate directly to existing REST API calls
+- Confirmation spoken back after action
+
+**Phase 3 — Uno Q BT direct (server-side, always-on)**
+- `espeak-ng` on Uno Q Linux host
+- BlueZ BT audio pairing to dedicated earpiece
+- Announcements independent of browser state
+- Triggered by Flask endpoints or a sidecar listener process
+
+---
+
+### Spoken Event List
+
+| Event | Announcement |
+|---|---|
+| Antenna selected | "Input A now on Antenna 3" |
+| Band change (SmartSDR) | "Band 40 metres" |
+| Interlock blocked | "Blocked. That antenna is already in use." |
+| Amplifier to operate | "Amplifier operate" |
+| Amplifier to standby | "Amplifier standby" |
+| Amplifier fault | "Amplifier fault. Check RF2K-S." |
+| Voice enabled | "Voice mode active. Input A: Antenna 2. Input B: Antenna 4." |
+| Status command | "Input A: Antenna 2. Input B: Antenna 4. Band 20 metres." |
+
+---
+
+### Hardware Notes
+
+- Apple AirPods — work with iPhone/iPad/Mac browser, mic suitable for voice commands
+- Cheap BT earpiece with mic — works for Phase 1/2 paired to browser device
+- Phase 3 BT direct to Uno Q — any BT A2DP device; mic via HFP profile (more complex)
+- Uno Q has no audio output jack — BT is the only practical audio path from the board itself
+
+---
+
+### Implementation Notes
+
+- Voice state tracked via `voiceEnabled` flag; toggled by nav button
+- State change detection uses `prevIn1`, `prevIn2`, `prevBandA`, `prevAmpMode`, `prevAmpFault`
+- `voiceFirstLoad` flag prevents false announcements on initial page load
+- Speech recognition uses `continuous: true`, restarts automatically on `onend`
+- Word-to-number map handles both "one"/"two" and "1"/"2" in voice commands
+- Recognition language set to `en-GB`
+
+---
+
 ## Roadmap
 
 | Priority | Item |

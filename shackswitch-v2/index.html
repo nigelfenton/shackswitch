@@ -108,6 +108,7 @@
       background: #222; color: #888; font-family: monospace; font-size: 12px; cursor: pointer;
     }
     .port-btn.selected { background: #00cc66; color: #000; border-color: #00cc66; font-weight: bold; }
+    .nav-btn.voice-on { background: #ff8800; color: #000; border-color: #ff8800; font-weight: bold; }
     .port-save-msg { font-size: 11px; color: #00cc66; }
   
     .amp-status-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px; }
@@ -146,6 +147,7 @@
     <button class="nav-btn active" onclick="showPage('main', this)">Status</button>
     <button class="nav-btn" onclick="showPage('amplifier', this); loadAmplifier()">Amplifier</button>
     <button class="nav-btn" onclick="showPage('settings', this)">Settings</button>
+    <button class="nav-btn" id="voice-btn" onclick="toggleVoice()">Voice</button>
   </div>
   <!-- MAIN PAGE -->
   <div class="page active" id="page-main">
@@ -243,6 +245,7 @@
           cell.classList.add('interlock-flash');
           setTimeout(() => cell.classList.remove('interlock-flash'), 800);
         }
+        announceInterlock();
       } else { poll(); }
     });
 }
@@ -298,6 +301,7 @@
         data.bandB || (in2 ? antennas[in2.toString()] || 'Port ' + in2 : '—');
       document.getElementById('relay2-label').textContent =
         in2 ? (antennas[in2.toString()] || 'Port ' + in2) + ' — active' : 'No antenna selected';
+      checkAnnouncements(data, antennas);
     }
 
     function poll() {
@@ -475,6 +479,135 @@
       setTimeout(() => el.textContent = '', 3000);
     }
   
+// -- Voice / TTS --
+let voiceEnabled = false;
+let voiceFirstLoad = true;
+let prevIn1 = null, prevIn2 = null;
+let prevBandA = null, prevBandB = null;
+let prevAmpMode = null, prevAmpFault = false;
+let recognition = null;
+
+function speak(text) {
+  if (!voiceEnabled) return;
+  window.speechSynthesis.cancel();
+  const u = new SpeechSynthesisUtterance(text);
+  u.rate = 0.9;
+  window.speechSynthesis.speak(u);
+}
+
+function toggleVoice() {
+  voiceEnabled = !voiceEnabled;
+  const btn = document.getElementById('voice-btn');
+  if (voiceEnabled) {
+    btn.classList.add('voice-on');
+    btn.textContent = 'Voice ON';
+    voiceFirstLoad = true;
+    announceCurrentState();
+    startRecognition();
+  } else {
+    btn.classList.remove('voice-on');
+    btn.textContent = 'Voice';
+    window.speechSynthesis.cancel();
+    stopRecognition();
+  }
+}
+
+function announceCurrentState() {
+  const label1 = document.getElementById('label1').textContent || 'Input A';
+  const label2 = document.getElementById('label2').textContent || 'Input B';
+  const in1Name = prevIn1 ? (cachedAntennas[prevIn1.toString()] || 'Port ' + prevIn1) : 'none';
+  const in2Name = prevIn2 ? (cachedAntennas[prevIn2.toString()] || 'Port ' + prevIn2) : 'none';
+  let msg = 'Voice mode active. ' + label1 + ': ' + in1Name + '. ' + label2 + ': ' + in2Name + '.';
+  if (prevBandA) msg += ' Band: ' + prevBandA + '.';
+  speak(msg);
+}
+
+function checkAnnouncements(data, antennas) {
+  const in1 = data.kk1l_available ? data.input1_port : data.input1_relay;
+  const in2 = data.kk1l_available ? data.input2_port : data.input2_relay;
+  const bandA = data.bandA || null;
+  const label1 = data.input1_label || 'Input A';
+  const label2 = data.input2_label || 'Input B';
+  if (voiceEnabled && !voiceFirstLoad) {
+    if (in1 !== prevIn1) {
+      const name = in1 ? (antennas[in1.toString()] || 'Port ' + in1) : 'none';
+      speak(label1 + ': ' + name);
+    }
+    if (in2 !== prevIn2) {
+      const name = in2 ? (antennas[in2.toString()] || 'Port ' + in2) : 'none';
+      speak(label2 + ': ' + name);
+    }
+    if (bandA && bandA !== prevBandA) speak('Band ' + bandA);
+  }
+  voiceFirstLoad = false;
+  prevIn1 = in1; prevIn2 = in2; prevBandA = bandA;
+}
+
+function checkAmpAnnouncements(d) {
+  if (!voiceEnabled) return;
+  const mode = d.operate_mode || 'STANDBY';
+  const hasFault = d.fault && d.fault !== '' && d.fault !== 'OK';
+  if (prevAmpMode !== null && mode !== prevAmpMode) speak('Amplifier ' + mode.toLowerCase());
+  if (!prevAmpFault && hasFault) speak('Amplifier fault. Check RF2K-S.');
+  prevAmpMode = mode;
+  prevAmpFault = hasFault;
+}
+
+function announceInterlock() {
+  speak('Blocked. That antenna is already in use.');
+}
+
+function startRecognition() {
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR) return;
+  recognition = new SR();
+  recognition.continuous = true;
+  recognition.interimResults = false;
+  recognition.lang = 'en-GB';
+  recognition.onresult = e => {
+    const t = e.results[e.results.length - 1][0].transcript.toLowerCase().trim();
+    handleVoiceCommand(t);
+  };
+  recognition.onend = () => { if (voiceEnabled) recognition.start(); };
+  recognition.start();
+}
+
+function stopRecognition() {
+  if (recognition) { recognition.stop(); recognition = null; }
+}
+
+const WORD_TO_NUM = {one:1,two:2,three:3,four:4,five:5,six:6,seven:7,eight:8,'1':1,'2':2,'3':3,'4':4,'5':5,'6':6,'7':7,'8':8};
+
+function handleVoiceCommand(t) {
+  if (t.includes('status') || t.includes('what')) { announceCurrentState(); return; }
+  if ((t.includes('amplifier') || t.includes('amp')) && t.includes('standby')) {
+    fetch('/rfkit/operate', {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({operate_mode:'STANDBY'})})
+      .then(r => r.json()).then(d => { if (d.ok) speak('Amplifier going to standby'); });
+    return;
+  }
+  if ((t.includes('amplifier') || t.includes('amp')) && t.includes('operate')) {
+    fetch('/rfkit/operate', {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({operate_mode:'OPERATE'})})
+      .then(r => r.json()).then(d => { if (d.ok) speak('Amplifier going to operate'); });
+    return;
+  }
+  const m = t.match(/input\s+(\w+).*antenna\s+(\w+)/);
+  if (m) {
+    const inp = WORD_TO_NUM[m[1]];
+    const port = WORD_TO_NUM[m[2]];
+    if (inp && port) {
+      const url = window._kk1lAvailable
+        ? '/kk1l/select?input=' + inp + '&port=' + port
+        : '/select?input=' + inp + '&relay=' + port;
+      fetch(url).then(r => {
+        if (r.status === 409) speak('Blocked. That antenna is already in use.');
+        else { speak('Done'); poll(); }
+      });
+    }
+    return;
+  }
+}
+// -- End Voice / TTS --
+
 // -- Amplifier page --
 let ampPollTimer = null;
 let currentAmpMode = "STANDBY";
@@ -538,6 +671,7 @@ function showAmpContent(d) {
   setMetric("amp-temp", d.temperature, null, 60, 70);
   setText("amp-volts", d.voltage != null ? d.voltage.toFixed(1) : "--");
   setText("amp-amps", d.current != null ? d.current.toFixed(1) : "--");
+  checkAmpAnnouncements(d);
 }
 
 function setText(id, val) {
