@@ -170,6 +170,9 @@
     </div>
     <table class="matrix"><tbody id="matrix-body"></tbody></table>
     <div class="status-bar" id="status-bar">Connecting...</div>
+    <div id="voice-status" style="display:none;font-size:11px;color:#ff8800;margin-top:6px;">
+      🎤 <span id="voice-transcript">Listening...</span>
+    </div>
   </div><!-- SETTINGS PAGE -->
   <div class="page" id="page-settings">
     <div class="settings-section">
@@ -502,11 +505,14 @@ function toggleVoice() {
     btn.classList.add('voice-on');
     btn.textContent = 'Voice ON';
     voiceFirstLoad = true;
+    document.getElementById('voice-status').style.display = 'block';
+    document.getElementById('voice-transcript').textContent = 'Listening...';
     announceCurrentState();
     startRecognition();
   } else {
     btn.classList.remove('voice-on');
     btn.textContent = 'Voice';
+    document.getElementById('voice-status').style.display = 'none';
     window.speechSynthesis.cancel();
     stopRecognition();
   }
@@ -566,9 +572,13 @@ function startRecognition() {
   recognition.lang = 'en-GB';
   recognition.onresult = e => {
     const t = e.results[e.results.length - 1][0].transcript.toLowerCase().trim();
+    document.getElementById('voice-transcript').textContent = '"' + t + '"';
     handleVoiceCommand(t);
   };
   recognition.onend = () => { if (voiceEnabled) recognition.start(); };
+  recognition.onerror = e => {
+    document.getElementById('voice-transcript').textContent = 'Error: ' + e.error;
+  };
   recognition.start();
 }
 
