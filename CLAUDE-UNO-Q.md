@@ -491,6 +491,7 @@ Enable blind/visually impaired amateur radio operators to use ShackSwitch indepe
 | Roadmap | Binaural/diversity RX handling |
 | Roadmap | AetherSDR issue #179 native panel |
 | Roadmap | Node-RED integration (deferred) |
+| Future | Spoken test runner — reads TEST-PLAN-v2.md steps aloud, listens for "pass"/"fail", logs results hands-free |
 | Future | Automated test runner — shackswitch-test app, port 5001 |
 | Future | TCP control protocol port 9008 |
 
