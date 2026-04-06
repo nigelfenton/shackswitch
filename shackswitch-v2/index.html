@@ -577,7 +577,11 @@ function startRecognition() {
   };
   recognition.onend = () => { if (voiceEnabled) recognition.start(); };
   recognition.onerror = e => {
-    document.getElementById('voice-transcript').textContent = 'Error: ' + e.error;
+    if (e.error === 'no-speech') {
+      document.getElementById('voice-transcript').textContent = 'Listening...';
+    } else {
+      document.getElementById('voice-transcript').textContent = 'Error: ' + e.error;
+    }
   };
   recognition.start();
 }
