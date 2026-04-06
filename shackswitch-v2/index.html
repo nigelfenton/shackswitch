@@ -576,7 +576,7 @@ function startRecognition() {
     document.getElementById('voice-transcript').textContent = '"' + t + '"';
     if (result.isFinal) handleVoiceCommand(t);
   };
-  recognition.onend = () => { if (voiceEnabled) recognition.start(); };
+  recognition.onend = () => { if (voiceEnabled) setTimeout(() => { if (recognition) recognition.start(); }, 300); };
   recognition.onerror = e => {
     if (e.error === 'no-speech') {
       document.getElementById('voice-transcript').textContent = 'Listening...';
