@@ -303,7 +303,7 @@ Single page app served by Flask at `http://10.0.0.145:5000/`
 
 The STM32 sketch loads into RAM via OpenOCD on every App Lab deploy. After a cold power cycle the sketch must be redeployed from App Lab.
 
-**Workaround:** Deploy once from App Lab. The systemd service (`shackswitch`) then starts the Docker container on subsequent warm reboots.
+**Status: SOLVED (confirmed 6 Apr 2026).** Deploy once from App Lab. The systemd service (`shackswitch`) reflashes the sketch via OpenOCD and starts the Docker container on every subsequent power cycle — no App Lab required.
 
 **Boot sequence files:**
 - Service: `/etc/systemd/system/shackswitch.service`
@@ -478,8 +478,8 @@ Enable blind/visually impaired amateur radio operators to use ShackSwitch indepe
 |---|---|
 | ~~Done~~ | ~~Voice TTS + STT (Phase 1+2)~~ — **live as of 6 Apr 2026** |
 | ~~Done~~ | ~~Live FlexRadio VFO frequency display~~ — **live as of 6 Apr 2026** |
+| ~~Done~~ | ~~Solve cold boot autostart~~ — **confirmed working 6 Apr 2026** — systemd service reflashes sketch and starts Docker on power cycle, no App Lab required |
 | Immediate | Restore relay state on container restart (read config, call relay_on in setup()) |
-| Immediate | Solve cold boot autostart — Arduino forum post pending |
 | Near term | Change default antenna names to "Antenna 1" etc in factory_reset |
 | Near term | Hide inactive ports completely in matrix (ALL_PORTS → portCount) |
 | Near term | Wire rfkit PA sequencing into kk1l_setband |
