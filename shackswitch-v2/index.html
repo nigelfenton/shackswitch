@@ -175,6 +175,9 @@
     </div>
   </div><!-- SETTINGS PAGE -->
   <div class="page" id="page-settings">
+    <div style="margin-bottom:16px;padding-bottom:14px;border-bottom:1px solid #333;">
+      <button class="row-save-btn" onclick="goVoiceSettings()" style="font-size:12px;">Voice Settings &#9881;</button>
+    </div>
     <div class="settings-section">
       <h4>Hardware Port Count</h4>
       <div class="port-count-row">
@@ -297,13 +300,13 @@
         body.appendChild(tr);
       }
       document.getElementById('band1').textContent =
-        data.bandA || (in1 ? antennas[in1.toString()] || 'Port ' + in1 : '—');
+        data.freqA ? data.freqA.toFixed(3) + ' MHz' : (data.bandA || (in1 ? antennas[in1.toString()] || 'Port ' + in1 : '—'));
       document.getElementById('relay1-label').textContent =
-        in1 ? (antennas[in1.toString()] || 'Port ' + in1) + ' — active' : 'No antenna selected';
+        in1 ? (antennas[in1.toString()] || 'Port ' + in1) + (data.bandA ? ' — ' + data.bandA : '') + ' — active' : 'No antenna selected';
       document.getElementById('band2').textContent =
-        data.bandB || (in2 ? antennas[in2.toString()] || 'Port ' + in2 : '—');
+        data.freqB ? data.freqB.toFixed(3) + ' MHz' : (data.bandB || (in2 ? antennas[in2.toString()] || 'Port ' + in2 : '—'));
       document.getElementById('relay2-label').textContent =
-        in2 ? (antennas[in2.toString()] || 'Port ' + in2) + ' — active' : 'No antenna selected';
+        in2 ? (antennas[in2.toString()] || 'Port ' + in2) + (data.bandB ? ' — ' + data.bandB : '') + ' — active' : 'No antenna selected';
       checkAnnouncements(data, antennas);
     }
 
@@ -489,12 +492,14 @@ let prevIn1 = null, prevIn2 = null;
 let prevBandA = null, prevBandB = null;
 let prevAmpMode = null, prevAmpFault = false;
 let recognition = null;
+let announceDebounce = 0;
 
-function speak(text) {
+function speak(text, onend) {
   if (!voiceEnabled) return;
   window.speechSynthesis.cancel();
   const u = new SpeechSynthesisUtterance(text);
   u.rate = 0.9;
+  u.onend = onend ? () => setTimeout(onend, 350) : null;
   window.speechSynthesis.speak(u);
 }
 
@@ -507,8 +512,7 @@ function toggleVoice() {
     voiceFirstLoad = true;
     document.getElementById('voice-status').style.display = 'block';
     document.getElementById('voice-transcript').textContent = 'Listening...';
-    announceCurrentState();
-    startRecognition();
+    announceCurrentState(startRecognition);
   } else {
     btn.classList.remove('voice-on');
     btn.textContent = 'Voice';
@@ -518,14 +522,14 @@ function toggleVoice() {
   }
 }
 
-function announceCurrentState() {
+function announceCurrentState(onend) {
   const label1 = document.getElementById('label1').textContent || 'Input A';
   const label2 = document.getElementById('label2').textContent || 'Input B';
   const in1Name = prevIn1 ? (cachedAntennas[prevIn1.toString()] || 'Port ' + prevIn1) : 'none';
   const in2Name = prevIn2 ? (cachedAntennas[prevIn2.toString()] || 'Port ' + prevIn2) : 'none';
   let msg = 'Voice mode active. ' + label1 + ': ' + in1Name + '. ' + label2 + ': ' + in2Name + '.';
   if (prevBandA) msg += ' Band: ' + prevBandA + '.';
-  speak(msg);
+  speak(msg, onend);
 }
 
 function checkAnnouncements(data, antennas) {
@@ -535,15 +539,19 @@ function checkAnnouncements(data, antennas) {
   const label1 = data.input1_label || 'Input A';
   const label2 = data.input2_label || 'Input B';
   if (voiceEnabled && !voiceFirstLoad) {
-    if (in1 !== prevIn1) {
-      const name = in1 ? (antennas[in1.toString()] || 'Port ' + in1) : 'none';
-      speak(label1 + ': ' + name);
+    const now = Date.now();
+    if (in1 !== prevIn1 && now > announceDebounce) {
+      announceDebounce = now + 1500;
+      speak(label1 + ': ' + (in1 ? antennas[in1.toString()] || 'Port ' + in1 : 'none'));
     }
-    if (in2 !== prevIn2) {
-      const name = in2 ? (antennas[in2.toString()] || 'Port ' + in2) : 'none';
-      speak(label2 + ': ' + name);
+    if (in2 !== prevIn2 && now > announceDebounce) {
+      announceDebounce = now + 1500;
+      speak(label2 + ': ' + (in2 ? antennas[in2.toString()] || 'Port ' + in2 : 'none'));
     }
-    if (bandA && bandA !== prevBandA) speak('Band ' + bandA);
+    if (bandA && bandA !== prevBandA && now > announceDebounce) {
+      announceDebounce = now + 1500;
+      speak('Band ' + bandA);
+    }
   }
   voiceFirstLoad = false;
   prevIn1 = in1; prevIn2 = in2; prevBandA = bandA;
@@ -576,7 +584,7 @@ function startRecognition() {
     document.getElementById('voice-transcript').textContent = '"' + t + '"';
     if (result.isFinal) handleVoiceCommand(t);
   };
-  recognition.onend = () => { if (voiceEnabled) setTimeout(() => { if (recognition) recognition.start(); }, 300); };
+  recognition.onend = () => { if (voiceEnabled) recognition.start(); };
   recognition.onerror = e => {
     if (e.error === 'no-speech') {
       document.getElementById('voice-transcript').textContent = 'Listening...';
@@ -594,6 +602,10 @@ function stopRecognition() {
 const WORD_TO_NUM = {one:1,two:2,three:3,four:4,five:5,six:6,seven:7,eight:8,'1':1,'2':2,'3':3,'4':4,'5':5,'6':6,'7':7,'8':8};
 
 function handleVoiceCommand(t) {
+  const customs = getCustomCommands();
+  for (const cmd of customs) {
+    if (t.includes(cmd.phrase)) { executeCustomCommand(cmd); return; }
+  }
   if (t.includes('status') || t.includes('what')) { announceCurrentState(); return; }
   if ((t.includes('amplifier') || t.includes('amp')) && t.includes('standby')) {
     fetch('/rfkit/operate', {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({operate_mode:'STANDBY'})})
@@ -739,6 +751,99 @@ function saveAmpIp() {
     if (d.ok) setTimeout(pollAmp, 500);
   }).catch(e => showMsg("amp-ip-msg", "Error: " + e));
 }
+
+// -- Voice Settings page --
+function loadVoicePage() { updateVcStatusBadge(); renderCustomCommands(); }
+function goVoiceSettings() {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('page-voice').classList.add('active');
+  loadVoicePage();
+}
+function updateVcStatusBadge() {
+  const badge = document.getElementById('vc-status-badge');
+  if (!badge) return;
+  if (voiceEnabled) {
+    badge.textContent = 'ON'; badge.style.background = '#ff8800';
+    badge.style.color = '#000'; badge.style.border = 'none';
+  } else {
+    badge.textContent = 'OFF'; badge.style.background = '#333';
+    badge.style.color = '#666'; badge.style.border = '1px solid #555';
+  }
+}
+function toggleVoiceFromPage() { toggleVoice(); updateVcStatusBadge(); }
+function updateVcActionUI() {
+  const a = document.getElementById('vc-action').value;
+  document.getElementById('vc-select-opts').style.display = a === 'select' ? 'flex' : 'none';
+}
+function getCustomCommands() {
+  try { return JSON.parse(localStorage.getItem('ssVoiceCommands') || '[]'); } catch(e) { return []; }
+}
+function saveCustomCommands(cmds) { localStorage.setItem('ssVoiceCommands', JSON.stringify(cmds)); }
+function renderCustomCommands() {
+  const tbody = document.getElementById('custom-cmd-body');
+  if (!tbody) return;
+  const cmds = getCustomCommands();
+  tbody.innerHTML = '';
+  if (!cmds.length) {
+    tbody.innerHTML = '<tr><td colspan="3" style="font-size:11px;color:#555;padding:8px 6px;">No custom commands yet.</td></tr>';
+    return;
+  }
+  cmds.forEach((cmd, i) => {
+    const desc = cmd.action === 'select'
+      ? 'Input ' + (cmd.input == 1 ? 'A' : 'B') + ' &rarr; Port ' + cmd.port
+      : cmd.action === 'amp_operate' ? 'Amp &rarr; Operate'
+      : cmd.action === 'amp_standby' ? 'Amp &rarr; Standby' : 'Announce Status';
+    const tr = document.createElement('tr');
+    tr.innerHTML =
+      '<td class="band-label">&quot;' + cmd.phrase + '&quot;</td>' +
+      '<td style="font-size:12px;color:#aaa;">' + desc + '</td>' +
+      '<td><button class="row-save-btn" style="color:#ff4444;border-color:#ff4444;" onclick="deleteCustomCommand(' + i + ')">&#x2715;</button></td>';
+    tbody.appendChild(tr);
+  });
+}
+function addCustomCommand() {
+  const phrase = document.getElementById('vc-phrase').value.trim().toLowerCase();
+  const action = document.getElementById('vc-action').value;
+  if (!phrase) { showMsg('vc-add-msg', 'Enter a phrase'); return; }
+  const cmd = { phrase, action };
+  if (action === 'select') {
+    cmd.input = parseInt(document.getElementById('vc-input').value);
+    cmd.port = parseInt(document.getElementById('vc-port').value);
+  }
+  const cmds = getCustomCommands();
+  if (cmds.some(x => x.phrase === phrase)) { showMsg('vc-add-msg', 'Phrase already exists'); return; }
+  cmds.push(cmd);
+  saveCustomCommands(cmds);
+  document.getElementById('vc-phrase').value = '';
+  renderCustomCommands();
+  showMsg('vc-add-msg', 'Added ✓');
+}
+function deleteCustomCommand(i) {
+  const cmds = getCustomCommands();
+  cmds.splice(i, 1);
+  saveCustomCommands(cmds);
+  renderCustomCommands();
+}
+function executeCustomCommand(cmd) {
+  if (cmd.action === 'select') {
+    const url = window._kk1lAvailable
+      ? '/kk1l/select?input=' + cmd.input + '&port=' + cmd.port
+      : '/select?input=' + cmd.input + '&relay=' + cmd.port;
+    fetch(url).then(r => {
+      if (r.status === 409) speak('Blocked. That antenna is already in use.');
+      else { speak('Done'); poll(); }
+    });
+  } else if (cmd.action === 'amp_operate') {
+    fetch('/rfkit/operate', {method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({operate_mode:'OPERATE'})})
+      .then(r=>r.json()).then(d=>{if(d.ok) speak('Amplifier going to operate');});
+  } else if (cmd.action === 'amp_standby') {
+    fetch('/rfkit/operate', {method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({operate_mode:'STANDBY'})})
+      .then(r=>r.json()).then(d=>{if(d.ok) speak('Amplifier going to standby');});
+  } else if (cmd.action === 'status') { announceCurrentState(); }
+}
+// -- End Voice Settings page --
+
 // -- End Amplifier page --
 </script>
 
@@ -810,5 +915,63 @@ function saveAmpIp() {
       <div class="amp-status-bar" id="amp-status-bar"></div>
     </div>
   </div>
+
+  <div id="page-voice" class="page">
+    <div class="settings-section">
+      <h4>Voice Control</h4>
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;">
+        <span style="font-size:12px;color:#aaa;">Status:</span>
+        <span id="vc-status-badge" style="padding:4px 14px;border-radius:4px;font-size:12px;font-family:monospace;background:#333;color:#666;border:1px solid #555;">OFF</span>
+        <button class="row-save-btn" onclick="toggleVoiceFromPage()">Toggle</button>
+      </div>
+    </div>
+    <div class="settings-section">
+      <h4>Built-in Commands</h4>
+      <table class="settings-grid">
+        <thead><tr><th>Say</th><th>Action</th></tr></thead>
+        <tbody>
+          <tr><td class="band-label">"status" or "what"</td><td style="font-size:12px;color:#aaa;">Announce current antenna state</td></tr>
+          <tr><td class="band-label">"input one antenna two"</td><td style="font-size:12px;color:#aaa;">Input A &rarr; Port 2 (words or digits)</td></tr>
+          <tr><td class="band-label">"input two antenna three"</td><td style="font-size:12px;color:#aaa;">Input B &rarr; Port 3</td></tr>
+          <tr><td class="band-label">"amplifier operate"</td><td style="font-size:12px;color:#aaa;">RF2K-S &rarr; Operate</td></tr>
+          <tr><td class="band-label">"amplifier standby"</td><td style="font-size:12px;color:#aaa;">RF2K-S &rarr; Standby</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="settings-section">
+      <h4>Custom Commands</h4>
+      <p style="font-size:11px;color:#555;margin-bottom:10px;">Shortcut phrases stored in your browser.</p>
+      <table class="settings-grid">
+        <thead><tr><th>Phrase</th><th>Action</th><th></th></tr></thead>
+        <tbody id="custom-cmd-body"></tbody>
+      </table>
+      <div style="margin-top:14px;background:#222;border:1px solid #333;border-radius:6px;padding:12px;">
+        <div style="font-size:11px;color:#666;margin-bottom:8px;">Add command:</div>
+        <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;">
+          <input id="vc-phrase" class="ant-rename" placeholder="Say this..." style="width:140px;">
+          <select id="vc-action" class="ant-rename" onchange="updateVcActionUI()" style="width:150px;">
+            <option value="select">Select Antenna</option>
+            <option value="amp_operate">Amp &rarr; Operate</option>
+            <option value="amp_standby">Amp &rarr; Standby</option>
+            <option value="status">Announce Status</option>
+          </select>
+          <span id="vc-select-opts" style="display:flex;gap:6px;align-items:center;">
+            <select id="vc-input" class="ant-rename" style="width:80px;">
+              <option value="1">Input A</option><option value="2">Input B</option>
+            </select>
+            <select id="vc-port" class="ant-rename" style="width:80px;">
+              <option value="1">Port 1</option><option value="2">Port 2</option>
+              <option value="3">Port 3</option><option value="4">Port 4</option>
+              <option value="5">Port 5</option><option value="6">Port 6</option>
+              <option value="7">Port 7</option><option value="8">Port 8</option>
+            </select>
+          </span>
+          <button class="row-save-btn" onclick="addCustomCommand()">Add</button>
+        </div>
+        <div class="save-msg" id="vc-add-msg"></div>
+      </div>
+    </div>
+  </div>
+
 </body>
 </html>

@@ -45,7 +45,8 @@ shackswitch/
 ├── TEST-PLAN-v2.md         — v2.0 test plan (98 tests, 11 sections)
 ├── shackswitch-v2/         — current source files (reference copies from first-app)
 │   ├── main.py             — Flask REST API + smartsdr launcher + rfkit integration
-│   ├── index.html          — web UI (Status, Amplifier, Settings pages)
+│   ├── index.html          — web UI (Status, Amplifier, Settings, Voice pages)
+│   ├── smartsdr.py         — SmartSDR band/freq tracker (replaces nodered/ copy)
 │   └── sketch.ino          — STM32 firmware (two MCP23017 boards)
 ├── nodered/
 │   └── smartsdr.py         — standalone SmartSDR listener (reference copy)
@@ -134,6 +135,9 @@ Relay shield (D2-D5) + KK1L matrix (MCP1 at 0x20, MCP2 at 0x22)
 - Subscribes unconditionally after 1-second delay (NOT waiting for interlock message)
 - Calls `/kk1l/setband` not `/setband` — required because UI reads `input1_port` (KK1L) not `input1_relay` when `kk1l_available: true`
 - Input mapping: `inp = sidx + 1` (slice 0 → input 1, slice 1 → input 2)
+- Module-level dict `radio_state = {}` stores current freq/band per slice: `{1: {"freq": 14.255, "band": "20m"}, 2: {...}}`
+  - Updated on every freq change, before the band-change check, so `/status` always has current freq
+  - Read from Flask via `sys.modules.get("smartsdr")` — safe (no import lock)
 - Deployed at: `/home/arduino/ArduinoApps/first-app/python/smartsdr.py`
 
 ---
@@ -162,6 +166,7 @@ Relay shield (D2-D5) + KK1L matrix (MCP1 at 0x20, MCP2 at 0x22)
 | GET /kk1l/deselect_all | Deselect all KK1L ports |
 | GET /kk1l/status | KK1L port states |
 | GET /kk1l/setband?input=[1\|2]&band=[name] | Auto-switch KK1L by band — **use this for band changes** |
+| GET /radio/status | Live FlexRadio slice state: `{slices: {1: {freq, band}, 2: {...}}}` |
 | GET /rfkit/status | RF2K-S status (band, power, SWR, temp, mode) |
 | GET /rfkit/config | Read rfkit_ip and rfkit_enabled from config |
 | POST /rfkit/config | Save rfkit_ip to config |
@@ -224,7 +229,9 @@ Change factory_reset defaults in `main.py` line ~312 before release.
 Single page app served by Flask at `http://10.0.0.145:5000/`
 
 **Status page:**
-- Two status cards — current antenna for Input 1 and Input 2 (shows antenna name from port assignment)
+- Two status cards — current antenna for Input 1 and Input 2
+  - Large text: live VFO frequency (e.g. "28.254 MHz") from smartsdr.radio_state; falls back to antenna name
+  - Small text: antenna name — band — "active" (e.g. "10m Dipole — 10m — active")
 - 3-column matrix — [Input 1 button] [Antenna Name] [Input 2 button]
 - Buttons show port number (1/2), green for Input 1, orange for Input 2
 - Interlock flash — antenna name turns red briefly if blocked
@@ -246,6 +253,13 @@ Single page app served by Flask at `http://10.0.0.145:5000/`
 - Antenna port naming — individual or bulk save
 - Band/antenna pigeon hole grid — click to assign bands to ports
 - Note: column headers are band names (wavelength e.g. "40m" = 7 MHz band), NOT port numbers
+- "Voice Settings ⚙" button → navigates to Voice page
+
+**Voice page:**
+- Voice mode toggle (enable/disable TTS + STT)
+- Built-in commands reference table
+- Custom commands manager — add/delete custom phrase→URL mappings, stored in localStorage (`ssVoiceCommands`)
+- Custom commands are checked first before built-in command matching
 
 ---
 
@@ -281,6 +295,7 @@ Single page app served by Flask at `http://10.0.0.145:5000/`
 | MCP23017 A0 pad pulled LOW | Default solder bridge pulls A0 to GND — use A1 or A2 for address setting |
 | Relay state lost on container restart | Relay shield relays go dark — needs startup sync from config (not yet implemented) |
 | /setband vs /kk1l/setband | When kk1l_available, always use /kk1l/setband — UI reads input1_port not input1_relay |
+| **BSOD — Chrome mic on Windows 11** | FlexRadio DAX IQ driver causes BSOD if Chrome audio routing changes while Chrome runs. NEVER: click address bar mic icon, open Windows Sound Settings, open Control Panel Recording tab while Chrome is open. SAFE: `chrome://settings/content/microphone` only. Arduino App Lab opens a Chrome tab at 127.0.0.1:random-port on each launch — close it, do NOT click its mic icon. |
 
 ---
 
@@ -398,21 +413,21 @@ Enable blind/visually impaired amateur radio operators to use ShackSwitch indepe
 
 ### Phased Plan
 
-**Phase 1 — Spoken announcements (JS in index.html, no server changes)**
-- Detect state changes on existing 5-second poll
-- Speak antenna selections, band changes, amp mode, interlock blocks, faults
-- Toggle button in nav bar — "Voice OFF" / "Voice ON"
+**Phase 1 — Spoken announcements ✓ DONE (6 Apr 2026)**
+- State change detection on 5-second poll — speaks antenna selections, band changes
+- Toggle button navigates to Voice page (was in nav bar, moved to Settings page button)
 - On enable: announces current state immediately
+- Double-announce debounce: 1500ms guard on `checkAnnouncements`
+- TTS fix: `u.onend = onend ? () => setTimeout(onend, 350) : null` — 350ms delay prevents `error:aborted` when mic starts before audio device releases
 
-**Phase 2 — Voice commands (JS in index.html, no server changes)**
-- Web Speech Recognition API listens for commands via headset mic
-- Command grammar:
-  - `"input one antenna two"` / `"switch input 1 to antenna 3"`
-  - `"status"` — full spoken status readout
-  - `"amplifier standby"` / `"amplifier operate"`
-  - `"what band"` / `"what antenna"`
-- Commands translate directly to existing REST API calls
-- Confirmation spoken back after action
+**Phase 2 — Voice commands ✓ DONE (6 Apr 2026)**
+- Web Speech Recognition (Chrome, continuous mode, en-GB)
+- Built-in commands: input/antenna selection, status, amplifier standby/operate, what band/antenna, hello
+- Custom commands: user-defined phrase→URL pairs, stored in localStorage (`ssVoiceCommands`)
+- Voice Settings page shows command reference and custom command manager
+- Working on both `http://10.0.0.145:5000` (Chrome flag) and `http://localhost:5001` (SSH tunnel)
+  - Chrome flag: `chrome://flags/#unsafely-treat-insecure-origin-as-secure` → add `http://10.0.0.145:5000`
+  - SSH tunnel: `ssh -L 5001:localhost:5000 arduino@10.0.0.145` (NOT 5000 — Windows refuses port 5000)
 
 **Phase 3 — Uno Q BT direct (server-side, always-on)**
 - `espeak-ng` on Uno Q Linux host
@@ -461,6 +476,8 @@ Enable blind/visually impaired amateur radio operators to use ShackSwitch indepe
 
 | Priority | Item |
 |---|---|
+| ~~Done~~ | ~~Voice TTS + STT (Phase 1+2)~~ — **live as of 6 Apr 2026** |
+| ~~Done~~ | ~~Live FlexRadio VFO frequency display~~ — **live as of 6 Apr 2026** |
 | Immediate | Restore relay state on container restart (read config, call relay_on in setup()) |
 | Immediate | Solve cold boot autostart — Arduino forum post pending |
 | Near term | Change default antenna names to "Antenna 1" etc in factory_reset |
@@ -469,6 +486,7 @@ Enable blind/visually impaired amateur radio operators to use ShackSwitch indepe
 | Near term | Wire rfkit band change into smartsdr.py |
 | Near term | KK1L full relay test with RF (Shield 2 parts arriving) |
 | Near term | RF2K-S antenna map — wire rfkit_antenna_map into setband |
+| Future | Visual Radio Controls page — SVG shapes for visually impaired (triangle=filter width, circle=gain/volume, bar=notch); all voice-controllable |
 | Roadmap | MCP23017 #3 shack switching (amps, lights, PSU) |
 | Roadmap | Binaural/diversity RX handling |
 | Roadmap | AetherSDR issue #179 native panel |
@@ -516,3 +534,15 @@ Enable blind/visually impaired amateur radio operators to use ShackSwitch indepe
 | 04 Apr 2026 | MCP23017 #2 added at address 0x22 (A1 bridged to VCC) — daisy chained on I2C |
 | 04 Apr 2026 | sketch.ino updated — RLYT relays on MCP1 GPA, RLYB relays on MCP2 GPA |
 | 04 Apr 2026 | Both MCP boards online — RLYT and RLYB LEDs confirmed switching independently |
+| 05 Apr 2026 | Voice TTS (Phase 1) live — spoken announcements on antenna/band change |
+| 05 Apr 2026 | Voice STT (Phase 2) live — voice commands working (input/antenna select, status, amp, what band) |
+| 05 Apr 2026 | Fixed error:aborted — 350ms setTimeout in speak() before mic start; prevents audio device release race |
+| 05 Apr 2026 | Voice Settings page built — command reference table, custom commands manager (localStorage) |
+| 05 Apr 2026 | Double-announce debounce added — 1500ms guard prevents duplicate speech on fast state changes |
+| 05 Apr 2026 | Windows 11 BSOD root cause identified — clicking Chrome address bar mic icon triggers DAX IQ conflict |
+| 06 Apr 2026 | SSH tunnel workaround documented — ssh -L 5001:localhost:5000 for localhost Web Speech API |
+| 06 Apr 2026 | Live FlexRadio VFO frequency display — smartsdr.py radio_state dict, /radio/status endpoint |
+| 06 Apr 2026 | /status endpoint extended — bandA/freqA/bandB/freqB from smartsdr.radio_state |
+| 06 Apr 2026 | Status cards show live frequency (e.g. "28.254 MHz") + antenna — band — active |
+| 06 Apr 2026 | Multi-slice confirmed — Input B on slice 2 tracks independently |
+| 06 Apr 2026 | All three modified files (index.html, main.py, smartsdr.py) pushed to GitHub |

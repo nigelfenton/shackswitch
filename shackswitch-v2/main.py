@@ -60,7 +60,11 @@ def status():
         "input1_port": config.get("input1_port"),
         "input2_port": config.get("input2_port"),
         "input1_label": config.get("input1_label", "Input A"),
-        "input2_label": config.get("input2_label", "Input B")
+        "input2_label": config.get("input2_label", "Input B"),
+        "bandA":  __import__("sys").modules.get("smartsdr", type("x",(),({"radio_state":{}}))()).radio_state.get(1, {}).get("band"),
+        "freqA":  __import__("sys").modules.get("smartsdr", type("x",(),({"radio_state":{}}))()).radio_state.get(1, {}).get("freq"),
+        "bandB":  __import__("sys").modules.get("smartsdr", type("x",(),({"radio_state":{}}))()).radio_state.get(2, {}).get("band"),
+        "freqB":  __import__("sys").modules.get("smartsdr", type("x",(),({"radio_state":{}}))()).radio_state.get(2, {}).get("freq"),
     })
 
 
@@ -358,6 +362,14 @@ t2 = threading.Thread(target=run_smartsdr, daemon=True)
 t2.start()
 print("SmartSDR tracker started")
 
+
+
+@flask_app.route("/radio/status")
+def radio_status():
+    import sys
+    m = sys.modules.get("smartsdr")
+    rs = m.radio_state if m and hasattr(m, "radio_state") else {}
+    return jsonify({"ok": True, "slices": rs})
 
 # -- RF-Kit RF2K-S integration --
 import rfkit
