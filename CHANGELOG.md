@@ -6,6 +6,22 @@
 
 Complete platform migration from Arduino Uno R4 WiFi + Raspberry Pi 4 to Arduino Uno Q.
 
+### Added — 5–6 Apr 2026
+
+- **Voice TTS (Phase 1)** — Web Speech API spoken announcements on antenna selection, band changes, amp state changes, interlock blocks. Toggle via Voice Settings page (accessed from Settings).
+- **Voice STT (Phase 2)** — Web Speech Recognition for hands-free control. Built-in commands: input/antenna selection, status readout, amplifier standby/operate, what band/antenna. Continuous listening, auto-restart on end.
+- **Custom voice commands** — user-defined phrase→URL pairs, added/deleted via Voice Settings page, persisted in browser localStorage.
+- **Voice Settings page** — dedicated page (no nav button, accessed from Settings) with voice toggle, built-in commands reference, and custom command manager.
+- **Live FlexRadio VFO frequency display** — status cards show live frequency (e.g. "28.254 MHz") + antenna — band — active. Sourced from `smartsdr.radio_state` dict updated on every freq change.
+- **`/radio/status` endpoint** — returns current slice freq/band as `{slices: {1: {freq, band}, 2: {...}}}`.
+- **`/status` extended** — adds `bandA`, `freqA`, `bandB`, `freqB` fields from `smartsdr.radio_state`.
+- **Double-announce debounce** — 1500ms guard prevents duplicate TTS when state changes rapidly.
+
+### Bug fixes — 5–6 Apr 2026
+
+- **Voice `error:aborted`** — `speechSynthesis.onend` fires before audio device releases; mic started too early → abort. Fix: 350ms `setTimeout` in `speak()` callback before `startRecognition()`.
+- **`/status` deadlock** — inline `__import__("smartsdr")` in Flask response could block on Python import lock. Fix: replaced with `sys.modules.get("smartsdr")` safe lookup.
+
 ### Architecture changes
 - Arduino Uno Q replaces both the R4 and the Pi in a single board
 - Linux side (QRB2210) runs Flask REST API and SmartSDR band tracker in Docker
