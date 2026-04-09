@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>AG Test Harness — ShackSwitch</title>
+<style>
+  :root {
+    --bg: #0d1117; --panel: #161b22; --border: #21262d;
+    --text: #c9d1d9; --muted: #6e7681;
+    --blue: #0070c0; --amber: #8a6000; --amber-t: #ffe080;
+    --green: #00b07a; --red: #f85149; --dim: #101820;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', sans-serif;
+         font-size: 13px; padding: 16px; }
+  h1   { font-size: 13px; letter-spacing: 2px; color: #00b4d8; font-weight: bold;
+         margin-bottom: 10px; }
+  .status       { font-size: 11px; margin-bottom: 12px; color: var(--muted); }
+  .status.ok    { color: #00b4d8; }
+  .status.err   { color: var(--red); }
+
+  .ports { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
+  .port-panel { background: var(--panel); border: 1px solid var(--border);
+                border-radius: 4px; padding: 10px; min-width: 220px; flex: 1; }
+  .port-hdr   { display: flex; align-items: center; gap: 6px; margin-bottom: 8px; }
+  .port-lbl   { font-size: 10px; font-weight: bold; color: var(--muted); letter-spacing: 1px; }
+  .band-lbl   { font-size: 12px; font-weight: bold; color: #00b4d8; }
+  .ant-lbl    { font-size: 11px; color: #00ff88; font-weight: bold; margin-left: auto;
+                text-align: right; }
+  .ant-lbl.tx      { color: var(--red); }
+  .ant-lbl.inhibit { color: #ff8800; }
+
+  .btn-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 3px;
+              margin-bottom: 6px; }
+  .ant-btn  { background: #1a2a3a; border: 1px solid #203040; border-radius: 3px;
+              color: #c8d8e8; font-size: 10px; padding: 3px 2px; text-align: center;
+              overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+              min-width: 0; cursor: default; }
+  .ant-btn.tx-rx          { border-color: #1a4870; }
+  .ant-btn.tx-rx.active   { background: #003a60; border-color: #0090e0; color: #fff; }
+  .ant-btn.rx-only        { border-color: #4a3000; }
+  .ant-btn.rx-only.active { background: var(--amber); border-color: #a07000;
+                             color: var(--amber-t); }
+  .ant-btn.no-perm { color: #404858; border-color: #182028; background: var(--dim); }
+
+  .auto-badge     { display: inline-block; font-size: 10px; font-weight: bold;
+                    padding: 2px 6px; border-radius: 3px; border: 1px solid #203040;
+                    color: var(--muted); background: #1a2a3a; }
+  .auto-badge.on  { background: #006040; border-color: #00a060; color: #00ff88; }
+
+  .log-section h2 { font-size: 10px; letter-spacing: 1px; color: var(--muted);
+                    margin-bottom: 4px; }
+  .log-box { background: #0a0f14; border: 1px solid var(--border); border-radius: 3px;
+             height: 200px; overflow-y: auto; padding: 6px 8px; font-family: monospace;
+             font-size: 11px; color: #6a7a8a; }
+  .log-box .tx  { color: #7aabcc; }
+  .log-box .err { color: var(--red); }
+</style>
+</head>
+<body>
+<h1>ANTENNA GENIUS  TEST HARNESS</h1>
+<div id="status" class="status">Connecting...</div>
+
+<div class="ports">
+  <div class="port-panel">
+    <div class="port-hdr">
+      <span class="port-lbl">PORT A</span>
+      <span class="band-lbl" id="bandA">—</span>
+      <span class="ant-lbl"  id="antA">—</span>
+    </div>
+    <div class="btn-grid" id="gridA"></div>
+    <span class="auto-badge" id="autoA">AUTO</span>
+  </div>
+  <div class="port-panel">
+    <div class="port-hdr">
+      <span class="port-lbl">PORT B</span>
+      <span class="band-lbl" id="bandB">—</span>
+      <span class="ant-lbl"  id="antB">—</span>
+    </div>
+    <div class="btn-grid" id="gridB"></div>
+    <span class="auto-badge" id="autoB">AUTO</span>
+  </div>
+</div>
+
+<div class="log-section">
+  <h2>PROTOCOL LOG</h2>
+  <div class="log-box" id="log"></div>
+</div>
+
+<script>
+let prevLogLen = 0;
+
+function bandName(state, id) {
+  if (!id) return '—';
+  const b = state.bands.find(b => b.id === id);
+  return b ? b.name : `Band ${id}`;
+}
+
+function antName(state, id) {
+  if (!id) return '—';
+  const a = state.antennas.find(a => a.id === id);
+  return a ? a.name : `Ant ${id}`;
+}
+
+function canTx(ant, bid) { return ant && bid ? (ant.tx & (1 << (bid-1))) !== 0 : false; }
+function canRx(ant, bid) { return ant && bid ? (ant.rx & (1 << (bid-1))) !== 0 : false; }
+
+function buildGrid(id, state, portId) {
+  const grid = document.getElementById(id);
+  const port  = state.ports[portId];
+  const other = state.ports[portId === 1 ? 2 : 1];
+  grid.innerHTML = '';
+
+  state.antennas.forEach(ant => {
+    const div = document.createElement('div');
+    div.className = 'ant-btn';
+    div.textContent = ant.name;
+    div.title = ant.name;
+
+    if (ant.id === other.rxant && other.rxant > 0) {
+      div.classList.add('no-perm');
+      div.title += ` (in use by Port ${portId === 1 ? 'B' : 'A'})`;
+    } else if (!port.band) {
+      div.classList.add('tx-rx');
+      if (ant.id === port.rxant) div.classList.add('active');
+    } else {
+      const tx = canTx(ant, port.band), rx = canRx(ant, port.band);
+      if (!rx && !tx) {
+        div.classList.add('no-perm');
+        div.title += ` — no RX/TX on ${bandName(state, port.band)}`;
+      } else if (rx && !tx) {
+        div.classList.add('rx-only');
+        if (ant.id === port.rxant) div.classList.add('active');
+        div.title += ` — RX only on ${bandName(state, port.band)}`;
+      } else {
+        div.classList.add('tx-rx');
+        if (ant.id === port.rxant) div.classList.add('active');
+        div.title += ` — TX+RX on ${bandName(state, port.band)}`;
+      }
+    }
+    grid.appendChild(div);
+  });
+}
+
+function updatePort(state, portId, suffix) {
+  const p = state.ports[portId];
+  document.getElementById(`band${suffix}`).textContent = bandName(state, p.band);
+  const el = document.getElementById(`ant${suffix}`);
+  el.textContent = antName(state, p.rxant);
+  el.className = 'ant-lbl' + (p.tx ? ' tx' : '') + (p.inhibit ? ' inhibit' : '');
+  buildGrid(`grid${suffix}`, state, portId);
+  const ab = document.getElementById(`auto${suffix}`);
+  ab.className = 'auto-badge' + (p.auto ? ' on' : '');
+}
+
+function updateLog(log) {
+  if (log.length === prevLogLen) return;
+  const box = document.getElementById('log');
+  const atBottom = box.scrollTop + box.clientHeight >= box.scrollHeight - 10;
+  log.slice(prevLogLen).forEach(line => {
+    const d = document.createElement('div');
+    d.className = line.startsWith('→') ? 'tx' : line.startsWith('✗') ? 'err' : '';
+    d.textContent = line;
+    box.appendChild(d);
+  });
+  prevLogLen = log.length;
+  if (atBottom) box.scrollTop = box.scrollHeight;
+}
+
+function poll() {
+  fetch('/ag-test/state')
+    .then(r => r.json())
+    .then(s => {
+      const el = document.getElementById('status');
+      el.textContent = s.status;
+      el.className = 'status ' + (s.connected ? 'ok' : s.status.startsWith('Error') ? 'err' : '');
+      if (s.connected) {
+        updatePort(s, 1, 'A');
+        updatePort(s, 2, 'B');
+      }
+      updateLog(s.log);
+    })
+    .catch(() => {});
+}
+
+setInterval(poll, 1000);
+poll();
+</script>
+</body>
+</html>

@@ -1,0 +1,993 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>G0JKN ShackSwitch</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: #1a1a1a; color: #e0e0e0; font-family: monospace; padding: 16px; }
+    h1 { color: #00cc66; font-size: 20px; margin-bottom: 2px; }
+    h3 { color: #555; font-size: 12px; font-weight: normal; margin-bottom: 16px; }
+    .nav { display: flex; gap: 8px; margin-bottom: 16px; }
+    .nav-btn {
+      padding: 6px 14px; border: 1px solid #444; border-radius: 4px;
+      background: #222; color: #888; font-family: monospace; font-size: 12px; cursor: pointer;
+    }
+    .nav-btn.active { background: #00cc66; color: #000; border-color: #00cc66; font-weight: bold; }
+    .page { display: none; }
+    .page.active { display: block; }
+    .status-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px; }
+    .card { background: #2a2a2a; border: 1px solid #333; border-radius: 6px; padding: 12px; }
+    .card-title { font-size: 11px; color: #666; text-transform: uppercase; margin-bottom: 4px; }
+    .card-band { font-size: 22px; font-weight: bold; color: #00cc66; }
+    .card-relay { font-size: 12px; color: #666; margin-top: 2px; }
+    .matrix { width: 100%; border-collapse: collapse; }
+    .matrix td { padding: 3px 4px; vertical-align: middle; }
+    .btn-input {
+      width: 100%; padding: 8px 4px; border: none; border-radius: 4px;
+      font-family: monospace; font-size: 12px; cursor: pointer;
+      background: #333; color: #666;
+    }
+    .btn-input.active-1 { background: #00cc66; color: #000; font-weight: bold; }
+    .btn-input.active-2 { background: #ff8800; color: #000; font-weight: bold; }
+    .btn-input:disabled { opacity: 0.25; cursor: not-allowed; }
+    .ant-name {
+      text-align: center; padding: 8px 6px; border-radius: 4px;
+      background: #252525; color: #888; font-size: 12px; border: 1px solid #333;
+      transition: background 0.15s, border-color 0.15s, color 0.15s;
+    }
+    .ant-name.used-1 { background: #1a3329; color: #00cc66; border-color: #00cc66; }
+    .ant-name.used-2 { background: #332200; color: #ff8800; border-color: #ff8800; }
+    .ant-name.inactive { opacity: 0.25; }
+    .ant-name.interlock-flash {
+      background: #4a0000 !important; color: #ff4444 !important;
+      border-color: #ff4444 !important;
+    }
+    .legend { display: flex; gap: 16px; margin-bottom: 12px; font-size: 11px; }
+    .leg { display: flex; align-items: center; gap: 5px; }
+    .leg-dot { width: 10px; height: 10px; border-radius: 2px; }
+    .leg-green { background: #00cc66; }
+    .leg-orange { background: #ff8800; }
+    .leg-grey { background: #333; }
+    .status-bar { font-size: 11px; color: #444; margin-top: 12px; text-align: right; }
+    .ph-wrap { overflow-x: auto; margin-top: 8px; }
+    .ph-table { border-collapse: collapse; font-size: 11px; }
+    .ph-table th {
+      padding: 4px 6px; color: #555; font-weight: normal;
+      border-bottom: 1px solid #2a2a2a; text-align: center; white-space: nowrap;
+    }
+    .ph-table td { padding: 3px 4px; }
+    .ph-port-label { font-size: 11px; color: #666; white-space: nowrap; padding-right: 8px; text-align: right; }
+    .ph-port-label.active-port { color: #aaa; }
+    .ph-cell {
+      width: 32px; height: 28px; border: 1px solid #2a2a2a; border-radius: 3px;
+      background: #222; cursor: pointer; text-align: center; vertical-align: middle;
+      font-size: 14px; color: transparent;
+      transition: background 0.1s, border-color 0.1s;
+    }
+    .ph-cell:hover { border-color: #444; background: #2a2a2a; }
+    .ph-cell.assigned { background: #1a3329; border-color: #00cc66; color: #00cc66; }
+    .ph-cell.inactive-port { opacity: 0.2; cursor: not-allowed; }
+    .settings-section { margin-bottom: 24px; }
+    .settings-section h4 {
+      color: #00cc66; font-size: 13px; margin-bottom: 10px;
+      border-bottom: 1px solid #333; padding-bottom: 6px;
+    }
+    .settings-grid { width: 100%; border-collapse: collapse; }
+    .settings-grid th {
+      font-size: 11px; color: #555; text-align: left;
+      padding: 4px 6px; border-bottom: 1px solid #2a2a2a;
+    }
+    .settings-grid td { padding: 4px 6px; }
+    .settings-grid tr:nth-child(even) td { background: #222; }
+    .band-label { font-size: 12px; color: #aaa; white-space: nowrap; }
+    input.ant-rename {
+      background: #2a2a2a; color: #ccc; border: 1px solid #444;
+      border-radius: 3px; font-family: monospace; font-size: 12px;
+      padding: 4px 8px; width: 100%;
+    }
+    input.ant-rename:focus { outline: none; border-color: #00cc66; }
+    .row-save-btn {
+      padding: 4px 10px; background: #2a2a2a; color: #00cc66;
+      border: 1px solid #00cc66; border-radius: 3px;
+      font-family: monospace; font-size: 11px; cursor: pointer; white-space: nowrap;
+    }
+    .row-save-btn:hover { background: #1a3329; }
+    .save-btn {
+      margin-top: 12px; padding: 8px 20px; background: #00cc66; color: #000;
+      border: none; border-radius: 4px; font-family: monospace; font-size: 13px;
+      font-weight: bold; cursor: pointer;
+    }
+    .save-btn:hover { background: #00ee77; }
+    .save-msg { font-size: 11px; color: #00cc66; margin-top: 8px; min-height: 16px; }
+    .port-count-row { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
+    .port-count-row label { font-size: 12px; color: #aaa; }
+    .port-btn {
+      padding: 6px 16px; border: 1px solid #444; border-radius: 4px;
+      background: #222; color: #888; font-family: monospace; font-size: 12px; cursor: pointer;
+    }
+    .port-btn.selected { background: #00cc66; color: #000; border-color: #00cc66; font-weight: bold; }
+    .nav-btn.voice-on { background: #ff8800; color: #000; border-color: #ff8800; font-weight: bold; }
+    .port-save-msg { font-size: 11px; color: #00cc66; }
+
+    .amp-status-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px; }
+    .amp-metric { background: #2a2a2a; border: 1px solid #333; border-radius: 6px; padding: 12px; }
+    .amp-metric-title { font-size: 11px; color: #666; text-transform: uppercase; margin-bottom: 4px; }
+    .amp-metric-value { font-size: 26px; color: #00cc66; font-weight: bold; }
+    .amp-metric-unit { font-size: 12px; color: #555; margin-top: 2px; }
+    .amp-metric-value.warn { color: #ff8800; }
+    .amp-metric-value.danger { color: #ff4444; }
+    .amp-operate-row { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
+    .amp-mode-badge { padding: 6px 18px; border-radius: 4px; font-size: 13px; font-weight: bold; font-family: monospace; letter-spacing: 1px; }
+    .amp-mode-badge.operate { background: #00cc66; color: #000; }
+    .amp-mode-badge.standby { background: #333; color: #888; border: 1px solid #555; }
+    .amp-toggle-btn { padding: 6px 16px; border: 1px solid #00cc66; border-radius: 4px; background: #222; color: #00cc66; font-family: monospace; font-size: 12px; cursor: pointer; }
+    .amp-toggle-btn:hover { background: #1a3329; }
+    .amp-fault-row { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
+    .amp-fault-badge { padding: 5px 14px; border-radius: 4px; font-size: 12px; font-family: monospace; background: #2a0000; color: #ff4444; border: 1px solid #ff4444; display: none; }
+    .amp-fault-badge.visible { display: inline-block; }
+    .amp-reset-btn { padding: 5px 14px; border: 1px solid #ff4444; border-radius: 4px; background: #2a0000; color: #ff4444; font-family: monospace; font-size: 11px; cursor: pointer; display: none; }
+    .amp-reset-btn.visible { display: inline-block; }
+    .amp-reset-btn:hover { background: #4a0000; }
+    .amp-unreachable { background: #222; border: 1px solid #333; border-radius: 6px; padding: 24px; text-align: center; color: #555; font-size: 13px; }
+    .amp-ip-row { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; }
+    .amp-ip-label { font-size: 12px; color: #666; }
+    input.amp-ip-input { background: #2a2a2a; color: #ccc; border: 1px solid #444; border-radius: 3px; font-family: monospace; font-size: 12px; padding: 4px 8px; width: 160px; }
+    input.amp-ip-input:focus { outline: none; border-color: #00cc66; }
+    .amp-save-btn { padding: 4px 12px; background: #2a2a2a; color: #00cc66; border: 1px solid #00cc66; border-radius: 3px; font-family: monospace; font-size: 11px; cursor: pointer; }
+    .amp-save-btn:hover { background: #1a3329; }
+    .amp-status-bar { font-size: 11px; color: #444; text-align: right; margin-top: 8px; }
+  </style>
+</head>
+<body>
+  <h1>G0JKN ShackSwitch</h1>
+  <h3 id="subtitle">v2.0 — Arduino Uno Q — 10.0.0.145</h3>
+  <div class="nav">
+    <button class="nav-btn active" onclick="showPage('main', this)">Status</button>
+    <button class="nav-btn" onclick="showPage('amplifier', this); loadAmplifier()">Amplifier</button>
+    <button class="nav-btn" onclick="showPage('settings', this)">Settings</button>
+    <button class="nav-btn" id="voice-btn" onclick="toggleVoice()">Voice</button>
+    <button class="nav-btn" onclick="showPage('ag-test', this)">AG Test</button>
+  </div>
+  <!-- MAIN PAGE -->
+  <div class="page active" id="page-main">
+    <div class="status-row">
+      <div class="card">
+        <div class="card-title" id="label1">Input A</div>
+        <div class="card-band" id="band1">—</div>
+        <div class="card-relay" id="relay1-label">No antenna selected</div>
+      </div>
+      <div class="card">
+        <div class="card-title" id="label2">Input B</div>
+        <div class="card-band" id="band2">—</div>
+        <div class="card-relay" id="relay2-label">No antenna selected</div>
+      </div>
+    </div>
+    <div class="legend">
+      <div class="leg"><div class="leg-dot leg-green"></div> Input A</div>
+      <div class="leg"><div class="leg-dot leg-orange"></div> Input B</div>
+      <div class="leg"><div class="leg-dot leg-grey"></div> Idle</div>
+    </div>
+    <table class="matrix"><tbody id="matrix-body"></tbody></table>
+    <div class="status-bar" id="status-bar">Connecting...</div>
+    <div id="voice-status" style="display:none;font-size:11px;color:#ff8800;margin-top:6px;">
+      🎤 <span id="voice-transcript">Listening...</span>
+    </div>
+  </div><!-- SETTINGS PAGE -->
+  <div class="page" id="page-settings">
+    <div style="margin-bottom:16px;padding-bottom:14px;border-bottom:1px solid #333;">
+      <button class="row-save-btn" onclick="goVoiceSettings()" style="font-size:12px;">Voice Settings &#9881;</button>
+    </div>
+    <div class="settings-section">
+      <h4>Hardware Port Count</h4>
+      <div class="port-count-row">
+        <label>Active ports:</label>
+        <input type="number" id="port-count-input" min="2" max="16" value="8"
+          style="width:60px;background:#2a2a2a;color:#ccc;border:1px solid #444;
+                 border-radius:3px;font-family:monospace;font-size:13px;
+                 padding:4px 8px;text-align:center;">
+        <button class="port-btn" onclick="applyPortCount()">Apply</button>
+        <span class="port-save-msg" id="port-save-msg"></span>
+      </div>
+      <div id="port-board-warn" style="display:none;font-size:11px;color:#ff8800;margin-bottom:8px;">
+        ⚠ Ports 9–16 require a second MCP23017 board (Port A only)
+      </div>
+    </div>
+    <div class="settings-section">
+      <h4>Input Labels</h4>
+      <table class="settings-grid">
+        <thead><tr><th>Input</th><th>Label (max 20 chars)</th><th></th></tr></thead>
+        <tbody>
+          <tr>
+            <td class="band-label">Input A</td>
+            <td><input class="ant-rename" id="label-input-1" maxlength="20"
+              placeholder="e.g. Flex 6700 Port 1"></td>
+            <td><button class="row-save-btn" onclick="saveLabel(1)">Save</button></td>
+          </tr>
+          <tr>
+            <td class="band-label">Input B</td>
+            <td><input class="ant-rename" id="label-input-2" maxlength="20"
+              placeholder="e.g. Yaesu FT-847"></td>
+            <td><button class="row-save-btn" onclick="saveLabel(2)">Save</button></td>
+          </tr>
+        </tbody>
+      </table>
+      <div class="save-msg" id="save-label-msg"></div>
+    </div>
+    <div class="settings-section">
+      <h4>Antenna Names</h4>
+      <table class="settings-grid">
+        <thead><tr><th>Port</th><th>Name</th><th></th></tr></thead>
+        <tbody id="rename-body"></tbody>
+      </table>
+      <button class="save-btn" onclick="saveAllNames()">Save All Names</button>
+      <div class="save-msg" id="save-names-msg"></div>
+    </div>
+    <div class="settings-section">
+      <h4>Band → Antenna Assignment</h4>
+      <p style="font-size:11px;color:#555;margin-bottom:8px;">
+        Click a cell to assign that band to that port. Click again to clear.
+        One antenna per band. Greyed rows are beyond active port count.
+      </p>
+      <div class="ph-wrap">
+        <table class="ph-table" id="ph-table"></table>
+      </div>
+      <div class="save-msg" id="save-bands-msg"></div>
+    </div>
+  </div>
+  <script>
+    const BANDS = ["160m","80m","60m","40m","30m","20m","17m","15m","12m","10m","6m"];
+    const ALL_PORTS = 16;
+    let portCount = 4;
+    let cachedAntennas = {};
+    let cachedBandMap = {};
+
+    function antName(ant, fallback) {
+      if (!ant) return fallback || '';
+      if (typeof ant === 'string') return ant;
+      return ant.name || fallback || '';
+    }
+
+    // showPage defined below in amplifier section
+
+    function toggle(input, relay) {
+  const url = window._kk1lAvailable
+    ? '/kk1l/select?input=' + input + '&port=' + relay
+    : '/select?input=' + input + '&relay=' + relay;
+  fetch(url)
+    .then(r => {
+      if (r.status === 409) {
+        const cell = document.getElementById('ant-cell-' + relay);
+        if (cell) {
+          cell.classList.add('interlock-flash');
+          setTimeout(() => cell.classList.remove('interlock-flash'), 800);
+        }
+        announceInterlock();
+      } else { poll(); }
+    });
+}
+
+    function buildMatrix(data, antennas) {
+      cachedAntennas = antennas;
+      portCount = data.port_count || 4;
+      const body = document.getElementById('matrix-body');
+      body.innerHTML = '';
+      const in1 = data.kk1l_available ? data.input1_port : data.input1_relay;
+      const in2 = data.kk1l_available ? data.input2_port : data.input2_relay;
+      window._kk1lAvailable = data.kk1l_available || false;
+      document.getElementById('subtitle').textContent =
+        'v2.0 — Arduino Uno Q — 10.0.0.145 — ' + portCount + '-port';
+      if (data.input1_label) document.getElementById('label1').textContent = data.input1_label;
+      if (data.input2_label) document.getElementById('label2').textContent = data.input2_label;
+      for (let i = 1; i <= portCount; i++) {
+        const name = antName(antennas[i.toString()], 'Port ' + i);
+        const tr = document.createElement('tr');
+        const td1 = document.createElement('td');
+        const btn1 = document.createElement('button');
+        btn1.className = 'btn-input' + (in1 == i ? ' active-1' : '');
+        btn1.textContent = in1 == i ? '1' : '·';
+        btn1.title = 'Input A → ' + name;
+        btn1.onclick = () => toggle(1, i);
+        td1.appendChild(btn1);
+        const tdName = document.createElement('td');
+        tdName.style.width = '60%';
+        const nameDiv = document.createElement('div');
+        nameDiv.id = 'ant-cell-' + i;
+        nameDiv.className = 'ant-name' +
+          (in1 == i ? ' used-1' : in2 == i ? ' used-2' : '');
+        nameDiv.textContent = name;
+        tdName.appendChild(nameDiv);
+        const td2 = document.createElement('td');
+        const btn2 = document.createElement('button');
+        btn2.className = 'btn-input' + (in2 == i ? ' active-2' : '');
+        btn2.textContent = in2 == i ? '2' : '·';
+        btn2.title = 'Input B → ' + name;
+        btn2.onclick = () => toggle(2, i);
+        td2.appendChild(btn2);
+        tr.appendChild(td1); tr.appendChild(tdName); tr.appendChild(td2);
+        body.appendChild(tr);
+      }
+      document.getElementById('band1').textContent =
+        data.freqA ? data.freqA.toFixed(3) + ' MHz' : (data.bandA || (in1 ? antName(antennas[in1.toString()], 'Port ' + in1) : '—'));
+      document.getElementById('relay1-label').textContent =
+        in1 ? (antName(antennas[in1.toString()], 'Port ' + in1)) + (data.bandA ? ' — ' + data.bandA : '') + ' — active' : 'No antenna selected';
+      document.getElementById('band2').textContent =
+        data.freqB ? data.freqB.toFixed(3) + ' MHz' : (data.bandB || (in2 ? antName(antennas[in2.toString()], 'Port ' + in2) : '—'));
+      document.getElementById('relay2-label').textContent =
+        in2 ? (antName(antennas[in2.toString()], 'Port ' + in2)) + (data.bandB ? ' — ' + data.bandB : '') + ' — active' : 'No antenna selected';
+      checkAnnouncements(data, antennas);
+    }
+
+    function poll() {
+      Promise.all([
+        fetch('/status').then(r => r.json()),
+        fetch('/bandmap').then(r => r.json())
+      ]).then(([status, bm]) => {
+        cachedBandMap = bm.band_map;
+        buildMatrix(status, bm.antennas);
+        document.getElementById('status-bar').textContent =
+          'Last update: ' + new Date().toLocaleTimeString();
+      }).catch(() => {
+        document.getElementById('status-bar').textContent = 'Connection error — retrying...';
+      });
+    }
+
+    poll();
+    setInterval(poll, 5000);
+
+    function applyPortCount() {
+      const n = parseInt(document.getElementById('port-count-input').value);
+      if (isNaN(n) || n < 2 || n > 16) {
+        showMsg('port-save-msg', 'Enter a value between 2 and 16');
+        return;
+      }
+      setPortCount(n);
+    }
+
+    function setPortCount(n) {
+      fetch('/config/ports', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({port_count: n})
+      }).then(r => r.json()).then(d => {
+        if (d.ok) {
+          portCount = n;
+          document.getElementById('port-count-input').value = n;
+          document.getElementById('port-board-warn').style.display = n > 8 ? 'block' : 'none';
+          showMsg('port-save-msg', 'Set to ' + n + ' ports ✓');
+          loadSettings();
+          poll();
+        } else { showMsg('port-save-msg', 'Error: ' + d.error); }
+      });
+    }
+
+    function loadSettings() {
+      Promise.all([
+        fetch('/status').then(r => r.json()),
+        fetch('/bandmap').then(r => r.json())
+      ]).then(([status, bm]) => {
+        portCount = status.port_count || 4;
+        cachedAntennas = bm.antennas;
+        cachedBandMap  = bm.band_map;
+        document.getElementById('port-count-input').value = portCount;
+        document.getElementById('port-board-warn').style.display = portCount > 8 ? 'block' : 'none';
+        const el1 = document.getElementById('label-input-1');
+        const el2 = document.getElementById('label-input-2');
+        if (el1) el1.value = status.input1_label || 'Input A';
+        if (el2) el2.value = status.input2_label || 'Input B';
+        const renameBody = document.getElementById('rename-body');
+        renameBody.innerHTML = '';
+        for (let i = 1; i <= portCount; i++) {
+          const tr = document.createElement('tr');
+          tr.innerHTML =
+            '<td class="band-label">Port ' + i + '</td>' +
+            '<td><input class="ant-rename" id="rename-' + i + '" ' +
+            'value="' + antName(bm.antennas[i.toString()], '').replace(/"/g, '&quot;') + '" ' +
+            'placeholder="Antenna ' + i + '"></td>' +
+            '<td><button class="row-save-btn" onclick="saveSingleName(' + i + ')">Save</button></td>';
+          renameBody.appendChild(tr);
+        }
+        buildPigeonhole(bm.antennas, bm.band_map);
+      });
+    }
+
+    function buildPigeonhole(antennas, bandMap) {
+      const tbl = document.getElementById('ph-table');
+      tbl.innerHTML = '';
+      const thead = document.createElement('thead');
+      let hrow = '<tr><th></th>';
+      BANDS.forEach(b => { hrow += '<th>' + b + '</th>'; });
+      hrow += '</tr>';
+      thead.innerHTML = hrow;
+      tbl.appendChild(thead);
+      const tbody = document.createElement('tbody');
+      for (let i = 1; i <= portCount; i++) {
+        const name = antName(antennas[i.toString()], 'Port ' + i);
+        const tr = document.createElement('tr');
+        const tdLabel = document.createElement('td');
+        tdLabel.className = 'ph-port-label active-port';
+        tdLabel.textContent = i + ' — ' + name;
+        tr.appendChild(tdLabel);
+        BANDS.forEach(band => {
+          const assigned = bandMap[band];
+          const isAssigned = assigned != null && parseInt(assigned) === i;
+          const td = document.createElement('td');
+          const cell = document.createElement('div');
+          cell.className = 'ph-cell' + (isAssigned ? ' assigned' : '');
+          cell.textContent = isAssigned ? '✓' : '';
+          cell.id = 'ph-' + band + '-' + i;
+          cell.onclick = () => toggleBandPort(band, i);
+          td.appendChild(cell);
+          tr.appendChild(td);
+        });
+        tbody.appendChild(tr);
+      }
+      tbl.appendChild(tbody);
+    }
+
+    function toggleBandPort(band, port) {
+      const cell = document.getElementById('ph-' + band + '-' + port);
+      const isAssigned = cell.classList.contains('assigned');
+      if (isAssigned) {
+        fetch('/assign/clear?band=' + band).then(r => r.json()).then(() => {
+          cachedBandMap[band] = null;
+          for (let i = 1; i <= ALL_PORTS; i++) {
+            const c = document.getElementById('ph-' + band + '-' + i);
+            if (c) { c.classList.remove('assigned'); c.textContent = ''; }
+          }
+          showMsg('save-bands-msg', band + ' cleared');
+        });
+      } else {
+        fetch('/assign?band=' + band + '&relay=' + port).then(r => r.json()).then(() => {
+          cachedBandMap[band] = port;
+          for (let i = 1; i <= ALL_PORTS; i++) {
+            const c = document.getElementById('ph-' + band + '-' + i);
+            if (c) { c.classList.remove('assigned'); c.textContent = ''; }
+          }
+          cell.classList.add('assigned');
+          cell.textContent = '✓';
+          showMsg('save-bands-msg', band + ' → Port ' + port + ' saved ✓');
+        });
+      }
+    }
+
+    function saveLabel(n) {
+      const name = document.getElementById('label-input-' + n).value.trim();
+      fetch('/label?input=' + n + '&name=' + encodeURIComponent(name))
+        .then(r => r.json())
+        .then(d => {
+          if (d.ok) showMsg('save-label-msg', 'Input ' + (n === 1 ? 'A' : 'B') + ' label saved ✓');
+          else showMsg('save-label-msg', 'Error: ' + d.error);
+          poll();
+        });
+    }
+
+    function saveSingleName(i) {
+      const name = document.getElementById('rename-' + i).value.trim();
+      fetch('/rename?id=' + i + '&name=' + encodeURIComponent(name))
+        .then(r => r.json())
+        .then(d => {
+          if (d.ok) showMsg('save-names-msg', 'Port ' + i + ' saved ✓');
+          else showMsg('save-names-msg', 'Error: ' + d.error);
+          poll();
+        });
+    }
+
+    function saveAllNames() {
+      const antennas = {};
+      for (let i = 1; i <= portCount; i++) {
+        const el = document.getElementById('rename-' + i);
+        if (el) antennas[i] = el.value.trim();
+      }
+      fetch('/rename/bulk', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({antennas})
+      }).then(r => r.json()).then(d => {
+        if (d.ok) showMsg('save-names-msg', 'All names saved ✓');
+        else showMsg('save-names-msg', 'Error: ' + d.error);
+        poll();
+      });
+    }
+
+    function showMsg(id, text) {
+      const el = document.getElementById(id);
+      el.textContent = text;
+      setTimeout(() => el.textContent = '', 3000);
+    }
+
+// -- Voice / TTS --
+let voiceEnabled = false;
+let voiceFirstLoad = true;
+let prevIn1 = null, prevIn2 = null;
+let prevBandA = null, prevBandB = null;
+let prevAmpMode = null, prevAmpFault = false;
+let recognition = null;
+let announceDebounce = 0;
+
+function speak(text, onend) {
+  if (!voiceEnabled) return;
+  window.speechSynthesis.cancel();
+  const u = new SpeechSynthesisUtterance(text);
+  u.rate = 0.9;
+  u.onend = onend ? () => setTimeout(onend, 350) : null;
+  window.speechSynthesis.speak(u);
+}
+
+function toggleVoice() {
+  voiceEnabled = !voiceEnabled;
+  const btn = document.getElementById('voice-btn');
+  if (voiceEnabled) {
+    btn.classList.add('voice-on');
+    btn.textContent = 'Voice ON';
+    voiceFirstLoad = true;
+    document.getElementById('voice-status').style.display = 'block';
+    document.getElementById('voice-transcript').textContent = 'Listening...';
+    announceCurrentState(startRecognition);
+  } else {
+    btn.classList.remove('voice-on');
+    btn.textContent = 'Voice';
+    document.getElementById('voice-status').style.display = 'none';
+    window.speechSynthesis.cancel();
+    stopRecognition();
+  }
+}
+
+function announceCurrentState(onend) {
+  const label1 = document.getElementById('label1').textContent || 'Input A';
+  const label2 = document.getElementById('label2').textContent || 'Input B';
+  const in1Name = prevIn1 ? (antName(cachedAntennas[prevIn1.toString()], 'Port ' + prevIn1)) : 'none';
+  const in2Name = prevIn2 ? (antName(cachedAntennas[prevIn2.toString()], 'Port ' + prevIn2)) : 'none';
+  let msg = 'Voice mode active. ' + label1 + ': ' + in1Name + '. ' + label2 + ': ' + in2Name + '.';
+  if (prevBandA) msg += ' Band: ' + prevBandA + '.';
+  speak(msg, onend);
+}
+
+function checkAnnouncements(data, antennas) {
+  const in1 = data.kk1l_available ? data.input1_port : data.input1_relay;
+  const in2 = data.kk1l_available ? data.input2_port : data.input2_relay;
+  const bandA = data.bandA || null;
+  const label1 = data.input1_label || 'Input A';
+  const label2 = data.input2_label || 'Input B';
+  if (voiceEnabled && !voiceFirstLoad) {
+    const now = Date.now();
+    if (in1 !== prevIn1 && now > announceDebounce) {
+      announceDebounce = now + 1500;
+      speak(label1 + ': ' + (in1 ? antName(antennas[in1.toString()], 'Port ' + in1) : 'none'));
+    }
+    if (in2 !== prevIn2 && now > announceDebounce) {
+      announceDebounce = now + 1500;
+      speak(label2 + ': ' + (in2 ? antName(antennas[in2.toString()], 'Port ' + in2) : 'none'));
+    }
+    if (bandA && bandA !== prevBandA && now > announceDebounce) {
+      announceDebounce = now + 1500;
+      speak('Band ' + bandA);
+    }
+  }
+  voiceFirstLoad = false;
+  prevIn1 = in1; prevIn2 = in2; prevBandA = bandA;
+}
+
+function checkAmpAnnouncements(d) {
+  if (!voiceEnabled) return;
+  const mode = d.operate_mode || 'STANDBY';
+  const hasFault = d.fault && d.fault !== '' && d.fault !== 'OK';
+  if (prevAmpMode !== null && mode !== prevAmpMode) speak('Amplifier ' + mode.toLowerCase());
+  if (!prevAmpFault && hasFault) speak('Amplifier fault. Check RF2K-S.');
+  prevAmpMode = mode;
+  prevAmpFault = hasFault;
+}
+
+function announceInterlock() {
+  speak('Blocked. That antenna is already in use.');
+}
+
+function startRecognition() {
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR) return;
+  recognition = new SR();
+  recognition.continuous = true;
+  recognition.interimResults = true;
+  recognition.lang = 'en-GB';
+  recognition.onresult = e => {
+    const result = e.results[e.results.length - 1];
+    const t = result[0].transcript.toLowerCase().trim();
+    document.getElementById('voice-transcript').textContent = '"' + t + '"';
+    if (result.isFinal) handleVoiceCommand(t);
+  };
+  recognition.onend = () => { if (voiceEnabled) recognition.start(); };
+  recognition.onerror = e => {
+    if (e.error === 'no-speech') {
+      document.getElementById('voice-transcript').textContent = 'Listening...';
+    } else {
+      document.getElementById('voice-transcript').textContent = 'Error: ' + e.error;
+    }
+  };
+  recognition.start();
+}
+
+function stopRecognition() {
+  if (recognition) { recognition.stop(); recognition = null; }
+}
+
+const WORD_TO_NUM = {one:1,two:2,three:3,four:4,five:5,six:6,seven:7,eight:8,'1':1,'2':2,'3':3,'4':4,'5':5,'6':6,'7':7,'8':8};
+
+function handleVoiceCommand(t) {
+  const customs = getCustomCommands();
+  for (const cmd of customs) {
+    if (t.includes(cmd.phrase)) { executeCustomCommand(cmd); return; }
+  }
+  if (t.includes('status') || t.includes('what')) { announceCurrentState(); return; }
+  if ((t.includes('amplifier') || t.includes('amp')) && t.includes('standby')) {
+    fetch('/rfkit/operate', {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({operate_mode:'STANDBY'})})
+      .then(r => r.json()).then(d => { if (d.ok) speak('Amplifier going to standby'); });
+    return;
+  }
+  if ((t.includes('amplifier') || t.includes('amp')) && t.includes('operate')) {
+    fetch('/rfkit/operate', {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({operate_mode:'OPERATE'})})
+      .then(r => r.json()).then(d => { if (d.ok) speak('Amplifier going to operate'); });
+    return;
+  }
+  const m = t.match(/input\s+(\w+).*antenna\s+(\w+)/);
+  if (m) {
+    const inp = WORD_TO_NUM[m[1]];
+    const port = WORD_TO_NUM[m[2]];
+    if (inp && port) {
+      const url = window._kk1lAvailable
+        ? '/kk1l/select?input=' + inp + '&port=' + port
+        : '/select?input=' + inp + '&relay=' + port;
+      fetch(url).then(r => {
+        if (r.status === 409) speak('Blocked. That antenna is already in use.');
+        else { speak('Done'); poll(); }
+      });
+    }
+    return;
+  }
+}
+// -- End Voice / TTS --
+
+// -- Amplifier page --
+let ampPollTimer = null;
+let currentAmpMode = "STANDBY";
+
+function showPage(name, btn) {
+  if (name !== "amplifier" && ampPollTimer) {
+    clearInterval(ampPollTimer);
+    ampPollTimer = null;
+  }
+  document.querySelectorAll(".page").forEach(p => p.classList.remove("active"));
+  document.querySelectorAll(".nav-btn").forEach(b => b.classList.remove("active"));
+  document.getElementById("page-" + name).classList.add("active");
+  btn.classList.add("active");
+  if (name === "settings") loadSettings();
+  if (name === "main") poll();
+}
+
+function loadAmplifier() {
+  fetch("/rfkit/config").then(r => r.json()).then(d => {
+    if (d.rfkit_ip) document.getElementById("amp-ip-input").value = d.rfkit_ip;
+  }).catch(() => {});
+  pollAmp();
+  if (ampPollTimer) clearInterval(ampPollTimer);
+  ampPollTimer = setInterval(pollAmp, 5000);
+}
+
+function pollAmp() {
+  fetch("/rfkit/status")
+    .then(r => r.json())
+    .then(d => {
+      if (!d.ok || !d.available) { showAmpUnreachable(); return; }
+      showAmpContent(d);
+      document.getElementById("amp-status-bar").textContent = "Last update: " + new Date().toLocaleTimeString();
+    })
+    .catch(() => showAmpUnreachable());
+}
+
+function showAmpUnreachable() {
+  document.getElementById("amp-unreachable").style.display = "block";
+  document.getElementById("amp-content").style.display = "none";
+  document.getElementById("amp-status-bar").textContent = "Amp unreachable - " + new Date().toLocaleTimeString();
+}
+
+function showAmpContent(d) {
+  document.getElementById("amp-unreachable").style.display = "none";
+  document.getElementById("amp-content").style.display = "block";
+  currentAmpMode = d.operate_mode || "STANDBY";
+  const badge = document.getElementById("amp-mode-badge");
+  const toggleBtn = document.getElementById("amp-toggle-btn");
+  badge.textContent = currentAmpMode;
+  badge.className = "amp-mode-badge " + (currentAmpMode === "OPERATE" ? "operate" : "standby");
+  toggleBtn.textContent = currentAmpMode === "OPERATE" ? "Switch to Standby" : "Switch to Operate";
+  const hasFault = d.fault && d.fault !== "" && d.fault !== "OK";
+  document.getElementById("amp-fault-badge").className = "amp-fault-badge" + (hasFault ? " visible" : "");
+  document.getElementById("amp-reset-btn").className = "amp-reset-btn" + (hasFault ? " visible" : "");
+  if (hasFault) document.getElementById("amp-fault-badge").textContent = "FAULT: " + d.fault;
+  setText("amp-band", d.band ? d.band + "m" : "--");
+  setMetric("amp-fwd", d.forward_power, null, 1000, 1300);
+  setMetric("amp-ref", d.reflected_power, null, 50, 100);
+  setMetric("amp-swr", d.swr != null ? d.swr.toFixed(1) : null, null, 2.0, 3.0);
+  setMetric("amp-temp", d.temperature, null, 60, 70);
+  setText("amp-volts", d.voltage != null ? d.voltage.toFixed(1) : "--");
+  setText("amp-amps", d.current != null ? d.current.toFixed(1) : "--");
+  checkAmpAnnouncements(d);
+}
+
+function setText(id, val) {
+  document.getElementById(id).textContent = (val != null) ? val : "--";
+}
+
+function setMetric(id, val, warnLow, warnHigh, dangerHigh) {
+  const el = document.getElementById(id);
+  if (val == null) { el.textContent = "--"; el.className = "amp-metric-value"; return; }
+  el.textContent = val;
+  if (dangerHigh != null && parseFloat(val) >= dangerHigh) {
+    el.className = "amp-metric-value danger";
+  } else if (warnHigh != null && parseFloat(val) >= warnHigh) {
+    el.className = "amp-metric-value warn";
+  } else {
+    el.className = "amp-metric-value";
+  }
+}
+
+function toggleAmpMode() {
+  const newMode = currentAmpMode === "OPERATE" ? "STANDBY" : "OPERATE";
+  fetch("/rfkit/operate", {
+    method: "PUT",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({operate_mode: newMode})
+  }).then(r => r.json()).then(d => {
+    if (d.ok) pollAmp();
+    else showMsg("amp-fault-msg", "Error: " + (d.error || "unknown"));
+  }).catch(e => showMsg("amp-fault-msg", "Error: " + e));
+}
+
+function resetAmpFault() {
+  fetch("/rfkit/fault/reset", {method: "POST"})
+    .then(r => r.json())
+    .then(d => {
+      showMsg("amp-fault-msg", d.ok ? "Fault cleared" : "Error: " + d.error);
+      if (d.ok) setTimeout(pollAmp, 800);
+    })
+    .catch(e => showMsg("amp-fault-msg", "Error: " + e));
+}
+
+function saveAmpIp() {
+  const ip = document.getElementById("amp-ip-input").value.trim();
+  fetch("/rfkit/config", {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({rfkit_ip: ip})
+  }).then(r => r.json()).then(d => {
+    showMsg("amp-ip-msg", d.ok ? "IP saved" : "Error: " + d.error);
+    if (d.ok) setTimeout(pollAmp, 500);
+  }).catch(e => showMsg("amp-ip-msg", "Error: " + e));
+}
+
+// -- Voice Settings page --
+function loadVoicePage() { updateVcStatusBadge(); renderCustomCommands(); }
+function goVoiceSettings() {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('page-voice').classList.add('active');
+  loadVoicePage();
+}
+function updateVcStatusBadge() {
+  const badge = document.getElementById('vc-status-badge');
+  if (!badge) return;
+  if (voiceEnabled) {
+    badge.textContent = 'ON'; badge.style.background = '#ff8800';
+    badge.style.color = '#000'; badge.style.border = 'none';
+  } else {
+    badge.textContent = 'OFF'; badge.style.background = '#333';
+    badge.style.color = '#666'; badge.style.border = '1px solid #555';
+  }
+}
+function toggleVoiceFromPage() { toggleVoice(); updateVcStatusBadge(); }
+function updateVcActionUI() {
+  const a = document.getElementById('vc-action').value;
+  document.getElementById('vc-select-opts').style.display = a === 'select' ? 'flex' : 'none';
+}
+function getCustomCommands() {
+  try { return JSON.parse(localStorage.getItem('ssVoiceCommands') || '[]'); } catch(e) { return []; }
+}
+function saveCustomCommands(cmds) { localStorage.setItem('ssVoiceCommands', JSON.stringify(cmds)); }
+function renderCustomCommands() {
+  const tbody = document.getElementById('custom-cmd-body');
+  if (!tbody) return;
+  const cmds = getCustomCommands();
+  tbody.innerHTML = '';
+  if (!cmds.length) {
+    tbody.innerHTML = '<tr><td colspan="3" style="font-size:11px;color:#555;padding:8px 6px;">No custom commands yet.</td></tr>';
+    return;
+  }
+  cmds.forEach((cmd, i) => {
+    const desc = cmd.action === 'select'
+      ? 'Input ' + (cmd.input == 1 ? 'A' : 'B') + ' &rarr; Port ' + cmd.port
+      : cmd.action === 'amp_operate' ? 'Amp &rarr; Operate'
+      : cmd.action === 'amp_standby' ? 'Amp &rarr; Standby' : 'Announce Status';
+    const tr = document.createElement('tr');
+    tr.innerHTML =
+      '<td class="band-label">&quot;' + cmd.phrase + '&quot;</td>' +
+      '<td style="font-size:12px;color:#aaa;">' + desc + '</td>' +
+      '<td><button class="row-save-btn" style="color:#ff4444;border-color:#ff4444;" onclick="deleteCustomCommand(' + i + ')">&#x2715;</button></td>';
+    tbody.appendChild(tr);
+  });
+}
+function addCustomCommand() {
+  const phrase = document.getElementById('vc-phrase').value.trim().toLowerCase();
+  const action = document.getElementById('vc-action').value;
+  if (!phrase) { showMsg('vc-add-msg', 'Enter a phrase'); return; }
+  const cmd = { phrase, action };
+  if (action === 'select') {
+    cmd.input = parseInt(document.getElementById('vc-input').value);
+    cmd.port = parseInt(document.getElementById('vc-port').value);
+  }
+  const cmds = getCustomCommands();
+  if (cmds.some(x => x.phrase === phrase)) { showMsg('vc-add-msg', 'Phrase already exists'); return; }
+  cmds.push(cmd);
+  saveCustomCommands(cmds);
+  document.getElementById('vc-phrase').value = '';
+  renderCustomCommands();
+  showMsg('vc-add-msg', 'Added ✓');
+}
+function deleteCustomCommand(i) {
+  const cmds = getCustomCommands();
+  cmds.splice(i, 1);
+  saveCustomCommands(cmds);
+  renderCustomCommands();
+}
+function executeCustomCommand(cmd) {
+  if (cmd.action === 'select') {
+    const url = window._kk1lAvailable
+      ? '/kk1l/select?input=' + cmd.input + '&port=' + cmd.port
+      : '/select?input=' + cmd.input + '&relay=' + cmd.port;
+    fetch(url).then(r => {
+      if (r.status === 409) speak('Blocked. That antenna is already in use.');
+      else { speak('Done'); poll(); }
+    });
+  } else if (cmd.action === 'amp_operate') {
+    fetch('/rfkit/operate', {method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({operate_mode:'OPERATE'})})
+      .then(r=>r.json()).then(d=>{if(d.ok) speak('Amplifier going to operate');});
+  } else if (cmd.action === 'amp_standby') {
+    fetch('/rfkit/operate', {method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({operate_mode:'STANDBY'})})
+      .then(r=>r.json()).then(d=>{if(d.ok) speak('Amplifier going to standby');});
+  } else if (cmd.action === 'status') { announceCurrentState(); }
+}
+// -- End Voice Settings page --
+
+// -- End Amplifier page --
+</script>
+
+  <div id="page-amplifier" class="page">
+    <div class="settings-section">
+      <h4>RF-Kit RF2K-S</h4>
+      <div class="amp-ip-row">
+        <span class="amp-ip-label">Amp IP:</span>
+        <input class="amp-ip-input" id="amp-ip-input" placeholder="e.g. 10.0.0.200" />
+        <button class="amp-save-btn" onclick="saveAmpIp()">Save</button>
+        <span class="save-msg" id="amp-ip-msg"></span>
+      </div>
+      <div class="amp-unreachable" id="amp-unreachable" style="display:none;">
+        Amplifier unreachable - check IP and network connection.
+      </div>
+      <div id="amp-content" style="display:none;">
+        <div class="amp-operate-row">
+          <span class="amp-metric-title">MODE</span>
+          <span class="amp-mode-badge standby" id="amp-mode-badge">STANDBY</span>
+          <button class="amp-toggle-btn" id="amp-toggle-btn" onclick="toggleAmpMode()">Switch to Operate</button>
+        </div>
+        <div class="amp-fault-row">
+          <span class="amp-fault-badge" id="amp-fault-badge">FAULT</span>
+          <button class="amp-reset-btn" id="amp-reset-btn" onclick="resetAmpFault()">Reset Fault</button>
+          <span class="save-msg" id="amp-fault-msg"></span>
+        </div>
+        <div class="amp-metric" style="margin-bottom:16px;">
+            <div class="amp-metric-title">Band</div>
+            <div class="amp-metric-value" id="amp-band" style="font-size:22px;">--</div>
+          </div>
+
+        </div>
+        <div class="amp-status-row">
+          <div class="amp-metric">
+            <div class="amp-metric-title">Forward Power</div>
+            <div class="amp-metric-value" id="amp-fwd">--</div>
+            <div class="amp-metric-unit">Watts</div>
+          </div>
+          <div class="amp-metric">
+            <div class="amp-metric-title">Reflected Power</div>
+            <div class="amp-metric-value" id="amp-ref">--</div>
+            <div class="amp-metric-unit">Watts</div>
+          </div>
+        </div>
+        <div class="amp-status-row">
+          <div class="amp-metric">
+            <div class="amp-metric-title">SWR</div>
+            <div class="amp-metric-value" id="amp-swr">--</div>
+          </div>
+          <div class="amp-metric">
+            <div class="amp-metric-title">Temperature</div>
+            <div class="amp-metric-value" id="amp-temp">--</div>
+            <div class="amp-metric-unit">deg C</div>
+          </div>
+        </div>
+        <div class="amp-status-row">
+          <div class="amp-metric">
+            <div class="amp-metric-title">Supply Voltage</div>
+            <div class="amp-metric-value" id="amp-volts">--</div>
+            <div class="amp-metric-unit">V</div>
+          </div>
+          <div class="amp-metric">
+            <div class="amp-metric-title">Current</div>
+            <div class="amp-metric-value" id="amp-amps">--</div>
+            <div class="amp-metric-unit">A</div>
+          </div>
+        </div>
+      </div>
+      <div class="amp-status-bar" id="amp-status-bar"></div>
+    </div>
+  </div>
+
+  <div id="page-voice" class="page">
+    <div class="settings-section">
+      <h4>Voice Control</h4>
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;">
+        <span style="font-size:12px;color:#aaa;">Status:</span>
+        <span id="vc-status-badge" style="padding:4px 14px;border-radius:4px;font-size:12px;font-family:monospace;background:#333;color:#666;border:1px solid #555;">OFF</span>
+        <button class="row-save-btn" onclick="toggleVoiceFromPage()">Toggle</button>
+      </div>
+    </div>
+    <div class="settings-section">
+      <h4>Built-in Commands</h4>
+      <table class="settings-grid">
+        <thead><tr><th>Say</th><th>Action</th></tr></thead>
+        <tbody>
+          <tr><td class="band-label">"status" or "what"</td><td style="font-size:12px;color:#aaa;">Announce current antenna state</td></tr>
+          <tr><td class="band-label">"input one antenna two"</td><td style="font-size:12px;color:#aaa;">Input A &rarr; Port 2 (words or digits)</td></tr>
+          <tr><td class="band-label">"input two antenna three"</td><td style="font-size:12px;color:#aaa;">Input B &rarr; Port 3</td></tr>
+          <tr><td class="band-label">"amplifier operate"</td><td style="font-size:12px;color:#aaa;">RF2K-S &rarr; Operate</td></tr>
+          <tr><td class="band-label">"amplifier standby"</td><td style="font-size:12px;color:#aaa;">RF2K-S &rarr; Standby</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="settings-section">
+      <h4>Custom Commands</h4>
+      <p style="font-size:11px;color:#555;margin-bottom:10px;">Shortcut phrases stored in your browser.</p>
+      <table class="settings-grid">
+        <thead><tr><th>Phrase</th><th>Action</th><th></th></tr></thead>
+        <tbody id="custom-cmd-body"></tbody>
+      </table>
+      <div style="margin-top:14px;background:#222;border:1px solid #333;border-radius:6px;padding:12px;">
+        <div style="font-size:11px;color:#666;margin-bottom:8px;">Add command:</div>
+        <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;">
+          <input id="vc-phrase" class="ant-rename" placeholder="Say this..." style="width:140px;">
+          <select id="vc-action" class="ant-rename" onchange="updateVcActionUI()" style="width:150px;">
+            <option value="select">Select Antenna</option>
+            <option value="amp_operate">Amp &rarr; Operate</option>
+            <option value="amp_standby">Amp &rarr; Standby</option>
+            <option value="status">Announce Status</option>
+          </select>
+          <span id="vc-select-opts" style="display:flex;gap:6px;align-items:center;">
+            <select id="vc-input" class="ant-rename" style="width:80px;">
+              <option value="1">Input A</option><option value="2">Input B</option>
+            </select>
+            <select id="vc-port" class="ant-rename" style="width:80px;">
+              <option value="1">Port 1</option><option value="2">Port 2</option>
+              <option value="3">Port 3</option><option value="4">Port 4</option>
+              <option value="5">Port 5</option><option value="6">Port 6</option>
+              <option value="7">Port 7</option><option value="8">Port 8</option>
+            </select>
+          </span>
+          <button class="row-save-btn" onclick="addCustomCommand()">Add</button>
+        </div>
+        <div class="save-msg" id="vc-add-msg"></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="page-ag-test" class="page">
+    <iframe src="/ag-test" style="width:100%;height:calc(100vh - 80px);border:none;"></iframe>
+  </div>
+
+</body>
+</html>

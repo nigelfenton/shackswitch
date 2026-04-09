@@ -764,6 +764,236 @@ def ag_tcp_server():
             print(f"AG server error: {e}")
 
 # ---------------------------------------------------------------------------
+# AG Test Harness — TCP client to local AG emulator, state via JSON API
+# ---------------------------------------------------------------------------
+
+_ag_test_state = {
+    'connected': False,
+    'status':    'Not connected',
+    'version':   '',
+    'antennas':  [],
+    'bands':     [],
+    'ports': {
+        1: {'band': 0, 'rxant': 0, 'txant': 0, 'tx': 0, 'inhibit': 0, 'auto': 1},
+        2: {'band': 0, 'rxant': 0, 'txant': 0, 'tx': 0, 'inhibit': 0, 'auto': 1},
+    },
+    'log': [],
+}
+_ag_test_lock = threading.Lock()
+
+
+def _agt_log(msg):
+    with _ag_test_lock:
+        _ag_test_state['log'].append(msg)
+        _ag_test_state['log'] = _ag_test_state['log'][-60:]
+
+
+def _agt_parse_fields(s):
+    """'key=val key=val ...' → dict"""
+    out = {}
+    for tok in s.split():
+        if '=' in tok:
+            k, v = tok.split('=', 1)
+            out[k] = v
+    return out
+
+
+def _agt_handle_port(body):
+    """body = 'port N key=val ...'"""
+    parts = body.split()
+    if len(parts) < 2 or parts[0] != 'port':
+        return
+    try:
+        pn = int(parts[1])
+        fields = _agt_parse_fields(' '.join(parts[2:]))
+    except ValueError:
+        return
+    with _ag_test_lock:
+        _ag_test_state['ports'][pn] = {
+            'band':    int(fields.get('band',    0)),
+            'rxant':   int(fields.get('rxant',   0)),
+            'txant':   int(fields.get('txant',   0)),
+            'tx':      int(fields.get('tx',      0)),
+            'inhibit': int(fields.get('inhibit', 0)),
+            'auto':    int(fields.get('auto',    1)),
+        }
+
+
+def _agt_process_list(cmd, lines):
+    if cmd == 'antenna list':
+        ants = []
+        for ln in lines:
+            ps = ln.split()
+            if len(ps) < 2 or ps[0] != 'antenna':
+                continue
+            try:
+                aid = int(ps[1])
+            except ValueError:
+                continue
+            f = _agt_parse_fields(' '.join(ps[2:]))
+            ants.append({
+                'id':   aid,
+                'name': f.get('name', f'Port{aid}').replace('_', ' '),
+                'tx':   int(f.get('tx', '0x0'), 16),
+                'rx':   int(f.get('rx', '0x0'), 16),
+            })
+        with _ag_test_lock:
+            _ag_test_state['antennas'] = ants
+
+    elif cmd == 'band list':
+        bands = []
+        for ln in lines:
+            ps = ln.split()
+            if len(ps) < 2 or ps[0] != 'band':
+                continue
+            try:
+                bid = int(ps[1])
+            except ValueError:
+                continue
+            f = _agt_parse_fields(' '.join(ps[2:]))
+            bands.append({
+                'id':         bid,
+                'name':       f.get('name', f'Band{bid}'),
+                'freq_start': float(f.get('freq_start', 0)),
+                'freq_stop':  float(f.get('freq_stop',  0)),
+            })
+        with _ag_test_lock:
+            _ag_test_state['bands'] = bands
+
+
+def ag_test_client():
+    """Background thread: connects to local AG emulator via TCP loopback,
+    runs startup sequence, and keeps _ag_test_state current."""
+    while True:
+        sock = None
+        try:
+            _agt_log('→ Connecting to AG emulator...')
+            with _ag_test_lock:
+                _ag_test_state.update({
+                    'connected': False, 'status': 'Connecting...',
+                    'antennas': [], 'bands': [],
+                    'ports': {
+                        1: {'band':0,'rxant':0,'txant':0,'tx':0,'inhibit':0,'auto':1},
+                        2: {'band':0,'rxant':0,'txant':0,'tx':0,'inhibit':0,'auto':1},
+                    }
+                })
+            sock = _socket.socket(_socket.AF_INET, _socket.SOCK_STREAM)
+            sock.settimeout(5)
+            sock.connect(('127.0.0.1', AG_PORT))
+
+            buf = ''
+            seq = [0]
+            pending = {}   # seq_str → [cmd, acc_lines, is_list]
+
+            def send(cmd):
+                seq[0] += 1
+                s = str(seq[0])
+                sock.sendall(f'C{s}|{cmd}\r\n'.encode())
+                _agt_log(f'→ C{s}|{cmd}')
+                pending[s] = [cmd, [], cmd in ('antenna list', 'band list')]
+
+            # Read prologue
+            sock.settimeout(10)
+            while '\n' not in buf:
+                d = sock.recv(256)
+                if not d:
+                    raise ConnectionError('Connection closed')
+                buf += d.decode(errors='ignore')
+            pline, buf = buf.split('\n', 1)
+            pline = pline.strip()
+            _agt_log(f'← {pline}')
+            ver = pline.split()[0].lstrip('V') if pline else '?'
+            with _ag_test_lock:
+                _ag_test_state['connected'] = True
+                _ag_test_state['version']   = ver
+                _ag_test_state['status']    = f'Connected — AG v{ver}'
+
+            # Startup sequence
+            send('antenna list')
+            send('band list')
+            send('port get 1')
+            send('port get 2')
+            send('sub port all')
+            send('sub relay')
+
+            last_ping = time.time()
+            sock.settimeout(35)
+
+            while True:
+                if time.time() - last_ping >= 30:
+                    send('ping')
+                    last_ping = time.time()
+                try:
+                    data = sock.recv(4096)
+                    if not data:
+                        break
+                except _socket.timeout:
+                    send('ping')
+                    last_ping = time.time()
+                    continue
+
+                buf += data.decode(errors='ignore')
+                while '\n' in buf:
+                    raw, buf = buf.split('\n', 1)
+                    line = raw.strip()
+                    if not line:
+                        continue
+                    _agt_log(f'← {line}')
+
+                    if line.startswith('S0|'):
+                        body = line[3:]
+                        if body.startswith('port '):
+                            _agt_handle_port(body)
+                        continue
+
+                    if not line.startswith('R'):
+                        continue
+                    parts = line[1:].split('|', 2)
+                    if len(parts) < 2:
+                        continue
+                    sq   = parts[0]
+                    body = parts[2] if len(parts) > 2 else ''
+                    if sq not in pending:
+                        continue
+                    cmd, acc, is_list = pending[sq]
+                    if is_list:
+                        if body == '':
+                            _agt_process_list(cmd, acc)
+                            del pending[sq]
+                        else:
+                            acc.append(body)
+                    else:
+                        if cmd.startswith('port get'):
+                            _agt_handle_port(body)
+                        del pending[sq]
+
+        except Exception as e:
+            _agt_log(f'✗ {e}')
+            with _ag_test_lock:
+                _ag_test_state['connected'] = False
+                _ag_test_state['status']    = f'Error: {e}'
+        finally:
+            if sock:
+                try:
+                    sock.close()
+                except Exception:
+                    pass
+        time.sleep(5)
+
+
+@flask_app.route('/ag-test')
+def ag_test_page():
+    return render_template('ag_test.html')
+
+
+@flask_app.route('/ag-test/state')
+def ag_test_state_api():
+    import copy
+    with _ag_test_lock:
+        return jsonify(copy.deepcopy(_ag_test_state))
+
+
+# ---------------------------------------------------------------------------
 # Startup
 # ---------------------------------------------------------------------------
 
@@ -794,6 +1024,10 @@ print("AG emulator UDP broadcaster started")
 t4 = threading.Thread(target=ag_tcp_server, daemon=True)
 t4.start()
 print("AG emulator TCP server started on port 9007")
+
+t5 = threading.Thread(target=ag_test_client, daemon=True)
+t5.start()
+print("AG test harness client started")
 
 setup()
 App.run(user_loop=loop)
