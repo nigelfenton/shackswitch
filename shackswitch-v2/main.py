@@ -578,6 +578,192 @@ def rfkit_fault_reset():
     return jsonify(rfkit.reset_fault(ip))
 
 # ---------------------------------------------------------------------------
+# Antenna Genius emulation — UDP discovery + TCP command server
+# Emulates a 4O3A Antenna Genius so AetherSDR can discover and control
+# ShackSwitch using the standard AG protocol on port 9007.
+# ---------------------------------------------------------------------------
+
+import socket as _socket
+
+AG_PORT    = 9007
+AG_VERSION = "2.0"
+AG_BCAST_INTERVAL = 5  # seconds
+
+def _ag_local_ip():
+    """Best-effort: get the IP this machine uses to reach the LAN."""
+    try:
+        s = _socket.socket(_socket.AF_INET, _socket.SOCK_DGRAM)
+        s.connect(("8.8.8.8", 80))
+        ip = s.getsockname()[0]
+        s.close()
+        return ip
+    except Exception:
+        return "127.0.0.1"
+
+def ag_broadcaster():
+    """Broadcast AG discovery packets every 5 s so AetherSDR finds us."""
+    sock = _socket.socket(_socket.AF_INET, _socket.SOCK_DGRAM)
+    sock.setsockopt(_socket.SOL_SOCKET, _socket.SO_BROADCAST, 1)
+    while True:
+        try:
+            cfg     = load_config()
+            profile = get_profile(cfg)
+            count   = profile.get("port_count", 8)
+            ip      = _ag_local_ip()
+            name    = cfg.get("input1_label", "ShackSwitch").replace(" ", "_")
+            pkt = (
+                f"AG ip={ip} port={AG_PORT} v={AG_VERSION} "
+                f"serial=G0JKN-SW name={name} ports=2 antennas={count}\r\n"
+            ).encode()
+            sock.sendto(pkt, ("255.255.255.255", AG_PORT))
+        except Exception as e:
+            print(f"AG broadcast error: {e}")
+        time.sleep(AG_BCAST_INTERVAL)
+
+def _ag_handle_command(conn, seq, cmd):
+    """Respond to AG commands from AetherSDR."""
+    cfg     = load_config()
+    profile = get_profile(cfg)
+    cmd_l   = cmd.lower().strip()
+
+    # Band definitions — matches 4O3A AG band numbering
+    AG_BANDS = [
+        (1,  "160m", 1.8,   2.0),
+        (2,  "80m",  3.5,   4.0),
+        (3,  "60m",  5.3,   5.4),
+        (4,  "40m",  7.0,   7.3),
+        (5,  "30m",  10.1,  10.15),
+        (6,  "20m",  14.0,  14.35),
+        (7,  "17m",  18.068,18.168),
+        (8,  "15m",  21.0,  21.45),
+        (9,  "12m",  24.89, 24.99),
+        (10, "10m",  28.0,  29.7),
+        (11, "6m",   50.0,  54.0),
+    ]
+    BAND_NAME_TO_ID = {b[1]: b[0] for b in AG_BANDS}
+
+    def band_mask(band_list):
+        """Convert a list of band name strings to a 16-bit AG bitmask."""
+        mask = 0
+        for b in (band_list or []):
+            bid = BAND_NAME_TO_ID.get(b)
+            if bid:
+                mask |= (1 << (bid - 1))
+        return mask
+
+    def port_status(port_num):
+        """Build AgPortStatus key=value fields for a radio port (1=A, 2=B).
+        Does NOT include the 'port N' prefix — caller adds that."""
+        key  = f"input{port_num}_port"
+        ant  = cfg.get(key) or 0
+        band = 0
+        if ant:
+            bm = profile.get("band_map", {})
+            for bname, bport in bm.items():
+                if bport == ant:
+                    band = BAND_NAME_TO_ID.get(bname, 0)
+                    break
+        return f"auto=1 band={band} rxant={ant} txant={ant} tx=0 inhibit=0"
+
+    if cmd_l == "antenna list":
+        antennas = profile.get("antennas", {})
+        count    = profile.get("port_count", 8)
+        lines    = []
+        for i in range(1, count + 1):
+            ant  = antennas.get(str(i), {})
+            name = (ant.get("name", "") if isinstance(ant, dict) else str(ant)) or f"Port{i}"
+            name = name.replace(" ", "_")
+            tx   = band_mask(ant.get("tx_bands", []) if isinstance(ant, dict) else [])
+            rx   = band_mask(ant.get("rx_bands", []) if isinstance(ant, dict) else [])
+            lines.append(f"R{seq}|00|antenna {i} name={name} tx={hex(tx)} rx={hex(rx)} inband={hex(tx)}\r\n")
+        lines.append(f"R{seq}|00|\r\n")
+        conn.sendall("".join(lines).encode())
+
+    elif cmd_l == "band list":
+        lines = [f"R{seq}|00|band {b[0]} name={b[1]} freq_start={b[2]} freq_stop={b[3]}\r\n" for b in AG_BANDS]
+        lines.append(f"R{seq}|00|\r\n")
+        conn.sendall("".join(lines).encode())
+
+    elif cmd_l.startswith("port get"):
+        try:
+            port_num = int(cmd_l.split()[-1])
+        except ValueError:
+            port_num = 1
+        conn.sendall(f"R{seq}|00|port {port_num} {port_status(port_num)}\r\n".encode())
+
+    elif cmd_l == "sub port all":
+        conn.sendall(f"R{seq}|00|\r\n".encode())
+        for port_num in (1, 2):
+            conn.sendall(f"S0|port {port_num} {port_status(port_num)}\r\n".encode())
+
+    elif cmd_l == "sub relay":
+        conn.sendall(f"R{seq}|00|\r\n".encode())
+        # Push current relay/antenna states for all ports
+        antennas = profile.get("antennas", {})
+        count    = profile.get("port_count", 8)
+        for i in range(1, count + 1):
+            state = "on" if cfg.get("input1_port") == i or cfg.get("input2_port") == i else "off"
+            conn.sendall(f"S0|relay={i} state={state}\r\n".encode())
+
+    elif cmd_l.startswith("sub "):
+        conn.sendall(f"R{seq}|00|\r\n".encode())
+
+    else:
+        print(f"AG RX (unknown): [{cmd}]  → acking OK")
+        conn.sendall(f"R{seq}|00|\r\n".encode())
+
+def ag_handle_client(conn, addr):
+    try:
+        conn.settimeout(5)
+        conn.sendall(f"V{AG_VERSION} AG\r\n".encode())
+        buf = ""
+        real_client = False
+        while True:
+            data = conn.recv(1024)
+            if not data:
+                break
+            buf += data.decode(errors="ignore")
+            # Silently drop Arduino platform HTTP health checks
+            if buf.startswith(("GET ", "POST ", "HEAD ")):
+                conn.sendall(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n")
+                return
+            real_client = True
+            conn.settimeout(60)
+            while "\n" in buf:
+                line, buf = buf.split("\n", 1)
+                line = line.strip()
+                if not line:
+                    continue
+                if not hasattr(ag_handle_client, '_logged') or ag_handle_client._addr != addr:
+                    print(f"AG: connected from {addr}")
+                    ag_handle_client._addr = addr
+                print(f"AG RX: {line}")
+                if line.startswith("C"):
+                    parts = line[1:].split("|", 1)
+                    if len(parts) == 2:
+                        _ag_handle_command(conn, parts[0], parts[1].strip())
+    except Exception as e:
+        if real_client:
+            print(f"AG client error: {e}")
+    finally:
+        conn.close()
+        if real_client:
+            print(f"AG: {addr} disconnected")
+
+def ag_tcp_server():
+    srv = _socket.socket(_socket.AF_INET, _socket.SOCK_STREAM)
+    srv.setsockopt(_socket.SOL_SOCKET, _socket.SO_REUSEADDR, 1)
+    srv.bind(("0.0.0.0", AG_PORT))
+    srv.listen(5)
+    print(f"AG emulator TCP listening on port {AG_PORT}")
+    while True:
+        try:
+            conn, addr = srv.accept()
+            threading.Thread(target=ag_handle_client, args=(conn, addr), daemon=True).start()
+        except Exception as e:
+            print(f"AG server error: {e}")
+
+# ---------------------------------------------------------------------------
 # Startup
 # ---------------------------------------------------------------------------
 
@@ -600,6 +786,14 @@ print("ShackSwitch Flask API started on port 5000")
 t2 = threading.Thread(target=run_smartsdr, daemon=True)
 t2.start()
 print("SmartSDR tracker started")
+
+t3 = threading.Thread(target=ag_broadcaster, daemon=True)
+t3.start()
+print("AG emulator UDP broadcaster started")
+
+t4 = threading.Thread(target=ag_tcp_server, daemon=True)
+t4.start()
+print("AG emulator TCP server started on port 9007")
 
 setup()
 App.run(user_loop=loop)

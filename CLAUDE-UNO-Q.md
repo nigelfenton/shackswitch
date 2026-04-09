@@ -291,7 +291,9 @@ Single page app served by Flask at `http://10.0.0.145:5000/`
 - **Restart container:** `docker restart first-app-main-1`
 - **View logs:** `docker logs first-app-main-1 -f --tail 50`
 - **Config volume mount:** `/home/arduino/ArduinoApps/first-app/python/config.json:/app/python/config.json`
-- **Port exposed:** 5000
+- **Ports exposed:** 5000 (Flask), 9007 (AG emulator TCP)
+- **Port config file:** `/home/arduino/ArduinoApps/first-app/app.yaml` — add ports here, redeploy via App Lab to persist
+- **Compose file (auto-generated):** `/home/arduino/ArduinoApps/first-app/.cache/app-compose.yaml` — do NOT edit directly, overwritten on redeploy
 
 ---
 
@@ -321,6 +323,19 @@ Single page app served by Flask at `http://10.0.0.145:5000/`
 - Service: `/etc/systemd/system/shackswitch.service`
 - Script: `/home/arduino/shackswitch-boot.sh`
 - Sketch binary: `/home/arduino/shackswitch-flash/sketch.ino.bin-zsk.bin`
+
+---
+
+## Antenna Genius (AG) Emulator
+
+ShackSwitch emulates a 4O3A Antenna Genius so AetherSDR can discover and control it.
+Protocol documented in `shackswitch-v2/AETHERSDR-PROTOCOL.md`.
+
+- **UDP broadcast:** port 9007, every 5s — `AG ip=... port=9007 v=2.0 serial=G0JKN-SW name=... ports=2 antennas=N`
+- **TCP server:** port 9007 — speaks full AG command/response protocol
+- **Status:** connection and protocol fully working as of 9 Apr 2026
+- **AetherSDR UI:** antenna panel not yet implemented in AetherSDR 0.8.7 — protocol groundwork complete, awaiting their UI development
+- **Arduino platform health checks:** port 9007 receives HTTP GET health probes from the platform — handled silently in `ag_handle_client()`
 
 ---
 
@@ -372,14 +387,18 @@ band change → /kk1l/setband handler:
 | ~~Done~~ | Port count 2–16 — 7 Apr 2026 |
 | ~~Done~~ | Antenna capability model — 7 Apr 2026 |
 | ~~Done~~ | 16-port scaffold (dual board ready) — 7 Apr 2026 |
+| ~~Done~~ | AG emulator — UDP broadcast + TCP server on port 9007 — 9 Apr 2026 |
+| ~~Done~~ | KK1L board built and all relays tested — 9 Apr 2026 |
+| Immediate | Connect KK1L board to MCP23017 driver board |
 | Immediate | Restore relay state on container restart |
 | Immediate | Fix sketch.ino MCP board 2 address (0x21 → 0x22) |
 | Near term | Settings page: 2D antenna capability matrix (bands × ports, 4 cell states) |
 | Near term | Profile switcher in UI |
 | Near term | Wire RF2K-S PA sequencing into kk1l_setband |
+| Near term | Multi-port band_map (allow 2 antennas per band in pigeonhole) |
 | Future | Visual Radio Controls page (SVG, voice-controllable) |
 | Future | MCP23017 #3 for shack switching |
-| Future | AetherSDR native panel |
+| Future | AetherSDR antenna panel (awaiting their UI implementation) |
 | Future | Spoken test runner |
 
 ---
@@ -414,3 +433,9 @@ band change → /kk1l/setband handler:
 | 07 Apr 2026 | main.py fully updated — get_profile() helper, all endpoints profile-aware, 2–16 ports, new /antenna/capability /profile /profile/set endpoints |
 | 07 Apr 2026 | index.html updated — antName() helper, portCount loop, port spinner 2–16 with >8 MCP warning |
 | 07 Apr 2026 | New profile-based config deployed and confirmed live |
+| 09 Apr 2026 | 4O3A Antenna Genius protocol reverse-engineered from AetherSDR source |
+| 09 Apr 2026 | AG emulator built — UDP broadcaster + TCP server on port 9007 |
+| 09 Apr 2026 | Port 9007 added to app.yaml — persists across App Lab redeploys |
+| 09 Apr 2026 | Full AG protocol confirmed working — antenna/band/port/subscribe/ping all handled |
+| 09 Apr 2026 | AetherSDR 0.8.7 connects and communicates — UI panel not yet implemented in AetherSDR |
+| 09 Apr 2026 | KK1L board built and tested — all relays sound off, ready to connect to driver board |
