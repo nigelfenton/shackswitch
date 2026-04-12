@@ -514,7 +514,8 @@ def factory_reset():
         "input1_label":  config.get("input1_label", "Input A"),
         "input2_label":  config.get("input2_label", "Input B"),
         "rfkit_ip":      config.get("rfkit_ip", ""),
-        "rfkit_enabled": False
+        "rfkit_enabled": False,
+        "kenwood":       _default_kenwood_cfg()
     }
     save_config(fresh_config)
     bridge_call("kk1l_deselect_all")
@@ -534,6 +535,80 @@ def device_config():
 # ---------------------------------------------------------------------------
 
 import rfkit
+import kenwood
+
+# ---------------------------------------------------------------------------
+# Routes — Kenwood CAT
+# ---------------------------------------------------------------------------
+
+@flask_app.route('/kenwood')
+def kenwood_page():
+    return render_template('kenwood.html')
+
+@flask_app.route('/kenwood/status')
+def kenwood_status():
+    return jsonify(kenwood.get_state())
+
+@flask_app.route('/kenwood/config', methods=['GET'])
+def kenwood_config_get():
+    cfg = load_config()
+    return jsonify(cfg.get('kenwood', _default_kenwood_cfg()))
+
+@flask_app.route('/kenwood/config', methods=['POST'])
+def kenwood_config_post():
+    data = request.get_json(force=True)
+    rid  = data.get('radio')
+    if rid not in ('a', 'b'):
+        return jsonify({'ok': False, 'error': 'radio must be a or b'}), 400
+    cfg = load_config()
+    if 'kenwood' not in cfg:
+        cfg['kenwood'] = _default_kenwood_cfg()
+    cfg['kenwood'][rid] = {
+        'enabled': bool(data.get('enabled', False)),
+        'label':   data.get('label', f'Radio {rid.upper()}'),
+        'type':    data.get('type', 'serial'),
+        'input':   str(data.get('input', '1' if rid == 'a' else '2')),
+        'device':  data.get('device', '/dev/ttyUSB0'),
+        'baud':    int(data.get('baud', 9600)),
+        'host':    data.get('host', ''),
+        'port':    int(data.get('port', 60000)),
+    }
+    save_config(cfg)
+    return jsonify({'ok': True})
+
+@flask_app.route('/kenwood/test', methods=['POST'])
+def kenwood_test():
+    """Manually force a band change — for testing without a connected radio."""
+    data    = request.get_json(force=True)
+    rid     = data.get('radio')
+    band    = data.get('band', '')
+    cfg     = load_config()
+    kw_cfg  = cfg.get('kenwood', _default_kenwood_cfg())
+    radio   = kw_cfg.get(rid, {})
+    input_n = radio.get('input', '1' if rid == 'a' else '2')
+    profile = get_profile(cfg)
+    port    = profile.get('band_map', {}).get(band)
+    if port is None:
+        return jsonify({'ok': False, 'error': f'No port mapped for {band}'}), 404
+    import urllib.request
+    try:
+        url = f'http://127.0.0.1:5000/kk1l/setband?input={input_n}&band={band}'
+        urllib.request.urlopen(url, timeout=2)
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500
+    return jsonify({'ok': True, 'input': input_n, 'band': band})
+
+
+def _default_kenwood_cfg():
+    return {
+        'a': {'enabled': False, 'label': 'TS-480HX', 'type': 'serial',
+              'device': '/dev/ttyUSB0', 'baud': 9600, 'input': '1',
+              'host': '', 'port': 60000},
+        'b': {'enabled': False, 'label': 'TS-890S', 'type': 'network',
+              'host': '', 'port': 60000, 'input': '2',
+              'device': '/dev/ttyUSB0', 'baud': 9600},
+    }
+
 
 @flask_app.route("/rfkit/config", methods=["GET"])
 def rfkit_config_get():
@@ -1028,6 +1103,8 @@ print("AG emulator TCP server started on port 9007")
 t5 = threading.Thread(target=ag_test_client, daemon=True)
 t5.start()
 print("AG test harness client started")
+
+kenwood.start()
 
 setup()
 App.run(user_loop=loop)

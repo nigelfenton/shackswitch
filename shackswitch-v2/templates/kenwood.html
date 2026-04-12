@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kenwood CAT — ShackSwitch G0JKN</title>
+<style>
+  :root {
+    --bg: #111; --panel: #1e1e1e; --border: #333;
+    --text: #e8e8e8; --muted: #888; --green: #00cc66;
+    --red: #ff4444; --amber: #ff8800; --blue: #00aaff;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text);
+         font-family: 'Segoe UI', Arial, sans-serif; padding: 20px; }
+
+  header { margin-bottom: 24px; }
+  header h1 { font-size: 22px; color: var(--green); margin-bottom: 4px; }
+  header p  { font-size: 13px; color: var(--muted); }
+  header a  { color: var(--muted); font-size: 12px; text-decoration: none; }
+  header a:hover { color: var(--text); }
+
+  .radios { display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 24px; }
+
+  .radio-card {
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 8px; padding: 20px; flex: 1; min-width: 280px;
+  }
+  .radio-card h2 { font-size: 18px; color: var(--green); margin-bottom: 16px; }
+
+  /* Status dot + text */
+  .status-row { display: flex; align-items: center; gap: 10px; margin-bottom: 20px; }
+  .dot { width: 14px; height: 14px; border-radius: 50%; background: var(--muted);
+         flex-shrink: 0; }
+  .dot.ok  { background: var(--green); box-shadow: 0 0 6px var(--green); }
+  .dot.err { background: var(--red);   box-shadow: 0 0 6px var(--red); }
+  .status-text { font-size: 13px; color: var(--muted); }
+
+  /* Big frequency display */
+  .freq-display { margin-bottom: 16px; }
+  .freq-hz { font-size: 36px; font-weight: bold; color: var(--green);
+             letter-spacing: 1px; line-height: 1.1; }
+  .freq-hz.idle { color: #444; }
+  .freq-meta { font-size: 16px; color: var(--blue); margin-top: 4px; }
+  .freq-meta .mode { color: var(--amber); margin-left: 12px; }
+
+  /* Section headings within card */
+  .section-head { font-size: 11px; color: var(--muted); letter-spacing: 1px;
+                  text-transform: uppercase; margin-bottom: 8px; margin-top: 16px;
+                  border-bottom: 1px solid var(--border); padding-bottom: 4px; }
+
+  /* Band test buttons */
+  .band-grid { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 4px; }
+  .band-btn {
+    background: #252525; border: 1px solid #444; border-radius: 4px;
+    color: var(--text); font-size: 13px; padding: 6px 10px; cursor: pointer;
+    min-width: 52px; text-align: center;
+  }
+  .band-btn:hover  { background: #333; border-color: var(--green); }
+  .band-btn:active { background: #1a3329; }
+  .band-note { font-size: 11px; color: var(--muted); margin-top: 4px; }
+
+  /* Config form */
+  .config-form { margin-top: 4px; }
+  .field-row { display: flex; align-items: center; gap: 8px;
+               margin-bottom: 8px; flex-wrap: wrap; }
+  .field-row label { font-size: 12px; color: var(--muted); min-width: 90px; }
+  .field-row input, .field-row select {
+    background: #252525; border: 1px solid #444; border-radius: 4px;
+    color: var(--text); font-size: 13px; padding: 5px 8px; flex: 1; min-width: 0;
+  }
+  .field-row input:focus, .field-row select:focus {
+    outline: none; border-color: var(--green);
+  }
+  .cfg-toggle {
+    display: flex; align-items: center; gap: 8px; margin-bottom: 10px;
+    font-size: 13px; color: var(--text); cursor: pointer;
+  }
+  .cfg-toggle input { width: 16px; height: 16px; cursor: pointer; accent-color: var(--green); }
+  .type-fields { display: none; }
+  .type-fields.serial  { display: block; }
+  .type-fields.network { display: block; }
+  .save-btn {
+    margin-top: 10px; padding: 8px 20px; background: var(--green); color: #000;
+    border: none; border-radius: 4px; font-size: 13px; font-weight: bold;
+    cursor: pointer; width: 100%;
+  }
+  .save-btn:hover { background: #00aa55; }
+  .save-msg { font-size: 12px; color: var(--green); margin-top: 6px;
+              min-height: 18px; text-align: center; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Kenwood CAT Interface</h1>
+  <p>Radio A (serial) and Radio B (network) — band switching for ShackSwitch</p>
+  <p style="margin-top:6px;"><a href="/">&larr; Back to ShackSwitch</a></p>
+</header>
+
+<div class="radios">
+
+  <!-- ── Radio A ─────────────────────────────────────────────── -->
+  <section class="radio-card" aria-label="Radio A">
+    <h2 id="labelA">Radio A</h2>
+
+    <div class="status-row" role="status" aria-live="polite">
+      <div class="dot" id="dotA" aria-hidden="true"></div>
+      <span class="status-text" id="statusA">Loading...</span>
+    </div>
+
+    <div class="freq-display" aria-label="Radio A frequency">
+      <div class="freq-hz idle" id="freqA" aria-live="polite">—</div>
+      <div class="freq-meta">
+        <span id="bandA" aria-label="Band">—</span>
+        <span class="mode" id="modeA" aria-label="Mode">—</span>
+      </div>
+    </div>
+
+    <div class="section-head">Test — Force Band</div>
+    <div class="band-grid" id="bandBtnsA" role="group" aria-label="Force Radio A to band"></div>
+    <p class="band-note">Sends setband directly — use when radio not connected</p>
+
+    <div class="section-head">Configuration</div>
+    <div class="config-form">
+      <label class="cfg-toggle">
+        <input type="checkbox" id="enabledA" onchange="typeChanged('a')">
+        <span>Enabled</span>
+      </label>
+
+      <div class="field-row">
+        <label for="labelInputA">Label</label>
+        <input type="text" id="labelInputA" placeholder="e.g. TS-480HX">
+      </div>
+      <div class="field-row">
+        <label for="typeA">Type</label>
+        <select id="typeA" onchange="typeChanged('a')">
+          <option value="serial">Serial (USB)</option>
+          <option value="network">Network (LAN)</option>
+        </select>
+      </div>
+      <div class="field-row">
+        <label for="inputA">Input</label>
+        <select id="inputA">
+          <option value="1">Input A (Radio 1)</option>
+          <option value="2">Input B (Radio 2)</option>
+        </select>
+      </div>
+
+      <div id="serialFieldsA" class="type-fields serial">
+        <div class="field-row">
+          <label for="deviceA">Device</label>
+          <input type="text" id="deviceA" placeholder="/dev/ttyUSB0">
+        </div>
+        <div class="field-row">
+          <label for="baudA">Baud rate</label>
+          <select id="baudA">
+            <option value="4800">4800</option>
+            <option value="9600" selected>9600</option>
+            <option value="19200">19200</option>
+            <option value="38400">38400</option>
+            <option value="57600">57600</option>
+          </select>
+        </div>
+      </div>
+
+      <div id="networkFieldsA" class="type-fields" style="display:none">
+        <div class="field-row">
+          <label for="hostA">IP address</label>
+          <input type="text" id="hostA" placeholder="192.168.1.x">
+        </div>
+        <div class="field-row">
+          <label for="portA">Port</label>
+          <input type="number" id="portA" value="60000">
+        </div>
+      </div>
+
+      <button class="save-btn" onclick="saveConfig('a')"
+              aria-label="Save Radio A configuration">Save</button>
+      <div class="save-msg" id="msgA"></div>
+    </div>
+  </section>
+
+  <!-- ── Radio B ─────────────────────────────────────────────── -->
+  <section class="radio-card" aria-label="Radio B">
+    <h2 id="labelB">Radio B</h2>
+
+    <div class="status-row" role="status" aria-live="polite">
+      <div class="dot" id="dotB" aria-hidden="true"></div>
+      <span class="status-text" id="statusB">Loading...</span>
+    </div>
+
+    <div class="freq-display" aria-label="Radio B frequency">
+      <div class="freq-hz idle" id="freqB" aria-live="polite">—</div>
+      <div class="freq-meta">
+        <span id="bandB" aria-label="Band">—</span>
+        <span class="mode" id="modeB" aria-label="Mode">—</span>
+      </div>
+    </div>
+
+    <div class="section-head">Test — Force Band</div>
+    <div class="band-grid" id="bandBtnsB" role="group" aria-label="Force Radio B to band"></div>
+    <p class="band-note">Sends setband directly — use when radio not connected</p>
+
+    <div class="section-head">Configuration</div>
+    <div class="config-form">
+      <label class="cfg-toggle">
+        <input type="checkbox" id="enabledB" onchange="typeChanged('b')">
+        <span>Enabled</span>
+      </label>
+
+      <div class="field-row">
+        <label for="labelInputB">Label</label>
+        <input type="text" id="labelInputB" placeholder="e.g. TS-890S">
+      </div>
+      <div class="field-row">
+        <label for="typeB">Type</label>
+        <select id="typeB" onchange="typeChanged('b')">
+          <option value="serial">Serial (USB)</option>
+          <option value="network" selected>Network (LAN)</option>
+        </select>
+      </div>
+      <div class="field-row">
+        <label for="inputB">Input</label>
+        <select id="inputB">
+          <option value="1">Input A (Radio 1)</option>
+          <option value="2" selected>Input B (Radio 2)</option>
+        </select>
+      </div>
+
+      <div id="serialFieldsB" class="type-fields" style="display:none">
+        <div class="field-row">
+          <label for="deviceB">Device</label>
+          <input type="text" id="deviceB" placeholder="/dev/ttyUSB0">
+        </div>
+        <div class="field-row">
+          <label for="baudB">Baud rate</label>
+          <select id="baudB">
+            <option value="4800">4800</option>
+            <option value="9600" selected>9600</option>
+            <option value="19200">19200</option>
+            <option value="38400">38400</option>
+            <option value="57600">57600</option>
+          </select>
+        </div>
+      </div>
+
+      <div id="networkFieldsB" class="type-fields network">
+        <div class="field-row">
+          <label for="hostB">IP address</label>
+          <input type="text" id="hostB" placeholder="192.168.1.x">
+        </div>
+        <div class="field-row">
+          <label for="portB">Port</label>
+          <input type="number" id="portB" value="60000">
+        </div>
+      </div>
+
+      <button class="save-btn" onclick="saveConfig('b')"
+              aria-label="Save Radio B configuration">Save</button>
+      <div class="save-msg" id="msgB"></div>
+    </div>
+  </section>
+
+</div><!-- .radios -->
+
+<script>
+const BANDS = ['160m','80m','60m','40m','30m','20m','17m','15m','12m','10m','6m'];
+
+function fmtFreq(hz) {
+  if (!hz) return '—';
+  const mhz = hz / 1_000_000;
+  return mhz.toFixed(3) + ' MHz';
+}
+
+// Build band test buttons for a radio
+function buildBandBtns(rid) {
+  const grid = document.getElementById(`bandBtns${rid.toUpperCase()}`);
+  grid.innerHTML = '';
+  BANDS.forEach(band => {
+    const btn = document.createElement('button');
+    btn.className = 'band-btn';
+    btn.textContent = band;
+    btn.setAttribute('aria-label', `Force ${rid === 'a' ? 'Radio A' : 'Radio B'} to ${band}`);
+    btn.onclick = () => testBand(rid, band);
+    grid.appendChild(btn);
+  });
+}
+
+function testBand(rid, band) {
+  fetch('/kenwood/test', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({radio: rid, band})
+  }).then(r => r.json()).then(d => {
+    if (!d.ok) console.error('testBand failed', d);
+  });
+}
+
+function typeChanged(rid) {
+  const R = rid.toUpperCase();
+  const type = document.getElementById(`type${R}`).value;
+  document.getElementById(`serialFields${R}`).style.display  = type === 'serial'  ? 'block' : 'none';
+  document.getElementById(`networkFields${R}`).style.display = type === 'network' ? 'block' : 'none';
+}
+
+function saveConfig(rid) {
+  const R = rid.toUpperCase();
+  const type = document.getElementById(`type${R}`).value;
+  const cfg = {
+    radio: rid,
+    enabled:  document.getElementById(`enabled${R}`).checked,
+    label:    document.getElementById(`labelInput${R}`).value.trim(),
+    type,
+    input:    document.getElementById(`input${R}`).value,
+    device:   document.getElementById(`device${R}`).value.trim(),
+    baud:     parseInt(document.getElementById(`baud${R}`).value),
+    host:     document.getElementById(`host${R}`).value.trim(),
+    port:     parseInt(document.getElementById(`port${R}`).value),
+  };
+  fetch('/kenwood/config', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(cfg)
+  }).then(r => r.json()).then(d => {
+    const msg = document.getElementById(`msg${R}`);
+    msg.textContent = d.ok ? 'Saved' : 'Error: ' + d.error;
+    setTimeout(() => { msg.textContent = ''; }, 3000);
+  });
+}
+
+function loadConfig() {
+  fetch('/kenwood/config')
+    .then(r => r.json())
+    .then(d => {
+      ['a','b'].forEach(rid => {
+        const R = rid.toUpperCase();
+        const cfg = d[rid] || {};
+        document.getElementById(`enabled${R}`).checked         = !!cfg.enabled;
+        document.getElementById(`labelInput${R}`).value        = cfg.label || '';
+        document.getElementById(`type${R}`).value              = cfg.type || (rid === 'a' ? 'serial' : 'network');
+        document.getElementById(`input${R}`).value             = cfg.input || (rid === 'a' ? '1' : '2');
+        document.getElementById(`device${R}`).value            = cfg.device || '/dev/ttyUSB0';
+        document.getElementById(`baud${R}`).value              = cfg.baud || 9600;
+        document.getElementById(`host${R}`).value              = cfg.host || '';
+        document.getElementById(`port${R}`).value              = cfg.port || 60000;
+        typeChanged(rid);
+      });
+    });
+}
+
+function updateStatus() {
+  fetch('/kenwood/status')
+    .then(r => r.json())
+    .then(d => {
+      ['a','b'].forEach(rid => {
+        const R   = rid.toUpperCase();
+        const rs  = d[rid] || {};
+
+        document.getElementById(`label${R}`).textContent  = rs.label || `Radio ${R}`;
+        document.getElementById(`status${R}`).textContent = rs.status || '—';
+
+        const dot = document.getElementById(`dot${R}`);
+        dot.className = 'dot ' + (rs.connected ? 'ok' : rs.status?.startsWith('Error') ? 'err' : '');
+
+        const freqEl = document.getElementById(`freq${R}`);
+        freqEl.textContent = rs.freq ? fmtFreq(rs.freq) : '—';
+        freqEl.className   = 'freq-hz' + (rs.freq ? '' : ' idle');
+        freqEl.setAttribute('aria-label',
+          rs.freq ? `Frequency ${fmtFreq(rs.freq)}` : 'No frequency');
+
+        document.getElementById(`band${R}`).textContent  = rs.band || '—';
+        document.getElementById(`mode${R}`).textContent  = rs.mode || '—';
+      });
+    })
+    .catch(() => {});
+}
+
+// Init
+buildBandBtns('a');
+buildBandBtns('b');
+loadConfig();
+updateStatus();
+setInterval(updateStatus, 2000);
+</script>
+</body>
+</html>
