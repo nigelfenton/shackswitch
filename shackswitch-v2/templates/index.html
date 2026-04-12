@@ -149,6 +149,7 @@
     <button class="nav-btn" onclick="showPage('settings', this)">Settings</button>
     <button class="nav-btn" id="voice-btn" onclick="toggleVoice()">Voice</button>
     <button class="nav-btn" onclick="showPage('ag-test', this)">AG Test</button>
+    <button class="nav-btn" onclick="showPage('kenwood', this)">Kenwood</button>
   </div>
   <!-- MAIN PAGE -->
   <div class="page active" id="page-main">
@@ -987,6 +988,10 @@ function executeCustomCommand(cmd) {
 
   <div id="page-ag-test" class="page">
     <iframe src="/ag-test" style="width:100%;height:calc(100vh - 80px);border:none;"></iframe>
+  </div>
+
+  <div id="page-kenwood" class="page">
+    <iframe src="/kenwood" style="width:100%;height:calc(100vh - 80px);border:none;"></iframe>
   </div>
 
 </body>
