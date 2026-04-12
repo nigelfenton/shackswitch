@@ -59,7 +59,7 @@ String buildIF() {
   long long f = BANDS[currentBand].freq_hz;
   // IF + 11-digit freq + 16 filler chars + mode digit + 7 filler chars + ;
   snprintf(buf, sizeof(buf),
-    "IF%011lld     +000000000%s0000000;",
+    "IF%011lld     +0000000000%s0000000;",
     f, BANDS[currentBand].mode_digit);
   return String(buf);
 }
