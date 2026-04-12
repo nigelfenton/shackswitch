@@ -9,6 +9,8 @@ import socket
 import threading
 import time
 import json
+import os
+import termios
 
 CONFIG_PATH = "/app/python/config.json"
 
@@ -139,20 +141,37 @@ def _radio_loop(radio_id):
         time.sleep(5)
 
 
-def _run_serial(radio_id, cfg):
-    """Serial CAT: TS-480HX, TS-450, etc. via USB."""
-    try:
-        import serial as _serial
-    except ImportError:
-        with _lock:
-            radio_state[radio_id]['status'] = 'Error: pyserial not installed — run: pip install pyserial'
-        time.sleep(60)
-        return
+_BAUD = {
+    4800: termios.B4800,   9600: termios.B9600,
+    19200: termios.B19200, 38400: termios.B38400,
+    57600: termios.B57600, 115200: termios.B115200,
+}
 
+def _open_serial(device, baud):
+    """Open a serial port using only stdlib termios — no pyserial needed."""
+    fd = os.open(device, os.O_RDWR | os.O_NOCTTY)
+    attrs = termios.tcgetattr(fd)
+    # Raw mode: no echo, no signals, 8N1
+    attrs[0] = 0                                          # iflag
+    attrs[1] = 0                                          # oflag
+    attrs[2] = termios.CS8 | termios.CREAD | termios.CLOCAL  # cflag
+    attrs[3] = 0                                          # lflag
+    brate = _BAUD.get(baud, termios.B9600)
+    attrs[4] = brate   # ispeed
+    attrs[5] = brate   # ospeed
+    attrs[6][termios.VMIN]  = 0
+    attrs[6][termios.VTIME] = 20  # 2s read timeout (tenths of seconds)
+    termios.tcsetattr(fd, termios.TCSANOW, attrs)
+    return fd
+
+
+def _run_serial(radio_id, cfg):
+    """Serial CAT: TS-480HX, TS-450, etc. via USB. Uses stdlib termios only."""
     device = cfg.get('device', '/dev/ttyUSB0')
     baud   = int(cfg.get('baud', 9600))
 
-    with _serial.Serial(device, baud, timeout=2) as ser:
+    fd = _open_serial(device, baud)
+    try:
         with _lock:
             radio_state[radio_id]['connected'] = True
             radio_state[radio_id]['status']    = f'Connected ({device}, {baud} baud)'
@@ -163,10 +182,9 @@ def _run_serial(radio_id, cfg):
             if not cfg.get('enabled'):
                 break
 
-            ser.reset_input_buffer()
-            ser.write(b'IF;')
+            os.write(fd, b'IF;')
             time.sleep(0.15)
-            raw = ser.read(64).decode(errors='ignore')
+            raw = os.read(fd, 64).decode(errors='ignore')
 
             freq, mode = _parse_if(raw)
             if freq:
@@ -182,6 +200,8 @@ def _run_serial(radio_id, cfg):
                     last_band = band
 
             time.sleep(2)
+    finally:
+        os.close(fd)
 
 
 def _run_network(radio_id, cfg):
