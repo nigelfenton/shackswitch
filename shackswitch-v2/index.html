@@ -505,11 +505,64 @@ let prevAmpMode = null, prevAmpFault = false;
 let recognition = null;
 let announceDebounce = 0;
 
+function getTtsSettings() {
+  return {
+    voice: localStorage.getItem('ssTtsVoice') || '',
+    rate:   parseFloat(localStorage.getItem('ssTtsRate')   || '0.9'),
+    pitch:  parseFloat(localStorage.getItem('ssTtsPitch')  || '1.0'),
+    volume: parseFloat(localStorage.getItem('ssTtsVolume') || '1.0'),
+  };
+}
+function saveTtsSettings() {
+  localStorage.setItem('ssTtsVoice',  document.getElementById('tts-voice').value);
+  localStorage.setItem('ssTtsRate',   document.getElementById('tts-rate').value);
+  localStorage.setItem('ssTtsPitch',  document.getElementById('tts-pitch').value);
+  localStorage.setItem('ssTtsVolume', document.getElementById('tts-volume').value);
+}
+function populateVoiceList() {
+  const sel = document.getElementById('tts-voice');
+  if (!sel) return;
+  const voices = window.speechSynthesis.getVoices();
+  const saved = localStorage.getItem('ssTtsVoice') || '';
+  sel.innerHTML = '<option value="">— Browser default —</option>';
+  voices.forEach(v => {
+    const opt = document.createElement('option');
+    opt.value = v.name;
+    opt.textContent = v.name + ' (' + v.lang + ')';
+    if (v.name === saved) opt.selected = true;
+    sel.appendChild(opt);
+  });
+}
+function loadTtsSettingsUI() {
+  const s = getTtsSettings();
+  const rate  = document.getElementById('tts-rate');
+  const pitch = document.getElementById('tts-pitch');
+  const vol   = document.getElementById('tts-volume');
+  if (rate)  { rate.value  = s.rate;   document.getElementById('tts-rate-val').textContent   = s.rate.toFixed(2); }
+  if (pitch) { pitch.value = s.pitch;  document.getElementById('tts-pitch-val').textContent  = s.pitch.toFixed(2); }
+  if (vol)   { vol.value   = s.volume; document.getElementById('tts-volume-val').textContent = s.volume.toFixed(2); }
+  populateVoiceList();
+}
+function testTts() {
+  const msg = document.getElementById('tts-test-msg');
+  if (msg) msg.textContent = 'Speaking...';
+  const s = getTtsSettings();
+  window.speechSynthesis.cancel();
+  const u = new SpeechSynthesisUtterance('Input Alpha on 40 metres. SO2R OK.');
+  u.rate = s.rate; u.pitch = s.pitch; u.volume = s.volume;
+  const voices = window.speechSynthesis.getVoices();
+  if (s.voice) { const v = voices.find(v => v.name === s.voice); if (v) u.voice = v; }
+  u.onend = () => { if (msg) msg.textContent = ''; };
+  window.speechSynthesis.speak(u);
+}
 function speak(text, onend) {
   if (!voiceEnabled) return;
   window.speechSynthesis.cancel();
+  const s = getTtsSettings();
   const u = new SpeechSynthesisUtterance(text);
-  u.rate = 0.9;
+  u.rate = s.rate; u.pitch = s.pitch; u.volume = s.volume;
+  const voices = window.speechSynthesis.getVoices();
+  if (s.voice) { const v = voices.find(v => v.name === s.voice); if (v) u.voice = v; }
   u.onend = onend ? () => setTimeout(onend, 350) : null;
   window.speechSynthesis.speak(u);
 }
@@ -764,7 +817,13 @@ function saveAmpIp() {
 }
 
 // -- Voice Settings page --
-function loadVoicePage() { updateVcStatusBadge(); renderCustomCommands(); }
+function loadVoicePage() {
+  updateVcStatusBadge();
+  renderCustomCommands();
+  loadTtsSettingsUI();
+  // voices may load async — repopulate when ready
+  window.speechSynthesis.onvoiceschanged = populateVoiceList;
+}
 function goVoiceSettings() {
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
@@ -934,6 +993,37 @@ function executeCustomCommand(cmd) {
         <span style="font-size:12px;color:#aaa;">Status:</span>
         <span id="vc-status-badge" style="padding:4px 14px;border-radius:4px;font-size:12px;font-family:monospace;background:#333;color:#666;border:1px solid #555;">OFF</span>
         <button class="row-save-btn" onclick="toggleVoiceFromPage()">Toggle</button>
+      </div>
+    </div>
+    <div class="settings-section">
+      <h4>TTS Settings</h4>
+      <p style="font-size:11px;color:#555;margin-bottom:12px;">Choose a voice and adjust speech parameters. Available voices depend on your browser and OS.</p>
+      <div style="display:flex;flex-direction:column;gap:12px;">
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+          <label style="font-size:12px;color:#aaa;width:56px;">Voice</label>
+          <select id="tts-voice" class="ant-rename" style="flex:1;min-width:200px;" onchange="saveTtsSettings()">
+            <option value="">— Browser default —</option>
+          </select>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;">
+          <label style="font-size:12px;color:#aaa;width:56px;">Rate</label>
+          <input type="range" id="tts-rate" min="0.5" max="1.8" step="0.05" value="0.9" style="flex:1;" oninput="document.getElementById('tts-rate-val').textContent=parseFloat(this.value).toFixed(2);saveTtsSettings()">
+          <span id="tts-rate-val" style="font-size:12px;color:#ccc;width:36px;text-align:right;">0.90</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;">
+          <label style="font-size:12px;color:#aaa;width:56px;">Pitch</label>
+          <input type="range" id="tts-pitch" min="0.5" max="1.8" step="0.05" value="1.0" style="flex:1;" oninput="document.getElementById('tts-pitch-val').textContent=parseFloat(this.value).toFixed(2);saveTtsSettings()">
+          <span id="tts-pitch-val" style="font-size:12px;color:#ccc;width:36px;text-align:right;">1.00</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;">
+          <label style="font-size:12px;color:#aaa;width:56px;">Volume</label>
+          <input type="range" id="tts-volume" min="0" max="1" step="0.05" value="1.0" style="flex:1;" oninput="document.getElementById('tts-volume-val').textContent=parseFloat(this.value).toFixed(2);saveTtsSettings()">
+          <span id="tts-volume-val" style="font-size:12px;color:#ccc;width:36px;text-align:right;">1.00</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;">
+          <button class="row-save-btn" onclick="testTts()">&#9654; Test Voice</button>
+          <span id="tts-test-msg" style="font-size:11px;color:#888;"></span>
+        </div>
       </div>
     </div>
     <div class="settings-section">
