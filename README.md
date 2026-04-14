@@ -8,6 +8,22 @@
 
 ---
 
+## Photos
+
+<!-- PHOTO: Hardware overview — Arduino Uno Q board with relay shield and KK1L board installed -->
+*Photo coming soon — hardware overview*
+
+<!-- PHOTO: Enclosure — front/rear panel showing SO239 connectors and finished build -->
+*Photo coming soon — enclosure front/rear*
+
+<!-- PHOTO: Web UI — main status page in browser showing live antenna selection and SO2R status -->
+*Screenshot coming soon — web UI status page*
+
+<!-- PHOTO: Web UI settings — band assignment grid -->
+*Screenshot coming soon — web UI settings / band assignment grid*
+
+---
+
 ## What is ShackSwitch?
 
 ShackSwitch sits between your radios and your antennas. It automatically selects the correct antenna when you change band, supports two radio inputs (SO2R capable) with hardware interlock protection, and can be controlled from any browser on your network.
