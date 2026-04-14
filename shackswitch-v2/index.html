@@ -335,6 +335,13 @@
     poll();
     setInterval(poll, 5000);
 
+    // Pre-load TTS voices so the dropdown is ready when the Voice page opens.
+    // Chrome loads voices asynchronously — register the callback immediately.
+    if (window.speechSynthesis) {
+      window.speechSynthesis.onvoiceschanged = populateVoiceList;
+      window.speechSynthesis.getVoices(); // trigger async load
+    }
+
     function applyPortCount() {
       const n = parseInt(document.getElementById('port-count-input').value);
       if (isNaN(n) || n < 2 || n > 16) {
