@@ -70,6 +70,8 @@
     .ph-cell.assigned { background: #1a3329; border-color: #00cc66; color: #00cc66; }
     .ph-cell.inactive-port { opacity: 0.2; cursor: not-allowed; }
     .settings-section { margin-bottom: 24px; }
+    .rs-slot { background:#1a1a1a; border:1px solid #333; border-radius:4px;
+               padding:10px 14px; min-width:150px; flex:1; }
     .settings-section h4 {
       color: #00cc66; font-size: 13px; margin-bottom: 10px;
       border-bottom: 1px solid #333; padding-bottom: 6px;
@@ -223,6 +225,79 @@
       <button class="save-btn" onclick="saveAllNames()">Save All Names</button>
       <div class="save-msg" id="save-names-msg"></div>
     </div>
+    <div class="settings-section" id="rs-section">
+      <h4>Radio Sources</h4>
+      <div id="rs-conflict-banner" style="display:none;background:#3a2000;border:1px solid #ff8800;
+           border-radius:4px;padding:8px 12px;margin-bottom:12px;font-size:12px;color:#ff8800;"></div>
+      <div style="display:flex;gap:12px;margin-bottom:16px;flex-wrap:wrap;">
+        <div class="rs-slot" id="rs-slot-1">
+          <div style="font-size:11px;color:#888;margin-bottom:4px;">INPUT 1</div>
+          <div id="rs-slot-1-label" style="font-size:13px;color:#0af;font-weight:bold;">—</div>
+          <div id="rs-slot-1-status" style="font-size:11px;color:#555;margin-top:2px;"></div>
+        </div>
+        <div class="rs-slot" id="rs-slot-2">
+          <div style="font-size:11px;color:#888;margin-bottom:4px;">INPUT 2</div>
+          <div id="rs-slot-2-label" style="font-size:13px;color:#0af;font-weight:bold;">—</div>
+          <div id="rs-slot-2-status" style="font-size:11px;color:#555;margin-top:2px;"></div>
+        </div>
+      </div>
+      <table class="settings-grid" id="rs-table">
+        <thead><tr>
+          <th>Radio</th><th>Protocol</th><th>Connection</th><th>Input</th><th>Status</th><th></th>
+        </tr></thead>
+        <tbody id="rs-tbody"></tbody>
+      </table>
+      <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+        <button class="row-save-btn" onclick="rsShowAddForm()">+ Add Radio</button>
+        <button class="row-save-btn" id="rs-scan-btn" onclick="rsScan()">Scan Network</button>
+        <span id="rs-scan-msg" style="font-size:11px;color:#888;"></span>
+      </div>
+      <div id="rs-scan-results" style="display:none;margin-top:10px;"></div>
+      <div id="rs-add-form" style="display:none;margin-top:14px;background:#1a1a1a;
+           border:1px solid #333;border-radius:4px;padding:12px;">
+        <div style="font-size:12px;color:#888;margin-bottom:10px;" id="rs-form-title">Add Radio</div>
+        <input type="hidden" id="rs-form-id">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
+          <div><div style="font-size:11px;color:#777;margin-bottom:3px;">Label</div>
+            <input class="ant-rename" id="rs-f-label" placeholder="e.g. IC-9700" style="width:100%;"></div>
+          <div><div style="font-size:11px;color:#777;margin-bottom:3px;">Protocol</div>
+            <select id="rs-f-protocol" class="ant-rename" style="width:100%;" onchange="rsFormProtocolChange()">
+              <option value="kenwood">Kenwood (IF;)</option>
+              <option value="yaesu">Yaesu (IF;)</option>
+              <option value="icom">Icom CI-V</option>
+            </select></div>
+          <div><div style="font-size:11px;color:#777;margin-bottom:3px;">Transport</div>
+            <select id="rs-f-transport" class="ant-rename" style="width:100%;" onchange="rsFormTransportChange()">
+              <option value="network">Network (TCP)</option>
+              <option value="serial">Serial (USB)</option>
+            </select></div>
+          <div><div style="font-size:11px;color:#777;margin-bottom:3px;">Input</div>
+            <select id="rs-f-input" class="ant-rename" style="width:100%;">
+              <option value="1">Input 1</option>
+              <option value="2">Input 2</option>
+            </select></div>
+          <div id="rs-f-host-row"><div style="font-size:11px;color:#777;margin-bottom:3px;">IP Address</div>
+            <input class="ant-rename" id="rs-f-host" placeholder="10.0.0.x" style="width:100%;"></div>
+          <div id="rs-f-port-row"><div style="font-size:11px;color:#777;margin-bottom:3px;">Port</div>
+            <input class="ant-rename" id="rs-f-port" type="number" value="60000" style="width:100%;"></div>
+          <div id="rs-f-device-row" style="display:none;"><div style="font-size:11px;color:#777;margin-bottom:3px;">Serial Device</div>
+            <input class="ant-rename" id="rs-f-device" placeholder="/dev/ttyUSB0" style="width:100%;"></div>
+          <div id="rs-f-baud-row" style="display:none;"><div style="font-size:11px;color:#777;margin-bottom:3px;">Baud Rate</div>
+            <select id="rs-f-baud" class="ant-rename" style="width:100%;">
+              <option value="4800">4800</option><option value="9600" selected>9600</option>
+              <option value="19200">19200</option><option value="38400">38400</option>
+            </select></div>
+          <div id="rs-f-civ-row" style="display:none;"><div style="font-size:11px;color:#777;margin-bottom:3px;">CI-V Address</div>
+            <input class="ant-rename" id="rs-f-civ" placeholder="0x98 (IC-9700)" style="width:100%;"></div>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <button class="row-save-btn" onclick="rsSaveForm()">Save</button>
+          <button class="row-save-btn" onclick="rsCancelForm()">Cancel</button>
+          <span id="rs-form-msg" style="font-size:11px;color:#ff8800;"></span>
+        </div>
+      </div>
+    </div>
+
     <div class="settings-section">
       <h4>Band → Antenna Assignment</h4>
       <p style="font-size:11px;color:#555;margin-bottom:8px;">
@@ -396,7 +471,204 @@
         }
         buildPigeonhole(bm.antennas, bm.band_map);
       });
+      loadRadioSources();
     }
+
+// -- Radio Sources --
+let _rsSources = [];
+
+function loadRadioSources() {
+  fetch('/radios/status').then(r => r.json()).then(data => {
+    _rsSources = data.sources || [];
+    rsRenderSlots(_rsSources);
+    rsRenderTable(_rsSources);
+    rsRenderConflicts(data.conflicts || []);
+  }).catch(() => {});
+}
+
+function rsRenderSlots(sources) {
+  [1, 2].forEach(inp => {
+    const src = sources.find(s => s.enabled && String(s.input) === String(inp));
+    const lbl = document.getElementById('rs-slot-' + inp + '-label');
+    const st  = document.getElementById('rs-slot-' + inp + '-status');
+    if (src) {
+      lbl.textContent = src.label;
+      const col = src.connected ? '#0a0' : '#555';
+      const dot = src.connected ? '● ' : '○ ';
+      const info = (src.band && src.band !== '—') ? src.band : (src.status || 'Idle');
+      st.innerHTML = '<span style="color:' + col + '">' + dot + '</span>' + info;
+    } else {
+      lbl.textContent = '— unassigned —';
+      st.textContent = '';
+    }
+  });
+}
+
+function rsRenderConflicts(conflicts) {
+  const el = document.getElementById('rs-conflict-banner');
+  if (conflicts.length) {
+    el.style.display = 'block';
+    el.innerHTML = '&#9888; Conflict: ' + conflicts.join(' &nbsp;|&nbsp; ');
+  } else {
+    el.style.display = 'none';
+  }
+}
+
+function rsRenderTable(sources) {
+  const tbody = document.getElementById('rs-tbody');
+  tbody.innerHTML = '';
+  const catSources = sources.filter(s => s.protocol !== 'smartsdr');
+  if (!catSources.length) {
+    tbody.innerHTML = '<tr><td colspan="6" style="color:#555;font-size:12px;padding:8px 0;">' +
+      'No CAT radios configured. Use + Add Radio or Scan Network.</td></tr>';
+    return;
+  }
+  catSources.forEach(src => {
+    const tr = document.createElement('tr');
+    const dot = src.connected
+      ? '<span style="color:#0a0">&#9679;</span>'
+      : '<span style="color:#555">&#9679;</span>';
+    const conn = src.transport === 'network'
+      ? (src.host ? src.host + ':' + src.port : '—')
+      : (src.device || '—');
+    const inputLabel = src.input ? 'Input ' + src.input : '—';
+    const disBtn = '<button class="row-save-btn" onclick="rsToggle(\'' + src.id + '\',' +
+      (src.enabled ? 'false' : 'true') + ')" style="' +
+      (src.enabled ? 'background:#600;border-color:#900;' : '') + '">' +
+      (src.enabled ? 'Disable' : 'Enable') + '</button>';
+    tr.innerHTML =
+      '<td>' + dot + ' ' + src.label + '</td>' +
+      '<td style="color:#888;font-size:11px;">' + src.protocol + '</td>' +
+      '<td style="font-size:11px;color:#888;">' + conn + '</td>' +
+      '<td style="font-size:11px;">' + inputLabel + '</td>' +
+      '<td style="font-size:11px;color:#888;">' + (src.status || '—') + '</td>' +
+      '<td style="white-space:nowrap;">' + disBtn +
+      ' <button class="row-save-btn" onclick="rsEdit(\'' + src.id + '\')">Edit</button>' +
+      ' <button class="row-save-btn" onclick="rsDelete(\'' + src.id + '\')" ' +
+      'style="background:#600;border-color:#900;">&#10005;</button></td>';
+    tbody.appendChild(tr);
+  });
+}
+
+function rsToggle(id, enable) {
+  const src = _rsSources.find(s => s.id === id);
+  if (!src) return;
+  const payload = {
+    label: src.label, protocol: src.protocol, transport: src.transport,
+    host: src.host, port: src.port, device: src.device, baud: src.baud,
+    civ_address: src.civ_address, input: src.input, enabled: enable
+  };
+  fetch('/radios/config/' + id, { method: 'PUT',
+    headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload) })
+    .then(() => loadRadioSources());
+}
+
+function rsDelete(id) {
+  if (!confirm('Remove this radio?')) return;
+  fetch('/radios/config/' + id, { method: 'DELETE' }).then(() => loadRadioSources());
+}
+
+function rsShowAddForm(prefill) {
+  document.getElementById('rs-form-title').textContent = 'Add Radio';
+  document.getElementById('rs-form-id').value = '';
+  document.getElementById('rs-f-label').value    = prefill ? (prefill.label || '') : '';
+  document.getElementById('rs-f-protocol').value = prefill ? (prefill.protocol || 'kenwood') : 'kenwood';
+  document.getElementById('rs-f-transport').value= prefill ? (prefill.transport || 'network') : 'network';
+  document.getElementById('rs-f-host').value     = prefill ? (prefill.host || '') : '';
+  document.getElementById('rs-f-port').value     = prefill ? (prefill.port || 60000) : 60000;
+  document.getElementById('rs-f-device').value   = prefill ? (prefill.device || '/dev/ttyUSB0') : '/dev/ttyUSB0';
+  document.getElementById('rs-f-input').value    = prefill ? (prefill.input || '1') : '1';
+  document.getElementById('rs-f-civ').value      = prefill ? (prefill.civ_address || '0x98') : '0x98';
+  document.getElementById('rs-form-msg').textContent = '';
+  document.getElementById('rs-scan-results').style.display = 'none';
+  document.getElementById('rs-add-form').style.display = 'block';
+  rsFormTransportChange();
+  rsFormProtocolChange();
+}
+
+function rsEdit(id) {
+  const src = _rsSources.find(s => s.id === id);
+  if (!src) return;
+  rsShowAddForm(src);
+  document.getElementById('rs-form-title').textContent = 'Edit Radio';
+  document.getElementById('rs-form-id').value = id;
+}
+
+function rsCancelForm() {
+  document.getElementById('rs-add-form').style.display = 'none';
+}
+
+function rsFormTransportChange() {
+  const t = document.getElementById('rs-f-transport').value;
+  document.getElementById('rs-f-host-row').style.display   = t === 'network' ? '' : 'none';
+  document.getElementById('rs-f-port-row').style.display   = t === 'network' ? '' : 'none';
+  document.getElementById('rs-f-device-row').style.display = t === 'serial'  ? '' : 'none';
+  document.getElementById('rs-f-baud-row').style.display   = t === 'serial'  ? '' : 'none';
+}
+
+function rsFormProtocolChange() {
+  const p = document.getElementById('rs-f-protocol').value;
+  document.getElementById('rs-f-civ-row').style.display = p === 'icom' ? '' : 'none';
+}
+
+function rsSaveForm() {
+  const id    = document.getElementById('rs-form-id').value || ('r' + Date.now());
+  const proto = document.getElementById('rs-f-protocol').value;
+  const trans = document.getElementById('rs-f-transport').value;
+  const payload = {
+    label:       document.getElementById('rs-f-label').value.trim(),
+    protocol:    proto,
+    transport:   trans,
+    input:       document.getElementById('rs-f-input').value,
+    enabled:     true,
+    host:        document.getElementById('rs-f-host').value.trim(),
+    port:        parseInt(document.getElementById('rs-f-port').value) || 60000,
+    device:      document.getElementById('rs-f-device').value.trim(),
+    baud:        parseInt(document.getElementById('rs-f-baud').value) || 9600,
+    civ_address: proto === 'icom' ? document.getElementById('rs-f-civ').value.trim() : '',
+  };
+  fetch('/radios/config/' + id, { method: 'PUT',
+    headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload) })
+    .then(r => r.json()).then(d => {
+      if (d.ok) {
+        document.getElementById('rs-add-form').style.display = 'none';
+        loadRadioSources();
+      } else {
+        document.getElementById('rs-form-msg').textContent = d.error || 'Error saving';
+      }
+    });
+}
+
+function rsScan() {
+  const btn = document.getElementById('rs-scan-btn');
+  const msg = document.getElementById('rs-scan-msg');
+  const res = document.getElementById('rs-scan-results');
+  btn.disabled = true;
+  msg.textContent = 'Scanning\u2026';
+  res.style.display = 'none';
+  fetch('/radios/scan').then(r => r.json()).then(data => {
+    btn.disabled = false;
+    const found = data.radios || [];
+    if (!found.length) { msg.textContent = 'No radios found.'; return; }
+    msg.textContent = found.length + ' found';
+    res.style.display = 'block';
+    res.innerHTML = '<div style="font-size:11px;color:#888;margin-bottom:6px;">Discovered on network:</div>' +
+      found.map(r => {
+        const already = _rsSources.some(s => s.host === r.ip && String(s.port) === String(r.port));
+        const addBtn = already
+          ? '<span style="color:#555;font-size:11px;">already added</span>'
+          : '<button class="row-save-btn" id="rs-add-' + r.ip.replace(/\./g,'-') + '-' + r.port +
+            '" onclick=\'rsShowAddForm(' + JSON.stringify({label:r.label,protocol:r.protocol,
+            transport:"network",host:r.ip,port:r.port}) + ')\'>Add</button>';
+        return '<div style="display:flex;gap:10px;align-items:center;padding:4px 0;border-bottom:1px solid #222;">' +
+          '<span style="color:#0a0;font-size:12px;">&#9679;</span>' +
+          '<span style="font-family:monospace;font-size:12px;min-width:130px;">' + r.ip + ':' + r.port + '</span>' +
+          '<span style="font-size:12px;color:#aaa;flex:1;">' + r.label + '</span>' +
+          addBtn + '</div>';
+      }).join('');
+  }).catch(() => { btn.disabled = false; msg.textContent = 'Scan failed.'; });
+}
+// -- End Radio Sources --
 
     function buildPigeonhole(antennas, bandMap) {
       const tbl = document.getElementById('ph-table');

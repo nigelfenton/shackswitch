@@ -536,6 +536,7 @@ def device_config():
 
 import rfkit
 import kenwood
+import radios
 
 # ---------------------------------------------------------------------------
 # Routes — Kenwood CAT
@@ -608,6 +609,176 @@ def _default_kenwood_cfg():
               'host': '', 'port': 60000, 'input': '2',
               'device': '/dev/ttyUSB0', 'baud': 9600},
     }
+
+
+# ---------------------------------------------------------------------------
+# Routes — Multi-protocol radio sources (radios.py)
+# ---------------------------------------------------------------------------
+
+import socket as _socket
+import ipaddress as _ipaddress
+
+# Known radio service ports: port -> (protocol_id, display_label)
+_RADIO_PORTS = {
+    4992:  ('flex',    'FlexRadio SmartSDR'),
+    60000: ('kenwood', 'Kenwood KNS'),
+    50001: ('icom',    'Icom RS-BA1'),
+}
+
+def _probe_host(ip, port, protocol, label, results, sem):
+    with sem:
+        try:
+            s = _socket.socket(_socket.AF_INET, _socket.SOCK_STREAM)
+            s.settimeout(0.3)
+            s.connect((ip, port))
+            s.close()
+            results.append({'ip': ip, 'port': port, 'protocol': protocol, 'label': label})
+        except Exception:
+            pass
+
+@flask_app.route('/radios/scan')
+def radios_scan():
+    """Scan local /24 subnet for radios on known ports. Returns list of found services."""
+    try:
+        sock = _socket.socket(_socket.AF_INET, _socket.SOCK_DGRAM)
+        sock.connect(('10.0.0.1', 1))
+        local_ip = sock.getsockname()[0]
+        sock.close()
+    except Exception:
+        local_ip = '10.0.0.145'
+
+    network = _ipaddress.IPv4Network(f'{local_ip}/24', strict=False)
+    results = []
+    sem = threading.Semaphore(60)
+    threads = []
+    for host in network.hosts():
+        ip = str(host)
+        if ip == local_ip:
+            continue
+        for port, (protocol, label) in _RADIO_PORTS.items():
+            t = threading.Thread(target=_probe_host,
+                                 args=(ip, port, protocol, label, results, sem),
+                                 daemon=True)
+            t.start()
+            threads.append(t)
+    for t in threads:
+        t.join(timeout=3.0)
+    return jsonify({'ok': True, 'radios': sorted(results, key=lambda r: r['ip'])})
+
+
+@flask_app.route('/radios/status')
+def radios_status():
+    """Combined status: SmartSDR slices + all configured CAT radios."""
+    cfg = load_config()
+    radios_cfg = cfg.get('radios', {})
+
+    # SmartSDR sources — fixed slice 0 → input1, slice 1 → input2
+    sdr = smartsdr_state()
+    sources = []
+    for slice_idx in (0, 1):
+        inp = str(slice_idx + 1)
+        state = sdr.get(slice_idx + 1, {})
+        sources.append({
+            'id':        f'smartsdr_{slice_idx}',
+            'label':     cfg.get(f'input{inp}_label', f'Flex slice {slice_idx}'),
+            'protocol':  'smartsdr',
+            'input':     inp,
+            'enabled':   True,
+            'connected': bool(state),
+            'band':      state.get('band', '—'),
+            'freq':      state.get('freq', 0),
+        })
+
+    # CAT radios from radios config
+    cat_state = radios.get_state()
+    for rid, rcfg in radios_cfg.items():
+        state = cat_state.get(rid, {})
+        sources.append({
+            'id':        rid,
+            'label':     rcfg.get('label', f'Radio {rid.upper()}'),
+            'protocol':  rcfg.get('protocol', 'kenwood'),
+            'transport': rcfg.get('transport', 'serial'),
+            'host':      rcfg.get('host', ''),
+            'port':      rcfg.get('port', 60000),
+            'device':    rcfg.get('device', ''),
+            'civ_address': rcfg.get('civ_address', ''),
+            'input':     rcfg.get('input', ''),
+            'enabled':   rcfg.get('enabled', False),
+            'connected': state.get('connected', False),
+            'status':    state.get('status', 'Disabled'),
+            'band':      state.get('band', '—'),
+            'freq':      state.get('freq', 0),
+        })
+
+    # Conflict detection
+    input_owners: dict = {}
+    conflicts = []
+    for src in sources:
+        if not src.get('enabled'):
+            continue
+        inp = str(src.get('input', ''))
+        if not inp:
+            continue
+        if inp in input_owners:
+            conflicts.append(f'Input {inp}: "{input_owners[inp]}" and "{src["label"]}"')
+        else:
+            input_owners[inp] = src['label']
+
+    return jsonify({'ok': True, 'sources': sources, 'conflicts': conflicts})
+
+
+def _default_radios_cfg():
+    return {}
+
+
+@flask_app.route('/radios/config', methods=['GET'])
+def radios_config_get():
+    cfg = load_config()
+    return jsonify(cfg.get('radios', _default_radios_cfg()))
+
+
+@flask_app.route('/radios/config', methods=['POST'])
+def radios_config_post():
+    data = request.get_json(force=True)
+    # Conflict check
+    input_owners: dict = {}
+    conflicts = []
+    for rid, radio in data.items():
+        if not radio.get('enabled'):
+            continue
+        inp = str(radio.get('input', ''))
+        if not inp:
+            continue
+        if inp in input_owners:
+            conflicts.append(f'Input {inp}: {input_owners[inp]} and {rid}')
+        else:
+            input_owners[inp] = rid
+    if conflicts:
+        return jsonify({'ok': False, 'conflicts': conflicts}), 409
+    cfg = load_config()
+    cfg['radios'] = data
+    save_config(cfg)
+    return jsonify({'ok': True})
+
+
+@flask_app.route('/radios/config/<radio_id>', methods=['PUT'])
+def radios_config_put(radio_id):
+    """Add or update a single radio entry."""
+    data = request.get_json(force=True)
+    cfg  = load_config()
+    if 'radios' not in cfg:
+        cfg['radios'] = {}
+    cfg['radios'][radio_id] = data
+    save_config(cfg)
+    return jsonify({'ok': True})
+
+
+@flask_app.route('/radios/config/<radio_id>', methods=['DELETE'])
+def radios_config_delete(radio_id):
+    cfg = load_config()
+    cfg.get('radios', {}).pop(radio_id, None)
+    save_config(cfg)
+    return jsonify({'ok': True})
 
 
 @flask_app.route("/rfkit/config", methods=["GET"])
@@ -1105,6 +1276,7 @@ t5.start()
 print("AG test harness client started")
 
 kenwood.start()
+radios.start()
 
 setup()
 App.run(user_loop=loop)

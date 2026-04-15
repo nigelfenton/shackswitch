@@ -43,6 +43,9 @@ radio_state = {
 }
 _lock = threading.Lock()
 
+# Persists across reconnects so we don't re-fire setband on every reconnect
+_last_band = {'a': None, 'b': None}
+
 
 # ---------------------------------------------------------------------------
 # Config helpers
@@ -176,7 +179,6 @@ def _run_serial(radio_id, cfg):
             radio_state[radio_id]['connected'] = True
             radio_state[radio_id]['status']    = f'Connected ({device}, {baud} baud)'
 
-        last_band = None
         while True:
             cfg = _radio_cfg(radio_id)
             if not cfg.get('enabled'):
@@ -195,9 +197,9 @@ def _run_serial(radio_id, cfg):
                         'mode': mode or '?',
                         'band': band or '—',
                     })
-                if band and band != last_band:
+                if band and band != _last_band[radio_id]:
                     _setband(cfg.get('input', '1'), band)
-                    last_band = band
+                    _last_band[radio_id] = band
 
             time.sleep(2)
     finally:
@@ -224,7 +226,6 @@ def _run_network(radio_id, cfg):
             radio_state[radio_id]['connected'] = True
             radio_state[radio_id]['status']    = f'Connected ({host}:{port})'
 
-        last_band = None
         while True:
             cfg = _radio_cfg(radio_id)
             if not cfg.get('enabled'):
@@ -251,9 +252,9 @@ def _run_network(radio_id, cfg):
                         'mode': mode or '?',
                         'band': band or '—',
                     })
-                if band and band != last_band:
+                if band and band != _last_band[radio_id]:
                     _setband(cfg.get('input', '1'), band)
-                    last_band = band
+                    _last_band[radio_id] = band
 
             time.sleep(2)
     finally:

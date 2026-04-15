@@ -70,6 +70,9 @@ _DRIVERS = {
 radio_state: dict = {}
 _lock = threading.Lock()
 
+# Persists across reconnects so setband isn't re-fired on every reconnect
+_last_band: dict = {}
+
 
 def _load_radios_cfg() -> dict:
     try:
@@ -161,7 +164,6 @@ def _radio_loop(radio_id: str):
 
 def _poll_loop(radio_id: str, driver, transport):
     """Inner poll loop — runs until transport error or radio disabled."""
-    last_band = None
     while True:
         cfg = _radio_cfg(radio_id)
         if not cfg.get('enabled'):
@@ -173,9 +175,9 @@ def _poll_loop(radio_id: str, driver, transport):
                 radio_state[radio_id].update({
                     'freq': freq, 'mode': mode or '?', 'band': band or '—',
                 })
-            if band and band != last_band:
+            if band and band != _last_band.get(radio_id):
                 setband(cfg.get('input', '1'), band)
-                last_band = band
+                _last_band[radio_id] = band
         time.sleep(2)
 
 
