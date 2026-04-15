@@ -196,27 +196,6 @@
       </div>
     </div>
     <div class="settings-section">
-      <h4>Input Labels</h4>
-      <table class="settings-grid">
-        <thead><tr><th>Input</th><th>Label (max 20 chars)</th><th></th></tr></thead>
-        <tbody>
-          <tr>
-            <td class="band-label">Input A</td>
-            <td><input class="ant-rename" id="label-input-1" maxlength="20"
-              placeholder="e.g. Flex 6700 Port 1"></td>
-            <td><button class="row-save-btn" onclick="saveLabel(1)">Save</button></td>
-          </tr>
-          <tr>
-            <td class="band-label">Input B</td>
-            <td><input class="ant-rename" id="label-input-2" maxlength="20"
-              placeholder="e.g. Yaesu FT-847"></td>
-            <td><button class="row-save-btn" onclick="saveLabel(2)">Save</button></td>
-          </tr>
-        </tbody>
-      </table>
-      <div class="save-msg" id="save-label-msg"></div>
-    </div>
-    <div class="settings-section">
       <h4>Antenna Names</h4>
       <table class="settings-grid">
         <thead><tr><th>Port</th><th>Name</th><th></th></tr></thead>
@@ -296,6 +275,28 @@
           <span id="rs-form-msg" style="font-size:11px;color:#ff8800;"></span>
         </div>
       </div>
+    </div>
+
+    <div class="settings-section">
+      <h4>Input Labels</h4>
+      <table class="settings-grid">
+        <thead><tr><th>Input</th><th>Label (max 20 chars)</th><th></th></tr></thead>
+        <tbody>
+          <tr>
+            <td class="band-label">Input A</td>
+            <td><input class="ant-rename" id="label-input-1" maxlength="20"
+              placeholder="e.g. Flex 6700 Port 1"></td>
+            <td><button class="row-save-btn" onclick="saveLabel(1)">Save</button></td>
+          </tr>
+          <tr>
+            <td class="band-label">Input B</td>
+            <td><input class="ant-rename" id="label-input-2" maxlength="20"
+              placeholder="e.g. Yaesu FT-847"></td>
+            <td><button class="row-save-btn" onclick="saveLabel(2)">Save</button></td>
+          </tr>
+        </tbody>
+      </table>
+      <div class="save-msg" id="save-label-msg"></div>
     </div>
 
     <div class="settings-section">
