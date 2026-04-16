@@ -683,7 +683,7 @@ def radios_status():
             'label':     cfg.get(f'input{inp}_label', f'Flex slice {slice_idx}'),
             'protocol':  'smartsdr',
             'input':     inp,
-            'enabled':   True,
+            'enabled':   bool(state),
             'connected': bool(state),
             'band':      state.get('band', '—'),
             'freq':      state.get('freq', 0),
