@@ -287,7 +287,7 @@ void loop() {
   // ── USB host: track connect/disconnect ───────────────────────────────────
   bool nowReady = usbSerial.connected();
   if (nowReady && !usbReady) {
-    usbSerial.begin(BRIDGE_BAUD);
+    // USB CDC serial — no begin() needed, baud rate is virtual over USB
     usbReady = true;
     drawHeader();
     Serial.println("USB serial: connected");
@@ -316,16 +316,19 @@ void loop() {
 
   // ── Bridge relay: bidirectional TCP ↔ USB ────────────────────────────────
   if (bridgeClient && bridgeClient.connected() && usbReady) {
-    // TCP → USB serial
-    while (bridgeClient.available()) {
-      usbSerial.write((uint8_t)bridgeClient.read());
+    // TCP → USB serial (buffer-based Mbed Stream write)
+    if (bridgeClient.available()) {
+      uint8_t txBuf[64];
+      int n = 0;
+      while (bridgeClient.available() && n < (int)sizeof(txBuf))
+        txBuf[n++] = bridgeClient.read();
+      if (n > 0) usbSerial.write(txBuf, n);
     }
-    // USB serial → TCP
-    while (usbSerial.available()) {
-      bridgeClient.write((uint8_t)usbSerial.read());
-    }
+    // USB serial → TCP (buffer-based Mbed Stream read; returns <=0 if no data)
+    uint8_t rxBuf[64];
+    ssize_t n = usbSerial.read(rxBuf, sizeof(rxBuf));
+    if (n > 0) bridgeClient.write(rxBuf, (size_t)n);
   } else if (bridgeClient && bridgeClient.connected() && !usbReady) {
-    // Drain any incoming to avoid client blocking
     while (bridgeClient.available()) bridgeClient.read();
   }
 
