@@ -300,6 +300,21 @@ def status():
     kk1l         = bridge_call("kk1l_status")
     kk1l_states  = kk1l.split(",") if kk1l != "unavailable" else []
     rs           = smartsdr_state()
+    # CAT radio fallback: build band/freq per input from active CAT radios
+    cat_by_input = {}
+    cat_state    = radios.get_state()
+    for rid, rcfg in config.get('radios', {}).items():
+        if not rcfg.get('enabled'):
+            continue
+        inp = str(rcfg.get('input', ''))
+        if inp and rid in cat_state:
+            cat_by_input[int(inp)] = cat_state[rid]
+    def _band(inp):
+        return (rs.get(inp, {}).get("band") or
+                cat_by_input.get(inp, {}).get("band"))
+    def _freq(inp):
+        return (rs.get(inp, {}).get("freq") or
+                cat_by_input.get(inp, {}).get("freq"))
     return jsonify({
         "ok":             True,
         "relays":         {str(i+1): int(states[i]) for i in range(len(states))},
@@ -313,10 +328,10 @@ def status():
         "input2_port":    config.get("input2_port"),
         "input1_label":   config.get("input1_label", "Input A"),
         "input2_label":   config.get("input2_label", "Input B"),
-        "bandA":          rs.get(1, {}).get("band"),
-        "freqA":          rs.get(1, {}).get("freq"),
-        "bandB":          rs.get(2, {}).get("band"),
-        "freqB":          rs.get(2, {}).get("freq"),
+        "bandA":          _band(1),
+        "freqA":          _freq(1),
+        "bandB":          _band(2),
+        "freqB":          _freq(2),
     })
 
 @flask_app.route("/radio/status")
