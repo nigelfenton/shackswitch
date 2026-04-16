@@ -70,6 +70,8 @@
     .ph-cell.assigned { background: #1a3329; border-color: #00cc66; color: #00cc66; }
     .ph-cell.inactive-port { opacity: 0.2; cursor: not-allowed; }
     .settings-section { margin-bottom: 24px; }
+    .rs-slot { background:#1a1a1a; border:1px solid #333; border-radius:4px;
+               padding:10px 14px; min-width:150px; flex:1; }
     .settings-section h4 {
       color: #00cc66; font-size: 13px; margin-bottom: 10px;
       border-bottom: 1px solid #333; padding-bottom: 6px;
@@ -148,8 +150,6 @@
     <button class="nav-btn" onclick="showPage('amplifier', this); loadAmplifier()">Amplifier</button>
     <button class="nav-btn" onclick="showPage('settings', this)">Settings</button>
     <button class="nav-btn" id="voice-btn" onclick="toggleVoice()">Voice</button>
-    <button class="nav-btn" onclick="showPage('ag-test', this)">AG Test</button>
-    <button class="nav-btn" onclick="showPage('kenwood', this)">Kenwood</button>
   </div>
   <!-- MAIN PAGE -->
   <div class="page active" id="page-main">
@@ -196,6 +196,88 @@
       </div>
     </div>
     <div class="settings-section">
+      <h4>Antenna Names</h4>
+      <table class="settings-grid">
+        <thead><tr><th>Port</th><th>Name</th><th></th></tr></thead>
+        <tbody id="rename-body"></tbody>
+      </table>
+      <button class="save-btn" onclick="saveAllNames()">Save All Names</button>
+      <div class="save-msg" id="save-names-msg"></div>
+    </div>
+    <div class="settings-section" id="rs-section">
+      <h4>Radio Sources</h4>
+      <div id="rs-conflict-banner" style="display:none;background:#3a2000;border:1px solid #ff8800;
+           border-radius:4px;padding:8px 12px;margin-bottom:12px;font-size:12px;color:#ff8800;"></div>
+      <div style="display:flex;gap:12px;margin-bottom:16px;flex-wrap:wrap;">
+        <div class="rs-slot" id="rs-slot-1">
+          <div style="font-size:11px;color:#888;margin-bottom:4px;">INPUT 1</div>
+          <div id="rs-slot-1-label" style="font-size:13px;color:#0af;font-weight:bold;">—</div>
+          <div id="rs-slot-1-status" style="font-size:11px;color:#555;margin-top:2px;"></div>
+        </div>
+        <div class="rs-slot" id="rs-slot-2">
+          <div style="font-size:11px;color:#888;margin-bottom:4px;">INPUT 2</div>
+          <div id="rs-slot-2-label" style="font-size:13px;color:#0af;font-weight:bold;">—</div>
+          <div id="rs-slot-2-status" style="font-size:11px;color:#555;margin-top:2px;"></div>
+        </div>
+      </div>
+      <table class="settings-grid" id="rs-table">
+        <thead><tr>
+          <th>Radio</th><th>Protocol</th><th>Connection</th><th>Input</th><th>Status</th><th></th>
+        </tr></thead>
+        <tbody id="rs-tbody"></tbody>
+      </table>
+      <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+        <button class="row-save-btn" onclick="rsShowAddForm()">+ Add Radio</button>
+        <button class="row-save-btn" id="rs-scan-btn" onclick="rsScan()">Scan Network</button>
+        <span id="rs-scan-msg" style="font-size:11px;color:#888;"></span>
+      </div>
+      <div id="rs-scan-results" style="display:none;margin-top:10px;"></div>
+      <div id="rs-add-form" style="display:none;margin-top:14px;background:#1a1a1a;
+           border:1px solid #333;border-radius:4px;padding:12px;">
+        <div style="font-size:12px;color:#888;margin-bottom:10px;" id="rs-form-title">Add Radio</div>
+        <input type="hidden" id="rs-form-id">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
+          <div><div style="font-size:11px;color:#777;margin-bottom:3px;">Label</div>
+            <input class="ant-rename" id="rs-f-label" placeholder="e.g. IC-9700" style="width:100%;"></div>
+          <div><div style="font-size:11px;color:#777;margin-bottom:3px;">Protocol</div>
+            <select id="rs-f-protocol" class="ant-rename" style="width:100%;" onchange="rsFormProtocolChange()">
+              <option value="kenwood">Kenwood (IF;)</option>
+              <option value="yaesu">Yaesu (IF;)</option>
+              <option value="icom">Icom CI-V</option>
+            </select></div>
+          <div><div style="font-size:11px;color:#777;margin-bottom:3px;">Transport</div>
+            <select id="rs-f-transport" class="ant-rename" style="width:100%;" onchange="rsFormTransportChange()">
+              <option value="network">Network (TCP)</option>
+              <option value="serial">Serial (USB)</option>
+            </select></div>
+          <div><div style="font-size:11px;color:#777;margin-bottom:3px;">Input</div>
+            <select id="rs-f-input" class="ant-rename" style="width:100%;">
+              <option value="1">Input 1</option>
+              <option value="2">Input 2</option>
+            </select></div>
+          <div id="rs-f-host-row"><div style="font-size:11px;color:#777;margin-bottom:3px;">IP Address</div>
+            <input class="ant-rename" id="rs-f-host" placeholder="10.0.0.x" style="width:100%;"></div>
+          <div id="rs-f-port-row"><div style="font-size:11px;color:#777;margin-bottom:3px;">Port</div>
+            <input class="ant-rename" id="rs-f-port" type="number" value="60000" style="width:100%;"></div>
+          <div id="rs-f-device-row" style="display:none;"><div style="font-size:11px;color:#777;margin-bottom:3px;">Serial Device</div>
+            <input class="ant-rename" id="rs-f-device" placeholder="/dev/ttyUSB0" style="width:100%;"></div>
+          <div id="rs-f-baud-row" style="display:none;"><div style="font-size:11px;color:#777;margin-bottom:3px;">Baud Rate</div>
+            <select id="rs-f-baud" class="ant-rename" style="width:100%;">
+              <option value="4800">4800</option><option value="9600" selected>9600</option>
+              <option value="19200">19200</option><option value="38400">38400</option>
+            </select></div>
+          <div id="rs-f-civ-row" style="display:none;"><div style="font-size:11px;color:#777;margin-bottom:3px;">CI-V Address</div>
+            <input class="ant-rename" id="rs-f-civ" placeholder="0x98 (IC-9700)" style="width:100%;"></div>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <button class="row-save-btn" onclick="rsSaveForm()">Save</button>
+          <button class="row-save-btn" onclick="rsCancelForm()">Cancel</button>
+          <span id="rs-form-msg" style="font-size:11px;color:#ff8800;"></span>
+        </div>
+      </div>
+    </div>
+
+    <div class="settings-section">
       <h4>Input Labels</h4>
       <table class="settings-grid">
         <thead><tr><th>Input</th><th>Label (max 20 chars)</th><th></th></tr></thead>
@@ -216,15 +298,7 @@
       </table>
       <div class="save-msg" id="save-label-msg"></div>
     </div>
-    <div class="settings-section">
-      <h4>Antenna Names</h4>
-      <table class="settings-grid">
-        <thead><tr><th>Port</th><th>Name</th><th></th></tr></thead>
-        <tbody id="rename-body"></tbody>
-      </table>
-      <button class="save-btn" onclick="saveAllNames()">Save All Names</button>
-      <div class="save-msg" id="save-names-msg"></div>
-    </div>
+
     <div class="settings-section">
       <h4>Band → Antenna Assignment</h4>
       <p style="font-size:11px;color:#555;margin-bottom:8px;">
@@ -337,6 +411,13 @@
     poll();
     setInterval(poll, 5000);
 
+    // Pre-load TTS voices so the dropdown is ready when the Voice page opens.
+    // Chrome loads voices asynchronously — register the callback immediately.
+    if (window.speechSynthesis) {
+      window.speechSynthesis.onvoiceschanged = populateVoiceList;
+      window.speechSynthesis.getVoices(); // trigger async load
+    }
+
     function applyPortCount() {
       const n = parseInt(document.getElementById('port-count-input').value);
       if (isNaN(n) || n < 2 || n > 16) {
@@ -391,7 +472,204 @@
         }
         buildPigeonhole(bm.antennas, bm.band_map);
       });
+      loadRadioSources();
     }
+
+// -- Radio Sources --
+let _rsSources = [];
+
+function loadRadioSources() {
+  fetch('/radios/status').then(r => r.json()).then(data => {
+    _rsSources = data.sources || [];
+    rsRenderSlots(_rsSources);
+    rsRenderTable(_rsSources);
+    rsRenderConflicts(data.conflicts || []);
+  }).catch(() => {});
+}
+
+function rsRenderSlots(sources) {
+  [1, 2].forEach(inp => {
+    const src = sources.find(s => s.enabled && String(s.input) === String(inp));
+    const lbl = document.getElementById('rs-slot-' + inp + '-label');
+    const st  = document.getElementById('rs-slot-' + inp + '-status');
+    if (src) {
+      lbl.textContent = src.label;
+      const col = src.connected ? '#0a0' : '#555';
+      const dot = src.connected ? '● ' : '○ ';
+      const info = (src.band && src.band !== '—') ? src.band : (src.status || 'Idle');
+      st.innerHTML = '<span style="color:' + col + '">' + dot + '</span>' + info;
+    } else {
+      lbl.textContent = '— unassigned —';
+      st.textContent = '';
+    }
+  });
+}
+
+function rsRenderConflicts(conflicts) {
+  const el = document.getElementById('rs-conflict-banner');
+  if (conflicts.length) {
+    el.style.display = 'block';
+    el.innerHTML = '&#9888; Conflict: ' + conflicts.join(' &nbsp;|&nbsp; ');
+  } else {
+    el.style.display = 'none';
+  }
+}
+
+function rsRenderTable(sources) {
+  const tbody = document.getElementById('rs-tbody');
+  tbody.innerHTML = '';
+  const catSources = sources.filter(s => s.protocol !== 'smartsdr');
+  if (!catSources.length) {
+    tbody.innerHTML = '<tr><td colspan="6" style="color:#555;font-size:12px;padding:8px 0;">' +
+      'No CAT radios configured. Use + Add Radio or Scan Network.</td></tr>';
+    return;
+  }
+  catSources.forEach(src => {
+    const tr = document.createElement('tr');
+    const dot = src.connected
+      ? '<span style="color:#0a0">&#9679;</span>'
+      : '<span style="color:#555">&#9679;</span>';
+    const conn = src.transport === 'network'
+      ? (src.host ? src.host + ':' + src.port : '—')
+      : (src.device || '—');
+    const inputLabel = src.input ? 'Input ' + src.input : '—';
+    const disBtn = '<button class="row-save-btn" onclick="rsToggle(\'' + src.id + '\',' +
+      (src.enabled ? 'false' : 'true') + ')" style="' +
+      (src.enabled ? 'background:#600;border-color:#900;' : '') + '">' +
+      (src.enabled ? 'Disable' : 'Enable') + '</button>';
+    tr.innerHTML =
+      '<td>' + dot + ' ' + src.label + '</td>' +
+      '<td style="color:#888;font-size:11px;">' + src.protocol + '</td>' +
+      '<td style="font-size:11px;color:#888;">' + conn + '</td>' +
+      '<td style="font-size:11px;">' + inputLabel + '</td>' +
+      '<td style="font-size:11px;color:#888;">' + (src.status || '—') + '</td>' +
+      '<td style="white-space:nowrap;">' + disBtn +
+      ' <button class="row-save-btn" onclick="rsEdit(\'' + src.id + '\')">Edit</button>' +
+      ' <button class="row-save-btn" onclick="rsDelete(\'' + src.id + '\')" ' +
+      'style="background:#600;border-color:#900;">&#10005;</button></td>';
+    tbody.appendChild(tr);
+  });
+}
+
+function rsToggle(id, enable) {
+  const src = _rsSources.find(s => s.id === id);
+  if (!src) return;
+  const payload = {
+    label: src.label, protocol: src.protocol, transport: src.transport,
+    host: src.host, port: src.port, device: src.device, baud: src.baud,
+    civ_address: src.civ_address, input: src.input, enabled: enable
+  };
+  fetch('/radios/config/' + id, { method: 'PUT',
+    headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload) })
+    .then(() => loadRadioSources());
+}
+
+function rsDelete(id) {
+  if (!confirm('Remove this radio?')) return;
+  fetch('/radios/config/' + id, { method: 'DELETE' }).then(() => loadRadioSources());
+}
+
+function rsShowAddForm(prefill) {
+  document.getElementById('rs-form-title').textContent = 'Add Radio';
+  document.getElementById('rs-form-id').value = '';
+  document.getElementById('rs-f-label').value    = prefill ? (prefill.label || '') : '';
+  document.getElementById('rs-f-protocol').value = prefill ? (prefill.protocol || 'kenwood') : 'kenwood';
+  document.getElementById('rs-f-transport').value= prefill ? (prefill.transport || 'network') : 'network';
+  document.getElementById('rs-f-host').value     = prefill ? (prefill.host || '') : '';
+  document.getElementById('rs-f-port').value     = prefill ? (prefill.port || 60000) : 60000;
+  document.getElementById('rs-f-device').value   = prefill ? (prefill.device || '/dev/ttyUSB0') : '/dev/ttyUSB0';
+  document.getElementById('rs-f-input').value    = prefill ? (prefill.input || '1') : '1';
+  document.getElementById('rs-f-civ').value      = prefill ? (prefill.civ_address || '0x98') : '0x98';
+  document.getElementById('rs-form-msg').textContent = '';
+  document.getElementById('rs-scan-results').style.display = 'none';
+  document.getElementById('rs-add-form').style.display = 'block';
+  rsFormTransportChange();
+  rsFormProtocolChange();
+}
+
+function rsEdit(id) {
+  const src = _rsSources.find(s => s.id === id);
+  if (!src) return;
+  rsShowAddForm(src);
+  document.getElementById('rs-form-title').textContent = 'Edit Radio';
+  document.getElementById('rs-form-id').value = id;
+}
+
+function rsCancelForm() {
+  document.getElementById('rs-add-form').style.display = 'none';
+}
+
+function rsFormTransportChange() {
+  const t = document.getElementById('rs-f-transport').value;
+  document.getElementById('rs-f-host-row').style.display   = t === 'network' ? '' : 'none';
+  document.getElementById('rs-f-port-row').style.display   = t === 'network' ? '' : 'none';
+  document.getElementById('rs-f-device-row').style.display = t === 'serial'  ? '' : 'none';
+  document.getElementById('rs-f-baud-row').style.display   = t === 'serial'  ? '' : 'none';
+}
+
+function rsFormProtocolChange() {
+  const p = document.getElementById('rs-f-protocol').value;
+  document.getElementById('rs-f-civ-row').style.display = p === 'icom' ? '' : 'none';
+}
+
+function rsSaveForm() {
+  const id    = document.getElementById('rs-form-id').value || ('r' + Date.now());
+  const proto = document.getElementById('rs-f-protocol').value;
+  const trans = document.getElementById('rs-f-transport').value;
+  const payload = {
+    label:       document.getElementById('rs-f-label').value.trim(),
+    protocol:    proto,
+    transport:   trans,
+    input:       document.getElementById('rs-f-input').value,
+    enabled:     true,
+    host:        document.getElementById('rs-f-host').value.trim(),
+    port:        parseInt(document.getElementById('rs-f-port').value) || 60000,
+    device:      document.getElementById('rs-f-device').value.trim(),
+    baud:        parseInt(document.getElementById('rs-f-baud').value) || 9600,
+    civ_address: proto === 'icom' ? document.getElementById('rs-f-civ').value.trim() : '',
+  };
+  fetch('/radios/config/' + id, { method: 'PUT',
+    headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload) })
+    .then(r => r.json()).then(d => {
+      if (d.ok) {
+        document.getElementById('rs-add-form').style.display = 'none';
+        loadRadioSources();
+      } else {
+        document.getElementById('rs-form-msg').textContent = d.error || 'Error saving';
+      }
+    });
+}
+
+function rsScan() {
+  const btn = document.getElementById('rs-scan-btn');
+  const msg = document.getElementById('rs-scan-msg');
+  const res = document.getElementById('rs-scan-results');
+  btn.disabled = true;
+  msg.textContent = 'Scanning\u2026';
+  res.style.display = 'none';
+  fetch('/radios/scan').then(r => r.json()).then(data => {
+    btn.disabled = false;
+    const found = data.radios || [];
+    if (!found.length) { msg.textContent = 'No radios found.'; return; }
+    msg.textContent = found.length + ' found';
+    res.style.display = 'block';
+    res.innerHTML = '<div style="font-size:11px;color:#888;margin-bottom:6px;">Discovered on network:</div>' +
+      found.map(r => {
+        const already = _rsSources.some(s => s.host === r.ip && String(s.port) === String(r.port));
+        const addBtn = already
+          ? '<span style="color:#555;font-size:11px;">already added</span>'
+          : '<button class="row-save-btn" id="rs-add-' + r.ip.replace(/\./g,'-') + '-' + r.port +
+            '" onclick=\'rsShowAddForm(' + JSON.stringify({label:r.label,protocol:r.protocol,
+            transport:"network",host:r.ip,port:r.port}) + ')\'>Add</button>';
+        return '<div style="display:flex;gap:10px;align-items:center;padding:4px 0;border-bottom:1px solid #222;">' +
+          '<span style="color:#0a0;font-size:12px;">&#9679;</span>' +
+          '<span style="font-family:monospace;font-size:12px;min-width:130px;">' + r.ip + ':' + r.port + '</span>' +
+          '<span style="font-size:12px;color:#aaa;flex:1;">' + r.label + '</span>' +
+          addBtn + '</div>';
+      }).join('');
+  }).catch(() => { btn.disabled = false; msg.textContent = 'Scan failed.'; });
+}
+// -- End Radio Sources --
 
     function buildPigeonhole(antennas, bandMap) {
       const tbl = document.getElementById('ph-table');
@@ -507,11 +785,64 @@ let prevAmpMode = null, prevAmpFault = false;
 let recognition = null;
 let announceDebounce = 0;
 
+function getTtsSettings() {
+  return {
+    voice: localStorage.getItem('ssTtsVoice') || '',
+    rate:   parseFloat(localStorage.getItem('ssTtsRate')   || '0.9'),
+    pitch:  parseFloat(localStorage.getItem('ssTtsPitch')  || '1.0'),
+    volume: parseFloat(localStorage.getItem('ssTtsVolume') || '1.0'),
+  };
+}
+function saveTtsSettings() {
+  localStorage.setItem('ssTtsVoice',  document.getElementById('tts-voice').value);
+  localStorage.setItem('ssTtsRate',   document.getElementById('tts-rate').value);
+  localStorage.setItem('ssTtsPitch',  document.getElementById('tts-pitch').value);
+  localStorage.setItem('ssTtsVolume', document.getElementById('tts-volume').value);
+}
+function populateVoiceList() {
+  const sel = document.getElementById('tts-voice');
+  if (!sel) return;
+  const voices = window.speechSynthesis.getVoices();
+  const saved = localStorage.getItem('ssTtsVoice') || '';
+  sel.innerHTML = '<option value="">— Browser default —</option>';
+  voices.forEach(v => {
+    const opt = document.createElement('option');
+    opt.value = v.name;
+    opt.textContent = v.name + ' (' + v.lang + ')';
+    if (v.name === saved) opt.selected = true;
+    sel.appendChild(opt);
+  });
+}
+function loadTtsSettingsUI() {
+  const s = getTtsSettings();
+  const rate  = document.getElementById('tts-rate');
+  const pitch = document.getElementById('tts-pitch');
+  const vol   = document.getElementById('tts-volume');
+  if (rate)  { rate.value  = s.rate;   document.getElementById('tts-rate-val').textContent   = s.rate.toFixed(2); }
+  if (pitch) { pitch.value = s.pitch;  document.getElementById('tts-pitch-val').textContent  = s.pitch.toFixed(2); }
+  if (vol)   { vol.value   = s.volume; document.getElementById('tts-volume-val').textContent = s.volume.toFixed(2); }
+  populateVoiceList();
+}
+function testTts() {
+  const msg = document.getElementById('tts-test-msg');
+  if (msg) msg.textContent = 'Speaking...';
+  const s = getTtsSettings();
+  window.speechSynthesis.cancel();
+  const u = new SpeechSynthesisUtterance('Input Alpha on 40 metres. SO2R OK.');
+  u.rate = s.rate; u.pitch = s.pitch; u.volume = s.volume;
+  const voices = window.speechSynthesis.getVoices();
+  if (s.voice) { const v = voices.find(v => v.name === s.voice); if (v) u.voice = v; }
+  u.onend = () => { if (msg) msg.textContent = ''; };
+  window.speechSynthesis.speak(u);
+}
 function speak(text, onend) {
   if (!voiceEnabled) return;
   window.speechSynthesis.cancel();
+  const s = getTtsSettings();
   const u = new SpeechSynthesisUtterance(text);
-  u.rate = 0.9;
+  u.rate = s.rate; u.pitch = s.pitch; u.volume = s.volume;
+  const voices = window.speechSynthesis.getVoices();
+  if (s.voice) { const v = voices.find(v => v.name === s.voice); if (v) u.voice = v; }
   u.onend = onend ? () => setTimeout(onend, 350) : null;
   window.speechSynthesis.speak(u);
 }
@@ -766,7 +1097,13 @@ function saveAmpIp() {
 }
 
 // -- Voice Settings page --
-function loadVoicePage() { updateVcStatusBadge(); renderCustomCommands(); }
+function loadVoicePage() {
+  updateVcStatusBadge();
+  renderCustomCommands();
+  loadTtsSettingsUI();
+  // voices may load async — repopulate when ready
+  window.speechSynthesis.onvoiceschanged = populateVoiceList;
+}
 function goVoiceSettings() {
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
@@ -939,6 +1276,37 @@ function executeCustomCommand(cmd) {
       </div>
     </div>
     <div class="settings-section">
+      <h4>TTS Settings</h4>
+      <p style="font-size:11px;color:#555;margin-bottom:12px;">Choose a voice and adjust speech parameters. Available voices depend on your browser and OS.</p>
+      <div style="display:flex;flex-direction:column;gap:12px;">
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+          <label style="font-size:12px;color:#aaa;width:56px;">Voice</label>
+          <select id="tts-voice" class="ant-rename" style="flex:1;min-width:200px;" onchange="saveTtsSettings()">
+            <option value="">— Browser default —</option>
+          </select>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;">
+          <label style="font-size:12px;color:#aaa;width:56px;">Rate</label>
+          <input type="range" id="tts-rate" min="0.5" max="1.8" step="0.05" value="0.9" style="flex:1;" oninput="document.getElementById('tts-rate-val').textContent=parseFloat(this.value).toFixed(2);saveTtsSettings()">
+          <span id="tts-rate-val" style="font-size:12px;color:#ccc;width:36px;text-align:right;">0.90</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;">
+          <label style="font-size:12px;color:#aaa;width:56px;">Pitch</label>
+          <input type="range" id="tts-pitch" min="0.5" max="1.8" step="0.05" value="1.0" style="flex:1;" oninput="document.getElementById('tts-pitch-val').textContent=parseFloat(this.value).toFixed(2);saveTtsSettings()">
+          <span id="tts-pitch-val" style="font-size:12px;color:#ccc;width:36px;text-align:right;">1.00</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;">
+          <label style="font-size:12px;color:#aaa;width:56px;">Volume</label>
+          <input type="range" id="tts-volume" min="0" max="1" step="0.05" value="1.0" style="flex:1;" oninput="document.getElementById('tts-volume-val').textContent=parseFloat(this.value).toFixed(2);saveTtsSettings()">
+          <span id="tts-volume-val" style="font-size:12px;color:#ccc;width:36px;text-align:right;">1.00</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;">
+          <button class="row-save-btn" onclick="testTts()">&#9654; Test Voice</button>
+          <span id="tts-test-msg" style="font-size:11px;color:#888;"></span>
+        </div>
+      </div>
+    </div>
+    <div class="settings-section">
       <h4>Built-in Commands</h4>
       <table class="settings-grid">
         <thead><tr><th>Say</th><th>Action</th></tr></thead>
@@ -984,14 +1352,6 @@ function executeCustomCommand(cmd) {
         <div class="save-msg" id="vc-add-msg"></div>
       </div>
     </div>
-  </div>
-
-  <div id="page-ag-test" class="page">
-    <iframe src="/ag-test" style="width:100%;height:calc(100vh - 80px);border:none;"></iframe>
-  </div>
-
-  <div id="page-kenwood" class="page">
-    <iframe src="/kenwood" style="width:100%;height:calc(100vh - 80px);border:none;"></iframe>
   </div>
 
 </body>
