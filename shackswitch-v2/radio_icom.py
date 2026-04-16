@@ -3,8 +3,9 @@ radio_icom.py — Icom CI-V driver for ShackSwitch
 
 Covers: IC-9700, IC-7300, IC-705, IC-7610, IC-7100
 
-Protocol: Binary CI-V, RS-232 or USB-serial.
-          IC-9700 does NOT support network CI-V natively — use serial.
+Protocol: Binary CI-V over RS-232, USB-serial, or network.
+          IC-9700 network: enable Remote Control in MENU > SET > WLAN/LAN,
+          then use port 50002 (Serial) for raw CI-V over TCP.
 
 CI-V frame:  FE FE [to] [from] [cmd] [data...] FD
 

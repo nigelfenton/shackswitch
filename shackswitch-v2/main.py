@@ -637,7 +637,8 @@ import ipaddress as _ipaddress
 _RADIO_PORTS = {
     4992:  ('flex',    'FlexRadio SmartSDR'),
     60000: ('kenwood', 'Kenwood KNS'),
-    50001: ('icom',    'Icom RS-BA1'),
+    50001: ('icom',    'Icom RS-BA1 control'),
+    50002: ('icom',    'Icom CI-V serial'),
 }
 
 def _probe_host(ip, port, protocol, label, results, sem):
