@@ -726,8 +726,9 @@ def radios_status():
             'freq':      state.get('freq', 0),
         })
 
-    # Conflict detection
-    input_owners: dict = {}
+    # Conflict detection — SmartSDR + CAT on the same input is not a conflict
+    # (CAT acts as fallback when SDR isn't connected). Only CAT vs CAT conflicts matter.
+    input_owners: dict = {}   # inp -> (label, protocol)
     conflicts = []
     for src in sources:
         if not src.get('enabled'):
@@ -735,10 +736,16 @@ def radios_status():
         inp = str(src.get('input', ''))
         if not inp:
             continue
+        proto = src.get('protocol', '')
+        if inp.lower() == 'direct':
+            continue  # direct radios are not on the switch — never a conflict
         if inp in input_owners:
-            conflicts.append(f'Input {inp}: "{input_owners[inp]}" and "{src["label"]}"')
+            owner_label, owner_proto = input_owners[inp]
+            one_is_sdr = owner_proto == 'smartsdr' or proto == 'smartsdr'
+            if not one_is_sdr:
+                conflicts.append(f'Input {inp}: "{owner_label}" and "{src["label"]}"')
         else:
-            input_owners[inp] = src['label']
+            input_owners[inp] = (src['label'], proto)
 
     return jsonify({'ok': True, 'sources': sources, 'conflicts': conflicts})
 
