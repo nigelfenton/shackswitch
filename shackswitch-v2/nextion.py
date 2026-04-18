@@ -31,7 +31,7 @@ PAGE_MAIN  = 0
 PAGE_6PORT = 1
 PAGE_8PORT = 2
 PAGE_RSSI  = 3
-PAGE_WIFI  = 6
+PAGE_WIFI  = 8
 
 # ---------------------------------------------------------------------------
 # Component IDs on PAGE_MAIN
@@ -39,7 +39,10 @@ PAGE_WIFI  = 6
 # Press each bA button with NEXTION_DEBUG=1 to read real IDs from the log.
 # ---------------------------------------------------------------------------
 COMP_BA   = {1: 1, 2: 2, 3: 3, 4: 4}   # bA1–bA4
-COMP_WIFI = 9                            # bWiFiMonitor
+COMP_WIFI      = 9     # bWiFiMonitor on page0
+COMP_WIFI_SCAN    = 0x21  # b0 SCAN on page8 (printh 23 02 54 21)
+COMP_WIFI_CONNECT = 0x22  # b1 CONNECT on page8 (printh 23 02 54 22)
+WIFI_SCAN_SVC     = "http://172.21.0.1:5555/scan"
 
 # Nextion RGB565 colours
 COL_ACTIVE   = 2016   # bright green
@@ -56,6 +59,7 @@ class _NextionDriver:
         self._running = False
 
         self._active_port = None
+        self._wifi_ssids  = []
         self._labels      = ['', '', '', '']
         self._band        = '--'
         self._freq        = '0.000 MHz'
@@ -216,9 +220,12 @@ class _NextionDriver:
                 return
             if comp == COMP_WIFI:
                 self._send('page page8')
-        elif page == PAGE_WIFI:
-            if comp == 0:   # SCAN button
+            elif comp == COMP_WIFI_SCAN:
                 _wifi_scan_and_push()
+            elif comp == COMP_WIFI_CONNECT:
+                _wifi_connect()
+        elif page == PAGE_WIFI:  # standard touch events from page8 (non-printh)
+            pass  # printh buttons handled in PAGE_MAIN block above
 
     # ------------------------------------------------------------------
     # Public update methods
@@ -295,17 +302,27 @@ def _select_port(port: int):
 
 def _wifi_scan_and_push():
     try:
-        result = subprocess.run(
-            ['nmcli', '-t', '-f', 'SSID', 'device', 'wifi', 'list', '--rescan', 'yes'],
-            capture_output=True, text=True, timeout=15
-        )
-        ssids = [l.strip() for l in result.stdout.splitlines()
-                 if l.strip() and l.strip() != '--'][:6]
+        _driver.update_wifi_status('Scanning...')
+        resp = urllib.request.urlopen(WIFI_SCAN_SVC, timeout=25)
+        ssids = json.loads(resp.read())[:6]
+        _driver._wifi_ssids = ssids
         _driver.update_wifi_ssids(ssids)
-        _driver.update_wifi_status(f'Found {len(ssids)} networks')
+        _driver.update_wifi_status(f'Found {len(ssids)} — pick n0 + password')
     except Exception as exc:
         log.warning(f'Nextion WiFi scan failed: {exc}')
         _driver.update_wifi_status('Scan failed')
+
+def _wifi_connect():
+    try:
+        ssids = _driver._wifi_ssids
+        if not ssids:
+            _driver.update_wifi_status('Scan first')
+            return
+        _driver.update_wifi_status('Connecting...')
+        urllib.request.urlopen(
+            f'http://127.0.0.1:5000/wifi/connect_trigger', timeout=2)
+    except Exception:
+        pass
 
 
 # ---------------------------------------------------------------------------

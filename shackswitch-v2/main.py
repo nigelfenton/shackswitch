@@ -476,6 +476,39 @@ def config_ports():
     save_config(config)
     return jsonify({"ok": True, "port_count": count, "second_board_required": count > 8})
 
+@flask_app.route('/wifi/connect_trigger')
+def wifi_connect_trigger():
+    try:
+        ssid_idx = int(bridge_call('nextion_get_num', 'n0.val'))
+        password  = bridge_call('nextion_get_str', 'tPass.txt').strip()
+        ssids     = getattr(nextion._driver, '_wifi_ssids', [])
+        if ssid_idx < 0 or ssid_idx >= len(ssids):
+            nextion._driver.update_wifi_status('Bad SSID index')
+            return jsonify({'ok': False, 'error': 'bad index'}), 400
+        ssid = ssids[ssid_idx]
+        if not password:
+            nextion._driver.update_wifi_status('Enter password')
+            return jsonify({'ok': False, 'error': 'no password'}), 400
+        import urllib.request as _ur, urllib.parse as _up
+        url = 'http://172.21.0.1:5555/connect?' + _up.urlencode({'ssid': ssid, 'password': password})
+        nextion._driver.update_wifi_status('Connecting...')
+        try:
+            resp = _ur.urlopen(url, timeout=30)
+            result = __import__('json').loads(resp.read())
+        except Exception as conn_exc:
+            nextion._driver.update_wifi_status('Svc error')
+            return jsonify({'ok': False, 'error': str(conn_exc)}), 500
+        if result.get('ok'):
+            nextion._driver.update_wifi_status(f'Connected!')
+            return jsonify({'ok': True, 'ssid': ssid})
+        else:
+            msg = result.get('msg', 'failed')
+            nextion._driver.update_wifi_status('Failed: ' + msg[:20])
+            return jsonify({'ok': False, 'error': msg}), 500
+    except Exception as exc:
+        nextion._driver.update_wifi_status('Error — see logs')
+        return jsonify({'ok': False, 'error': str(exc)}), 500
+
 @flask_app.route('/config/inputs', methods=['POST'])
 def config_inputs():
     data = request.get_json()

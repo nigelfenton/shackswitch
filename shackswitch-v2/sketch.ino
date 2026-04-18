@@ -187,6 +187,53 @@ String nextion_cmd(String cmd) {
     return "ok";
 }
 
+String nextion_get_str(String comp_attr) {
+    // Send "get comp.attr" then read the string response (0x70 + chars + FF FF FF)
+    String cmd = "get " + comp_attr;
+    for (int i = 0; i < (int)cmd.length(); i++) Serial.write((uint8_t)cmd[i]);
+    Serial.write(0xFF); Serial.write(0xFF); Serial.write(0xFF);
+    delay(100);
+    String result = "";
+    unsigned long t = millis();
+    while (millis() - t < 300) {
+        if (Serial.available()) {
+            uint8_t b = Serial.read();
+            if (b == 0x70) {  // string response header
+                while (Serial.available() < 3) {}
+                while (Serial.available()) {
+                    uint8_t c = Serial.read();
+                    if (c == 0xFF) break;
+                    result += (char)c;
+                }
+                break;
+            }
+        }
+    }
+    return result;
+}
+
+String nextion_get_num(String comp_attr) {
+    // Send "get comp.val" then read the 4-byte int response (0x71 + 4 bytes LE + FF FF FF)
+    String cmd = "get " + comp_attr;
+    for (int i = 0; i < (int)cmd.length(); i++) Serial.write((uint8_t)cmd[i]);
+    Serial.write(0xFF); Serial.write(0xFF); Serial.write(0xFF);
+    delay(100);
+    unsigned long t = millis();
+    while (millis() - t < 300) {
+        if (Serial.available() >= 8) {
+            uint8_t b = Serial.read();
+            if (b == 0x71) {
+                uint8_t b0 = Serial.read(), b1 = Serial.read(),
+                        b2 = Serial.read(), b3 = Serial.read();
+                long val = (long)b0 | ((long)b1<<8) | ((long)b2<<16) | ((long)b3<<24);
+                Serial.read(); Serial.read(); Serial.read(); // FF FF FF
+                return String(val);
+            }
+        }
+    }
+    return "-1";
+}
+
 String nextion_get_event() {
     if (nxt_evt_page < 0) return "";
     String evt = String(nxt_evt_page) + "," + String(nxt_evt_comp);
@@ -213,6 +260,8 @@ void setup() {
     Bridge.provide("get_config",        get_config);
     Bridge.provide("nextion_cmd",       nextion_cmd);
     Bridge.provide("nextion_get_event", nextion_get_event);
+    Bridge.provide("nextion_get_str",   nextion_get_str);
+    Bridge.provide("nextion_get_num",   nextion_get_num);
     Monitor.println("ShackSwitch Q v2.0 ready");
     Monitor.println("MCP1 RLYT: " + String(mcp_found  ? "online" : "offline"));
     Monitor.println("MCP2 RLYB: " + String(mcp2_found ? "online" : "offline"));
