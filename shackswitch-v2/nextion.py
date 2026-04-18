@@ -331,11 +331,23 @@ def _wifi_connect():
         pass
 
 
+_reset_confirm_time = 0.0   # non-zero = waiting for second press
+
 def _factory_reset():
+    global _reset_confirm_time
+    import time
+    now = time.monotonic()
+    if _reset_confirm_time == 0.0 or (now - _reset_confirm_time) > 10.0:
+        # First press — ask for confirmation
+        _reset_confirm_time = now
+        _driver.update_wifi_status('Press RESET again!')
+        return
+    # Second press within 10s — go ahead
+    _reset_confirm_time = 0.0
     try:
         _driver.update_wifi_status('Resetting...')
         urllib.request.urlopen('http://127.0.0.1:5000/config/reset', timeout=5)
-        _driver.update_wifi_status('Done — restarting')
+        _driver.update_wifi_status('Done - restarting')
     except Exception as exc:
         _driver.update_wifi_status('Reset error')
         log.error(f'factory reset failed: {exc}')
