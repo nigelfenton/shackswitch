@@ -42,6 +42,10 @@ def get_port_count(config=None):
     """Active port count — stored in profile, range 2-MAX_PORTS."""
     return int(get_profile(config).get("port_count", 8))
 
+def get_input_count(config=None):
+    """Active input count — 1 or 2. Stored in profile."""
+    return int(get_profile(config).get("input_count", 1))
+
 def port_exists(config, port):
     return 1 <= port <= get_port_count(config)
 
@@ -130,6 +134,7 @@ def fresh_profile():
         "itu_zone":    28,
         "cq_zone":     14,
         "port_count":  8,
+        "input_count": 1,
         "antennas":    {k: dict(v) for k, v in _DEFAULT_ANTENNAS.items()},
         "band_map":    dict(_DEFAULT_BAND_MAP)
     }
@@ -172,13 +177,17 @@ def select():
     if old_relay == relay:
         bridge_call("relay_off", relay)
         config[this] = None
+        save_config(config)
+        nextion.on_port_selected(input_n, relay, deselected=True)
+        return jsonify({"ok": True, "input": input_n, "relay": relay, "state": "deselected"})
     else:
         if old_relay is not None:
             bridge_call("relay_off", int(old_relay))
         bridge_call("relay_on", relay)
         config[this] = relay
     save_config(config)
-    return jsonify({"ok": True, "input": input_n, "relay": relay})
+    nextion.on_port_selected(input_n, relay)
+    return jsonify({"ok": True, "input": input_n, "relay": relay, "state": "selected"})
 
 @flask_app.route('/setband')
 def setband():
@@ -214,6 +223,8 @@ def kk1l_select():
         return jsonify({"ok": False, "error": "port required"}), 400
     port     = int(port)
     config   = load_config()
+    if input_n == '2' and get_input_count(config) == 1:
+        return jsonify({"ok": False, "error": "Single-input mode — input 2 disabled"}), 400
     if not port_exists(config, port):
         return jsonify({"ok": False, "error": "Port " + str(port) + " out of range"}), 400
     this_key  = "input1_port" if input_n == "1" else "input2_port"
@@ -222,15 +233,23 @@ def kk1l_select():
         return jsonify({"ok": False, "error": "Interlock - port in use"}), 409
     current  = config.get(this_key)
     if current == port:
-        bridge_call("kk1l_deselect", port)
+        use_kk1l = get_input_count(config) == 2
+        bridge_call("kk1l_deselect" if use_kk1l else "relay_off", port)
         config[this_key] = None
+        if not use_kk1l and input_n == '1':
+            config['input1_relay'] = None
         save_config(config)
+        nextion.on_port_selected(input_n, port, deselected=True)
         return jsonify({"ok": True, "input": input_n, "port": port, "state": "deselected"})
+    use_kk1l = get_input_count(config) == 2
     if current is not None:
-        bridge_call("kk1l_deselect", int(current))
-    bridge_call("kk1l_select_a" if input_n == "1" else "kk1l_select_b", port)
+        bridge_call("kk1l_deselect" if use_kk1l else "relay_off", int(current))
+    bridge_call(("kk1l_select_a" if input_n == "1" else "kk1l_select_b") if use_kk1l else "relay_on", port)
     config[this_key] = port
+    if not use_kk1l and input_n == '1':
+        config['input1_relay'] = port
     save_config(config)
+    nextion.on_port_selected(input_n, port)
     return jsonify({"ok": True, "input": input_n, "port": port, "state": "selected"})
 
 @flask_app.route('/kk1l/deselect_all')
@@ -266,6 +285,8 @@ def kk1l_setband():
     band     = request.args.get('band', '')
     config   = load_config()
     profile  = get_profile(config)
+    if input_n == '2' and get_input_count(config) == 1:
+        return jsonify({"ok": False, "error": "Single-input mode — input 2 disabled"}), 400
     port     = profile.get("band_map", {}).get(band)
     if port is None:
         return jsonify({"ok": False, "error": "No port for band " + band}), 404
@@ -277,14 +298,21 @@ def kk1l_setband():
     if config.get(other_key) == port:
         return jsonify({"ok": False, "error": "Interlock - port in use"}), 409
     current  = config.get(this_key)
+    use_kk1l = get_input_count(config) == 2
     if current is not None:
-        bridge_call("kk1l_deselect", int(current))
-    bridge_call("kk1l_select_a" if input_n == "1" else "kk1l_select_b", port)
+        bridge_call("kk1l_deselect" if use_kk1l else "relay_off", int(current))
+    bridge_call(("kk1l_select_a" if input_n == "1" else "kk1l_select_b") if use_kk1l else "relay_on", port)
     config[this_key] = port
+    if not use_kk1l and input_n == '1':
+        config['input1_relay'] = port
     save_config(config)
     antennas = profile.get("antennas", {})
     ant      = antennas.get(str(port), {})
     ant_name = ant.get("name", "Port " + str(port)) if isinstance(ant, dict) else str(ant)
+    _sdr = smartsdr_state()
+    _raw_freq = (_sdr.get(int(input_n), {}) or {}).get("freq", 0) or 0
+    _freq_hz = int(float(_raw_freq) * 1_000_000)
+    nextion.on_band_set(band, _freq_hz, port, ant_name)
     return jsonify({"ok": True, "input": input_n, "band": band, "port": port, "antenna": ant_name})
 
 # ---------------------------------------------------------------------------
@@ -319,8 +347,9 @@ def status():
         "ok":             True,
         "relays":         {str(i+1): int(states[i]) for i in range(len(states))},
         "kk1l":           {str(i+1): kk1l_states[i] for i in range(len(kk1l_states))},
-        "kk1l_available": kk1l != "unavailable",
+        "kk1l_available": get_input_count(config) == 2 and kk1l != "unavailable",
         "port_count":     profile.get("port_count", 8),
+        "input_count":    get_input_count(config),
         "active_profile": config.get("active_profile", "home"),
         "input1_relay":   config.get("input1_relay"),
         "input2_relay":   config.get("input2_relay"),
@@ -447,6 +476,26 @@ def config_ports():
     save_config(config)
     return jsonify({"ok": True, "port_count": count, "second_board_required": count > 8})
 
+@flask_app.route('/config/inputs', methods=['POST'])
+def config_inputs():
+    data = request.get_json()
+    if not data or 'input_count' not in data:
+        return jsonify({"ok": False, "error": "input_count required"}), 400
+    count = int(data['input_count'])
+    if count not in (1, 2):
+        return jsonify({"ok": False, "error": "input_count must be 1 or 2"}), 400
+    config  = load_config()
+    profile = get_profile(config)
+    profile['input_count'] = count
+    if count == 1:
+        current2 = config.get('input2_port')
+        if current2 is not None:
+            kk1l_ok = bridge_call("kk1l_status") != "unavailable"
+            bridge_call("kk1l_deselect" if kk1l_ok else "relay_off", int(current2))
+        config['input2_port'] = None
+    save_config(config)
+    return jsonify({"ok": True, "input_count": count})
+
 @flask_app.route('/set_port_count')
 def set_port_count():
     count = request.args.get('count')
@@ -552,6 +601,7 @@ def device_config():
 import rfkit
 import kenwood
 import radios
+import nextion
 
 # ---------------------------------------------------------------------------
 # Routes — Kenwood CAT
@@ -1300,6 +1350,8 @@ print("AG test harness client started")
 
 kenwood.start()
 radios.start()
+nextion.init(bridge_call)
+nextion.start()
 
 setup()
 App.run(user_loop=loop)

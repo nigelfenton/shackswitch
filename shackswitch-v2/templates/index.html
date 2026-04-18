@@ -159,7 +159,7 @@
         <div class="card-band" id="band1">—</div>
         <div class="card-relay" id="relay1-label">No antenna selected</div>
       </div>
-      <div class="card">
+      <div class="card" id="card2">
         <div class="card-title" id="label2">Input B</div>
         <div class="card-band" id="band2">—</div>
         <div class="card-relay" id="relay2-label">No antenna selected</div>
@@ -167,7 +167,7 @@
     </div>
     <div class="legend">
       <div class="leg"><div class="leg-dot leg-green"></div> Input A</div>
-      <div class="leg"><div class="leg-dot leg-orange"></div> Input B</div>
+      <div class="leg" id="legend-b"><div class="leg-dot leg-orange"></div> Input B</div>
       <div class="leg"><div class="leg-dot leg-grey"></div> Idle</div>
     </div>
     <table class="matrix"><tbody id="matrix-body"></tbody></table>
@@ -193,6 +193,18 @@
       </div>
       <div id="port-board-warn" style="display:none;font-size:11px;color:#ff8800;margin-bottom:8px;">
         ⚠ Ports 9–16 require a second MCP23017 board (Port A only)
+      </div>
+    </div>
+    <div class="settings-section">
+      <h4>Number of Inputs</h4>
+      <div class="port-count-row">
+        <label>Inputs:</label>
+        <select id="input-count-select" style="background:#2a2a2a;color:#ccc;border:1px solid #444;border-radius:3px;font-family:monospace;font-size:13px;padding:4px 8px;">
+          <option value="1">1 — Single radio</option>
+          <option value="2">2 — SO2R / dual radio</option>
+        </select>
+        <button class="port-btn" onclick="applyInputCount()">Apply</button>
+        <span class="port-save-msg" id="input-count-msg"></span>
       </div>
     </div>
     <div class="settings-section">
@@ -350,7 +362,10 @@
       body.innerHTML = '';
       const in1 = data.kk1l_available ? data.input1_port : data.input1_relay;
       const in2 = data.kk1l_available ? data.input2_port : data.input2_relay;
+      const inputCount = data.input_count || 1;
       window._kk1lAvailable = data.kk1l_available || false;
+      document.getElementById('card2').style.display = inputCount >= 2 ? '' : 'none';
+      document.getElementById('legend-b').style.display = inputCount >= 2 ? '' : 'none';
       document.getElementById('subtitle').textContent =
         'v2.0 — Arduino Uno Q — 10.0.0.145 — ' + portCount + '-port';
       if (data.input1_label) document.getElementById('label1').textContent = data.input1_label;
@@ -379,6 +394,7 @@
         btn2.textContent = in2 == i ? '2' : '·';
         btn2.title = 'Input B → ' + name;
         btn2.onclick = () => toggle(2, i);
+        btn2.style.visibility = inputCount >= 2 ? '' : 'hidden';
         td2.appendChild(btn2);
         tr.appendChild(td1); tr.appendChild(tdName); tr.appendChild(td2);
         body.appendChild(tr);
@@ -444,6 +460,20 @@
       });
     }
 
+    function applyInputCount() {
+      const n = parseInt(document.getElementById('input-count-select').value);
+      fetch('/config/inputs', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({input_count: n})
+      }).then(r => r.json()).then(d => {
+        if (d.ok) {
+          showMsg('input-count-msg', n === 1 ? '1 input active ✓' : '2 inputs active ✓');
+          poll(); loadSettings();
+        } else showMsg('input-count-msg', 'Error: ' + d.error);
+      });
+    }
+
     function loadSettings() {
       Promise.all([
         fetch('/status').then(r => r.json()),
@@ -454,6 +484,8 @@
         cachedBandMap  = bm.band_map;
         document.getElementById('port-count-input').value = portCount;
         document.getElementById('port-board-warn').style.display = portCount > 8 ? 'block' : 'none';
+        const icSel = document.getElementById('input-count-select');
+        if (icSel) icSel.value = String(status.input_count || 1);
         const el1 = document.getElementById('label-input-1');
         const el2 = document.getElementById('label-input-2');
         if (el1) el1.value = status.input1_label || 'Input A';
