@@ -329,6 +329,7 @@
     let portCount = 4;
     let cachedAntennas = {};
     let cachedBandMap = {};
+    let cachedInputCount = 1;
 
     function antName(ant, fallback) {
       if (!ant) return fallback || '';
@@ -363,6 +364,7 @@
       const in1 = data.kk1l_available ? data.input1_port : data.input1_relay;
       const in2 = data.kk1l_available ? data.input2_port : data.input2_relay;
       const inputCount = data.input_count || 1;
+      cachedInputCount = inputCount;
       window._kk1lAvailable = data.kk1l_available || false;
       document.getElementById('card2').style.display = inputCount >= 2 ? '' : 'none';
       document.getElementById('legend-b').style.display = inputCount >= 2 ? '' : 'none';
@@ -900,10 +902,13 @@ function toggleVoice() {
 
 function announceCurrentState(onend) {
   const label1 = document.getElementById('label1').textContent || 'Input A';
-  const label2 = document.getElementById('label2').textContent || 'Input B';
   const in1Name = prevIn1 ? (antName(cachedAntennas[prevIn1.toString()], 'Port ' + prevIn1)) : 'none';
-  const in2Name = prevIn2 ? (antName(cachedAntennas[prevIn2.toString()], 'Port ' + prevIn2)) : 'none';
-  let msg = 'Voice mode active. ' + label1 + ': ' + in1Name + '. ' + label2 + ': ' + in2Name + '.';
+  let msg = 'Voice mode active. ' + label1 + ': ' + in1Name + '.';
+  if (cachedInputCount >= 2) {
+    const label2 = document.getElementById('label2').textContent || 'Input B';
+    const in2Name = prevIn2 ? (antName(cachedAntennas[prevIn2.toString()], 'Port ' + prevIn2)) : 'none';
+    msg += ' ' + label2 + ': ' + in2Name + '.';
+  }
   if (prevBandA) msg += ' Band: ' + prevBandA + '.';
   speak(msg, onend);
 }
@@ -920,7 +925,7 @@ function checkAnnouncements(data, antennas) {
       announceDebounce = now + 1500;
       speak(label1 + ': ' + (in1 ? antName(antennas[in1.toString()], 'Port ' + in1) : 'none'));
     }
-    if (in2 !== prevIn2 && now > announceDebounce) {
+    if (cachedInputCount >= 2 && in2 !== prevIn2 && now > announceDebounce) {
       announceDebounce = now + 1500;
       speak(label2 + ': ' + (in2 ? antName(antennas[in2.toString()], 'Port ' + in2) : 'none'));
     }
