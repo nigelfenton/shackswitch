@@ -42,6 +42,8 @@ COMP_BA   = {1: 1, 2: 2, 3: 3, 4: 4}   # bA1–bA4
 COMP_WIFI      = 9     # bWiFiMonitor on page0
 COMP_WIFI_SCAN    = 0x21  # b0 SCAN on page8 (printh 23 02 54 21)
 COMP_WIFI_CONNECT = 0x22  # b1 CONNECT on page8 (printh 23 02 54 22)
+COMP_WIFI_BACK    = 0xFF  # bBackt (if configured with printh 23 02 54 FF)
+COMP_WIFI_RESET   = 0x23  # b2 factory reset on page8 (printh 23 02 54 23)
 WIFI_SCAN_SVC     = "http://172.21.0.1:5555/scan"
 
 # Nextion RGB565 colours
@@ -224,6 +226,10 @@ class _NextionDriver:
                 _wifi_scan_and_push()
             elif comp == COMP_WIFI_CONNECT:
                 _wifi_connect()
+            elif comp == COMP_WIFI_BACK:
+                self._send('page page0')
+            elif comp == COMP_WIFI_RESET:
+                _factory_reset()
         elif page == PAGE_WIFI:  # standard touch events from page8 (non-printh)
             pass  # printh buttons handled in PAGE_MAIN block above
 
@@ -323,6 +329,16 @@ def _wifi_connect():
             f'http://127.0.0.1:5000/wifi/connect_trigger', timeout=2)
     except Exception:
         pass
+
+
+def _factory_reset():
+    try:
+        _driver.update_wifi_status('Resetting...')
+        urllib.request.urlopen('http://127.0.0.1:5000/config/reset', timeout=5)
+        _driver.update_wifi_status('Done — restarting')
+    except Exception as exc:
+        _driver.update_wifi_status('Reset error')
+        log.error(f'factory reset failed: {exc}')
 
 
 # ---------------------------------------------------------------------------

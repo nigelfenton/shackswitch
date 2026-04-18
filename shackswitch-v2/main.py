@@ -529,6 +529,45 @@ def config_inputs():
     save_config(config)
     return jsonify({"ok": True, "input_count": count})
 
+@flask_app.route('/config/reset', methods=['GET', 'POST'])
+def config_reset():
+    import subprocess as _sp
+    # Deselect all relays before wiping state
+    try:
+        config = load_config()
+        for key in ('input1_port', 'input2_port'):
+            p = config.get(key)
+            if p:
+                bridge_call("relay_off", int(p))
+    except Exception:
+        pass
+    fresh = {
+        "active_profile": "home",
+        "profiles": {
+            "home": fresh_profile()
+        },
+        "input1_port":  None,
+        "input2_port":  None,
+        "input1_relay": None,
+        "input2_relay": None,
+        "input1_label": "Input A",
+        "input2_label": "Input B",
+        "rfkit_ip":      "",
+        "rfkit_enabled": False,
+        "radios": {},
+        "kenwood": {
+            "a": {"enabled": False, "label": "", "type": "serial",
+                  "device": "/dev/ttyUSB0", "baud": 9600,
+                  "input": "1", "host": "", "port": 60000},
+            "b": {"enabled": False, "label": "", "type": "network",
+                  "input": "2", "device": "/dev/ttyUSB0", "baud": 9600,
+                  "host": "", "port": 60000},
+        },
+    }
+    save_config(fresh)
+    _sp.Popen(['sh', '-c', 'sleep 3 && arduino-app-cli app restart user:first-app'])
+    return jsonify({"ok": True, "msg": "Factory reset complete — restarting in 3s"})
+
 @flask_app.route('/set_port_count')
 def set_port_count():
     count = request.args.get('count')
