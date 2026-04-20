@@ -147,6 +147,10 @@ def fresh_profile():
 def index():
     return render_template('index.html')
 
+@flask_app.route('/settings')
+def settings():
+    return render_template('settings.html')
+
 # ---------------------------------------------------------------------------
 # Routes — relay (legacy v1.5 shield compatibility)
 # ---------------------------------------------------------------------------
@@ -475,6 +479,30 @@ def config_ports():
     profile["port_count"] = count
     save_config(config)
     return jsonify({"ok": True, "port_count": count, "second_board_required": count > 8})
+
+@flask_app.route('/wifi/networks')
+def wifi_networks():
+    import urllib.request as _ur
+    try:
+        resp = _ur.urlopen('http://172.21.0.1:5555/scan', timeout=10)
+        return resp.read(), 200, {'Content-Type': 'application/json'}
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+@flask_app.route('/wifi/connect', methods=['POST'])
+def wifi_connect_web():
+    import urllib.request as _ur, urllib.parse as _up
+    data = request.get_json()
+    ssid     = (data or {}).get('ssid', '').strip()
+    password = (data or {}).get('password', '').strip()
+    if not ssid:
+        return jsonify({'ok': False, 'error': 'ssid required'}), 400
+    try:
+        url  = 'http://172.21.0.1:5555/connect?' + _up.urlencode({'ssid': ssid, 'password': password})
+        resp = _ur.urlopen(url, timeout=30)
+        return resp.read(), 200, {'Content-Type': 'application/json'}
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500
 
 @flask_app.route('/wifi/connect_trigger')
 def wifi_connect_trigger():
@@ -1001,10 +1029,9 @@ def ag_broadcaster():
             profile = get_profile(cfg)
             count   = profile.get("port_count", 8)
             ip      = _ag_local_ip()
-            name    = cfg.get("input1_label", "ShackSwitch").replace(" ", "_")
             pkt = (
                 f"AG ip={ip} port={AG_PORT} v={AG_VERSION} "
-                f"serial=G0JKN-SW name={name} ports=2 antennas={count}\r\n"
+                f"serial=G0JKN-SW name=ShackSwitch ports=2 antennas={count} mode=master\r\n"
             ).encode()
             sock.sendto(pkt, ("255.255.255.255", AG_PORT))
         except Exception as e:

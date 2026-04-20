@@ -1,0 +1,1045 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ShackSwitch — Settings</title>
+<style>
+:root {
+    --bg:       #09101f;
+    --card-bg:  #0d1628;
+    --row-bg:   #0b1220;
+    --border:   #1c2a40;
+    --cyan:     #00d8ef;
+    --cyan-dim: #008fa0;
+    --green:    #22d46a;
+    --yellow:   #f5a623;
+    --orange:   #f97316;
+    --red:      #ef4444;
+    --text:     #dde6f0;
+    --muted:    #6b8099;
+    --input-bg: #0f1e30;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    font-size: 13px;
+    min-height: 100vh;
+}
+
+/* ── Top bar ─────────────────────────────────── */
+.topbar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 18px;
+    background: #060d1a;
+    border-bottom: 1px solid var(--border);
+}
+.topbar-title {
+    color: var(--cyan);
+    font-size: 16px;
+    font-weight: 700;
+    letter-spacing: .08em;
+    flex: 1;
+}
+.topbar-sub { font-size: 11px; color: var(--muted); }
+
+/* ── Tab bar ─────────────────────────────────── */
+.tabbar {
+    display: flex;
+    gap: 2px;
+    padding: 10px 18px 0;
+    border-bottom: 1px solid var(--border);
+    background: #070e1c;
+}
+.tab-btn {
+    padding: 7px 18px;
+    border: 1px solid var(--border);
+    border-bottom: none;
+    border-radius: 6px 6px 0 0;
+    background: #0a1220;
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: .07em;
+    cursor: pointer;
+    transition: all .15s;
+}
+.tab-btn:hover { color: var(--text); background: #0e1a2e; }
+.tab-btn.active {
+    background: var(--card-bg);
+    color: var(--cyan);
+    border-color: var(--cyan-dim);
+    border-bottom: 1px solid var(--card-bg);
+    margin-bottom: -1px;
+}
+
+/* ── Page panels ─────────────────────────────── */
+.page { display: none; padding: 18px; }
+.page.active { display: block; }
+
+/* ── Section header ──────────────────────────── */
+.sh {
+    color: var(--cyan);
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: .06em;
+    padding-bottom: 6px;
+    border-bottom: 1px solid var(--cyan-dim);
+    margin-bottom: 12px;
+    margin-top: 16px;
+}
+.sh:first-child { margin-top: 0; }
+
+/* ── Card ────────────────────────────────────── */
+.card {
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px 16px;
+    margin-bottom: 14px;
+}
+
+/* ── Form rows ───────────────────────────────── */
+.form-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 0;
+    border-bottom: 1px solid var(--border);
+}
+.form-row:last-child { border-bottom: none; }
+.form-label {
+    color: var(--muted);
+    font-size: 12px;
+    width: 130px;
+    flex-shrink: 0;
+}
+.form-label.wide { width: 200px; }
+.form-value { flex: 1; }
+
+/* ── Inputs ──────────────────────────────────── */
+input[type=text], input[type=number], select {
+    background: var(--input-bg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--text);
+    font-size: 12px;
+    padding: 5px 8px;
+    outline: none;
+    transition: border-color .15s;
+}
+input[type=text]:focus, input[type=number]:focus, select:focus {
+    border-color: var(--cyan-dim);
+}
+input[type=text] { width: 100%; max-width: 280px; }
+input[type=number] { width: 70px; }
+select { min-width: 120px; }
+select option { background: #0d1628; }
+
+/* ── Toggle buttons (input count, etc.) ──────── */
+.toggle-group { display: flex; gap: 4px; }
+.toggle-btn {
+    padding: 5px 16px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    background: var(--input-bg);
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all .15s;
+}
+.toggle-btn.active { background: var(--cyan); border-color: var(--cyan); color: #000; }
+
+/* ── Port name grid ──────────────────────────── */
+.port-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 8px;
+    margin-top: 8px;
+}
+.port-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--row-bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 7px 10px;
+}
+.port-num {
+    background: #1a2a40;
+    color: var(--cyan);
+    font-size: 11px;
+    font-weight: 700;
+    padding: 2px 7px;
+    border-radius: 3px;
+    flex-shrink: 0;
+    min-width: 28px;
+    text-align: center;
+}
+.port-item input { flex: 1; max-width: none; }
+
+/* ── Band map grid ───────────────────────────── */
+.band-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    gap: 6px;
+}
+.band-item {
+    background: var(--row-bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 8px 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+.band-name {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--cyan);
+}
+.band-item select { width: 100%; min-width: 0; }
+
+/* ── Radio list ──────────────────────────────── */
+.radio-list { display: flex; flex-direction: column; gap: 6px; margin-bottom: 10px; }
+.radio-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--row-bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 8px 12px;
+}
+.radio-row .rname { font-weight: 600; flex: 1; }
+.radio-row .rdetail { color: var(--muted); font-size: 11px; flex: 2; }
+.radio-row .rtag {
+    font-size: 10px;
+    font-weight: 700;
+    padding: 2px 7px;
+    border-radius: 3px;
+    background: #1a2a40;
+    color: var(--cyan);
+}
+
+/* ── Modal ───────────────────────────────────── */
+.modal-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,.7);
+    z-index: 100;
+    align-items: center;
+    justify-content: center;
+}
+.modal-overlay.open { display: flex; }
+.modal {
+    background: var(--card-bg);
+    border: 1px solid var(--cyan-dim);
+    border-radius: 10px;
+    padding: 20px 24px;
+    width: 420px;
+    max-width: 95vw;
+}
+.modal-title {
+    color: var(--cyan);
+    font-size: 14px;
+    font-weight: 700;
+    margin-bottom: 14px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+}
+.modal-row { display: flex; align-items: center; gap: 10px; padding: 5px 0; }
+.modal-label { color: var(--muted); font-size: 12px; width: 100px; flex-shrink: 0; }
+.modal-row input, .modal-row select { flex: 1; max-width: none; }
+.modal-footer { display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; }
+
+/* ── Buttons ─────────────────────────────────── */
+.btn {
+    padding: 6px 16px;
+    border-radius: 5px;
+    border: 1px solid;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: opacity .15s;
+}
+.btn:hover { opacity: .85; }
+.btn-cyan  { background: var(--cyan);  border-color: var(--cyan);  color: #000; }
+.btn-ghost { background: transparent; border-color: var(--border); color: var(--muted); }
+.btn-red   { background: transparent; border-color: var(--red);   color: var(--red); }
+.btn-green { background: transparent; border-color: var(--green); color: var(--green); }
+.btn-sm    { padding: 4px 10px; font-size: 11px; }
+
+/* ── Toast ───────────────────────────────────── */
+#toast {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    background: #0d1e30;
+    border: 1px solid var(--cyan-dim);
+    border-radius: 6px;
+    padding: 10px 16px;
+    font-size: 12px;
+    color: var(--text);
+    opacity: 0;
+    transition: opacity .3s;
+    z-index: 200;
+    pointer-events: none;
+}
+#toast.show { opacity: 1; }
+#toast.err  { border-color: var(--red); }
+
+/* ── Status pill ─────────────────────────────── */
+.pill {
+    display: inline-block;
+    font-size: 10px;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 10px;
+    letter-spacing: .05em;
+}
+.pill-green { background: #0d2a18; color: var(--green); border: 1px solid var(--green); }
+.pill-red   { background: #2a0d0d; color: var(--red);   border: 1px solid var(--red);   }
+.pill-muted { background: #1a2a40; color: var(--muted); border: 1px solid var(--border); }
+
+/* ── Danger zone ─────────────────────────────── */
+.danger-card { border-color: #3a1a1a; }
+.danger-card .sh { color: var(--red); border-bottom-color: #5a2a2a; }
+</style>
+</head>
+<body>
+
+<!-- Top bar -->
+<div class="topbar">
+    <div>
+        <div class="topbar-title">ShackSwitch — Settings</div>
+        <div class="topbar-sub" id="device-sub">Loading…</div>
+    </div>
+    <a href="/" style="text-decoration:none">
+        <button class="btn btn-ghost">← Back to Status</button>
+    </a>
+</div>
+
+<!-- Tab bar -->
+<div class="tabbar">
+    <button class="tab-btn active" onclick="showTab('ports')">PORTS</button>
+    <button class="tab-btn" onclick="showTab('bandmap')">ANT MAP</button>
+    <button class="tab-btn" onclick="showTab('radios')">RADIOS</button>
+    <button class="tab-btn" onclick="showTab('amplifier')">AMPLIFIER</button>
+    <button class="tab-btn" onclick="showTab('voice')">VOICE</button>
+    <button class="tab-btn" onclick="showTab('network')">NETWORK</button>
+    <button class="tab-btn" onclick="showTab('system')">SYSTEM</button>
+</div>
+
+<!-- ══════════════════════════════════════════════
+     PAGE: PORTS
+══════════════════════════════════════════════ -->
+<div id="page-ports" class="page active">
+    <div class="card">
+        <div class="sh">Inputs & Ports</div>
+        <div class="form-row">
+            <span class="form-label">Number of Inputs</span>
+            <div class="form-value">
+                <div class="toggle-group">
+                    <button class="toggle-btn" id="inp1" onclick="setInputCount(1)">1 — Single radio</button>
+                    <button class="toggle-btn" id="inp2" onclick="setInputCount(2)">2 — SO2R / Dual</button>
+                </div>
+            </div>
+        </div>
+        <div class="form-row">
+            <span class="form-label">Number of Ports</span>
+            <div class="form-value" style="display:flex;align-items:center;gap:10px">
+                <select id="port-count-sel" onchange="setPortCount(this.value)">
+                    <option value="2">2</option><option value="4">4</option>
+                    <option value="6">6</option><option value="8">8</option>
+                    <option value="10">10</option><option value="12">12</option>
+                    <option value="14">14</option><option value="16">16</option>
+                </select>
+                <span class="pill pill-muted" id="hw-note">2× MCP23017 required for 8+ ports</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="sh">Input Labels</div>
+        <div class="form-row">
+            <span class="form-label">Input 1 label</span>
+            <div class="form-value">
+                <input type="text" id="input1-label" placeholder="e.g. Flex 6700 A" maxlength="20">
+            </div>
+        </div>
+        <div class="form-row" id="input2-label-row">
+            <span class="form-label">Input 2 label</span>
+            <div class="form-value">
+                <input type="text" id="input2-label" placeholder="e.g. Flex 6700 B" maxlength="20">
+            </div>
+        </div>
+        <div style="margin-top:10px">
+            <button class="btn btn-cyan" onclick="saveLabels()">Save Labels</button>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="sh">Port Names</div>
+        <div class="port-grid" id="port-name-grid">Loading…</div>
+        <div style="margin-top:12px">
+            <button class="btn btn-cyan" onclick="savePortNames()">Save Port Names</button>
+        </div>
+    </div>
+</div>
+
+<!-- ══════════════════════════════════════════════
+     PAGE: BAND MAP
+══════════════════════════════════════════════ -->
+<div id="page-bandmap" class="page">
+    <div class="card">
+        <div class="sh">Band → Antenna Assignment</div>
+        <p style="color:var(--muted);font-size:11px;margin-bottom:12px">
+            Select which antenna each band routes to. Set to <strong style="color:var(--text)">None</strong> to disable automatic switching for that band.
+        </p>
+        <div class="band-grid" id="band-grid">Loading…</div>
+        <div style="margin-top:14px">
+            <button class="btn btn-cyan" onclick="saveBandMap()">Save Band Map</button>
+        </div>
+    </div>
+</div>
+
+<!-- ══════════════════════════════════════════════
+     PAGE: RADIOS
+══════════════════════════════════════════════ -->
+<div id="page-radios" class="page">
+    <div class="card">
+        <div class="sh">CAT Radio Connections</div>
+        <p style="color:var(--muted);font-size:11px;margin-bottom:10px">
+            CAT radios are fallback band sources. FlexRadio / SmartSDR is configured separately and always takes priority.
+        </p>
+        <div class="radio-list" id="radio-list">Loading…</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <button class="btn btn-cyan" onclick="openRadioModal()">+ Add Radio</button>
+            <button class="btn btn-ghost" onclick="scanRadios()">⟳ Scan Network</button>
+        </div>
+        <div id="scan-results" style="margin-top:10px;font-size:11px;color:var(--muted)"></div>
+    </div>
+</div>
+
+<!-- ══════════════════════════════════════════════
+     PAGE: AMPLIFIER
+══════════════════════════════════════════════ -->
+<div id="page-amplifier" class="page">
+    <div class="card">
+        <div class="sh">RF-Kit RF2K-S Amplifier</div>
+        <div class="form-row">
+            <span class="form-label">IP Address</span>
+            <div class="form-value">
+                <input type="text" id="rfkit-ip" placeholder="e.g. 10.0.0.78" maxlength="40">
+            </div>
+        </div>
+        <div class="form-row">
+            <span class="form-label">Port</span>
+            <div class="form-value">
+                <input type="number" id="rfkit-port" placeholder="8080" min="1" max="65535">
+            </div>
+        </div>
+        <div class="form-row">
+            <span class="form-label">Status</span>
+            <div class="form-value" id="rfkit-status">—</div>
+        </div>
+        <div style="margin-top:10px">
+            <button class="btn btn-cyan" onclick="saveRfkit()">Save</button>
+        </div>
+    </div>
+</div>
+
+<!-- ══════════════════════════════════════════════
+     PAGE: VOICE
+══════════════════════════════════════════════ -->
+<div id="page-voice" class="page">
+    <div class="card">
+        <div class="sh">Voice Announcements</div>
+        <p style="color:var(--muted);line-height:1.7;font-size:12px">
+            Voice announcements are handled by <strong style="color:var(--cyan)">ShackSpeak</strong>,
+            a separate companion application that monitors radio CAT data and announces
+            band changes, frequencies, and antenna selections.
+        </p>
+        <p style="color:var(--muted);line-height:1.7;font-size:12px;margin-top:10px">
+            ShackSpeak connects to ShackSwitch via the REST API and runs independently
+            on any machine on your network.
+        </p>
+        <div style="margin-top:14px">
+            <a href="https://github.com/nigelfenton/shackspeak" target="_blank">
+                <button class="btn btn-ghost">Open ShackSpeak on GitHub ↗</button>
+            </a>
+        </div>
+    </div>
+</div>
+
+<!-- ══════════════════════════════════════════════
+     PAGE: NETWORK
+══════════════════════════════════════════════ -->
+<div id="page-network" class="page">
+    <div class="card">
+        <div class="sh">Current Connection</div>
+        <div class="form-row">
+            <span class="form-label">IP Address</span>
+            <div class="form-value" id="net-ip" style="color:var(--muted)">—</div>
+        </div>
+        <div class="form-row">
+            <span class="form-label">SSID</span>
+            <div class="form-value" id="net-ssid" style="color:var(--muted)">—</div>
+        </div>
+        <div class="form-row">
+            <span class="form-label">Assignment</span>
+            <div class="form-value"><span class="pill pill-muted">DHCP</span>
+            <span style="color:var(--muted);font-size:11px;margin-left:8px">Static IP requires SSH access</span></div>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="sh">Change WiFi Network</div>
+        <p style="color:var(--muted);font-size:11px;margin-bottom:12px">
+            Scan for nearby networks, select one and enter the password to connect.
+            The board will reconnect automatically — this page may briefly become unreachable.
+        </p>
+        <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px">
+            <button class="btn btn-ghost" id="scan-btn" onclick="wifiScan()">⟳ Scan for Networks</button>
+            <span id="scan-status" style="font-size:11px;color:var(--muted)"></span>
+        </div>
+
+        <div id="ssid-list" style="display:flex;flex-direction:column;gap:5px;margin-bottom:12px"></div>
+
+        <div class="form-row" id="wifi-connect-row" style="display:none">
+            <span class="form-label">Password</span>
+            <div class="form-value" style="display:flex;gap:8px;align-items:center">
+                <input type="text" id="wifi-password" placeholder="WiFi password" maxlength="64" style="max-width:240px">
+                <button class="btn btn-cyan" onclick="wifiConnect()">Connect</button>
+            </div>
+        </div>
+        <div id="wifi-result" style="font-size:12px;margin-top:8px"></div>
+    </div>
+</div>
+
+<!-- ══════════════════════════════════════════════
+     PAGE: SYSTEM
+══════════════════════════════════════════════ -->
+<div id="page-system" class="page">
+    <div class="card">
+        <div class="sh">Station Info</div>
+        <div class="form-row">
+            <span class="form-label">Description</span>
+            <div class="form-value">
+                <input type="text" id="sys-desc" placeholder="Home station" maxlength="60" style="max-width:380px">
+            </div>
+        </div>
+        <div class="form-row">
+            <span class="form-label">IARU Region</span>
+            <div class="form-value">
+                <select id="sys-iaru">
+                    <option value="1">Region 1 (Europe/Africa/Russia)</option>
+                    <option value="2">Region 2 (Americas)</option>
+                    <option value="3">Region 3 (Asia-Pacific)</option>
+                </select>
+            </div>
+        </div>
+        <div class="form-row">
+            <span class="form-label">ITU Zone</span>
+            <div class="form-value">
+                <input type="number" id="sys-itu" min="1" max="90">
+            </div>
+        </div>
+        <div class="form-row">
+            <span class="form-label">CQ Zone</span>
+            <div class="form-value">
+                <input type="number" id="sys-cq" min="1" max="40">
+            </div>
+        </div>
+        <div style="margin-top:10px">
+            <button class="btn btn-cyan" onclick="saveSystem()">Save Station Info</button>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="sh">Device</div>
+        <div class="form-row">
+            <span class="form-label">Board IP</span>
+            <div class="form-value" id="sys-ip" style="color:var(--muted)">—</div>
+        </div>
+        <div class="form-row">
+            <span class="form-label">App version</span>
+            <div class="form-value" id="sys-ver" style="color:var(--muted)">—</div>
+        </div>
+        <div class="form-row">
+            <span class="form-label">Uptime</span>
+            <div class="form-value" id="sys-uptime" style="color:var(--muted)">—</div>
+        </div>
+    </div>
+
+    <div class="card danger-card">
+        <div class="sh">Factory Reset</div>
+        <p style="color:var(--muted);font-size:12px;line-height:1.6;margin-bottom:12px">
+            Clears all antenna names, band map, radio config, and port settings.
+            Restores defaults. WiFi settings are not affected.
+        </p>
+        <button class="btn btn-red" onclick="confirmReset()">Factory Reset…</button>
+    </div>
+</div>
+
+<!-- ══════════════════════════════════════════════
+     RADIO MODAL
+══════════════════════════════════════════════ -->
+<div class="modal-overlay" id="radio-modal">
+    <div class="modal">
+        <div class="modal-title" id="modal-title">Add Radio</div>
+        <div class="modal-row">
+            <span class="modal-label">Protocol</span>
+            <select id="m-proto" onchange="updateModelList()">
+                <option value="kenwood">Kenwood / Elecraft</option>
+                <option value="yaesu">Yaesu</option>
+                <option value="icom">Icom</option>
+            </select>
+        </div>
+        <div class="modal-row">
+            <span class="modal-label">Model</span>
+            <select id="m-model"></select>
+        </div>
+        <div class="modal-row">
+            <span class="modal-label">Host / IP</span>
+            <input type="text" id="m-host" placeholder="10.0.0.x">
+        </div>
+        <div class="modal-row">
+            <span class="modal-label">Port</span>
+            <input type="number" id="m-port" placeholder="60001" min="1" max="65535">
+        </div>
+        <div class="modal-row">
+            <span class="modal-label">Input</span>
+            <select id="m-input">
+                <option value="1">Input 1</option>
+                <option value="2">Input 2</option>
+            </select>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+            <button class="btn btn-cyan" onclick="saveRadio()">Save</button>
+        </div>
+    </div>
+</div>
+
+<!-- Toast -->
+<div id="toast"></div>
+
+<script>
+// ── State ────────────────────────────────────────────────────────────────────
+let profile     = {};
+let portCount   = 4;
+let inputCount  = 1;
+let radioList   = {};
+let editingRadioId = null;
+
+const BANDS = ['160m','80m','60m','40m','30m','20m','17m','15m','12m','10m','6m'];
+const MODELS = {
+    kenwood: ['TS-450SAT','TS-480HX','TS-590','TS-890S','TS-990S','Elecraft K3','Elecraft K4'],
+    yaesu:   ['FT-817','FT-818','FT-847','FT-891','FT-991A','FT-DX10','FT-DX101'],
+    icom:    ['IC-705','IC-7300','IC-7610','IC-9700']
+};
+
+// ── Tabs ─────────────────────────────────────────────────────────────────────
+function showTab(name) {
+    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.getElementById('page-' + name).classList.add('active');
+    event.currentTarget.classList.add('active');
+}
+
+// ── Toast ────────────────────────────────────────────────────────────────────
+function toast(msg, err=false) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.className = 'show' + (err ? ' err' : '');
+    clearTimeout(t._t);
+    t._t = setTimeout(() => t.className = '', 2800);
+}
+
+// ── Load all data ────────────────────────────────────────────────────────────
+async function loadAll() {
+    try {
+        const [profRes, radRes, rfRes, stRes] = await Promise.all([
+            fetch('/profile'), fetch('/radios/config'),
+            fetch('/rfkit/config'), fetch('/status')
+        ]);
+        profile    = await profRes.json();
+        radioList  = await radRes.json();
+        const rfk  = await rfRes.json();
+        const st   = await stRes.json();
+
+        portCount  = profile.port_count  || 4;
+        inputCount = profile.input_count || 1;
+
+        renderPorts(st);
+        renderBandMap();
+        renderRadios();
+        renderRfkit(rfk);
+        renderSystem(st, profile);
+        renderNetwork(st);
+    } catch(e) {
+        toast('Failed to load settings', true);
+    }
+}
+
+// ── PORTS page ───────────────────────────────────────────────────────────────
+function renderPorts(st) {
+    const kk1lAvailable = st && st.kk1l_available;
+    // Input count toggles
+    document.getElementById('inp1').classList.toggle('active', inputCount === 1);
+    const btn2 = document.getElementById('inp2');
+    btn2.classList.toggle('active', inputCount === 2);
+    btn2.disabled = !kk1lAvailable;
+    btn2.title    = kk1lAvailable ? '' : 'Requires MCP23017 boards — not detected';
+    btn2.style.opacity = kk1lAvailable ? '' : '0.35';
+    btn2.style.cursor  = kk1lAvailable ? '' : 'not-allowed';
+    document.getElementById('input2-label-row').style.display = inputCount === 2 ? '' : 'none';
+
+    // Port count selector
+    const sel = document.getElementById('port-count-sel');
+    sel.value = portCount;
+
+    // Labels
+    document.getElementById('input1-label').value = profile.input1_label || '';
+    document.getElementById('input2-label').value = profile.input2_label || '';
+
+    // Port name grid
+    const grid = document.getElementById('port-name-grid');
+    grid.innerHTML = '';
+    const antennas = profile.antennas || {};
+    for (let i = 1; i <= portCount; i++) {
+        const name = antennas[String(i)]?.name || antennas[i]?.name || `Antenna ${i}`;
+        const div = document.createElement('div');
+        div.className = 'port-item';
+        div.innerHTML = `<span class="port-num">${i}</span>
+                         <input type="text" data-port="${i}" value="${esc(name)}" maxlength="20" placeholder="Antenna ${i}">`;
+        grid.appendChild(div);
+    }
+}
+
+async function setInputCount(n) {
+    try {
+        await fetch('/config/inputs', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({input_count: n}) });
+        inputCount = n;
+        renderPorts();
+        toast('Input count set to ' + n);
+    } catch(e) { toast('Failed', true); }
+}
+
+async function setPortCount(n) {
+    try {
+        await fetch('/set_port_count?count=' + n);
+        portCount = parseInt(n);
+        profile.port_count = portCount;
+        const antennas = profile.antennas || {};
+        for (let i = 1; i <= portCount; i++) {
+            if (!antennas[String(i)]) antennas[String(i)] = { name: `Antenna ${i}` };
+        }
+        profile.antennas = antennas;
+        renderPorts();
+        renderBandMap();
+        toast('Port count set to ' + n);
+    } catch(e) { toast('Failed', true); }
+}
+
+async function saveLabels() {
+    const l1 = document.getElementById('input1-label').value.trim();
+    const l2 = document.getElementById('input2-label').value.trim();
+    try {
+        await fetch('/label', { method:'POST', headers:{'Content-Type':'application/json'},
+                                body: JSON.stringify({input1_label: l1, input2_label: l2}) });
+        toast('Labels saved');
+    } catch(e) { toast('Failed', true); }
+}
+
+async function savePortNames() {
+    const inputs = document.querySelectorAll('#port-name-grid input[data-port]');
+    const bulk = {};
+    inputs.forEach(inp => { bulk[inp.dataset.port] = inp.value.trim() || `Antenna ${inp.dataset.port}`; });
+    try {
+        await fetch('/rename/bulk', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(bulk) });
+        Object.entries(bulk).forEach(([p, n]) => {
+            if (!profile.antennas) profile.antennas = {};
+            if (!profile.antennas[p]) profile.antennas[p] = {};
+            profile.antennas[p].name = n;
+        });
+        renderBandMap();
+        toast('Port names saved');
+    } catch(e) { toast('Failed', true); }
+}
+
+// ── BAND MAP page ────────────────────────────────────────────────────────────
+function renderBandMap() {
+    const grid   = document.getElementById('band-grid');
+    const bmap   = profile.band_map || {};
+    const ants   = profile.antennas || {};
+    grid.innerHTML = '';
+    BANDS.forEach(band => {
+        const cur = bmap[band];
+        let opts = '<option value="">None</option>';
+        for (let i = 1; i <= portCount; i++) {
+            const aname = ants[String(i)]?.name || `Port ${i}`;
+            opts += `<option value="${i}" ${cur == i ? 'selected' : ''}>${i}: ${esc(aname)}</option>`;
+        }
+        const div = document.createElement('div');
+        div.className = 'band-item';
+        div.innerHTML = `<span class="band-name">${band}</span>
+                         <select data-band="${band}">${opts}</select>`;
+        grid.appendChild(div);
+    });
+}
+
+async function saveBandMap() {
+    const sels = document.querySelectorAll('#band-grid select[data-band]');
+    const bmap = {};
+    sels.forEach(s => { bmap[s.dataset.band] = s.value ? parseInt(s.value) : null; });
+    try {
+        await fetch('/bandmap', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(bmap) });
+        profile.band_map = bmap;
+        toast('Band map saved');
+    } catch(e) { toast('Failed', true); }
+}
+
+// ── RADIOS page ──────────────────────────────────────────────────────────────
+function renderRadios() {
+    const list = document.getElementById('radio-list');
+    const entries = Object.entries(radioList);
+    if (!entries.length) {
+        list.innerHTML = '<div style="color:var(--muted);font-size:12px;padding:8px 0">No CAT radios configured.</div>';
+        return;
+    }
+    list.innerHTML = entries.map(([id, r]) => `
+        <div class="radio-row">
+            <span class="rname">${esc(r.model || r.type)}</span>
+            <span class="rdetail">${esc(r.host || '')}:${r.port || ''}  —  Input ${r.input || 1}</span>
+            <span class="rtag">${(r.type||'').toUpperCase()}</span>
+            <button class="btn btn-ghost btn-sm" onclick="openRadioModal('${id}')">Edit</button>
+            <button class="btn btn-red btn-sm" onclick="deleteRadio('${id}')">✕</button>
+        </div>`).join('');
+}
+
+async function scanRadios() {
+    const div = document.getElementById('scan-results');
+    div.textContent = 'Scanning…';
+    try {
+        const r = await fetch('/radios/scan');
+        const d = await r.json();
+        if (d.found && d.found.length) {
+            div.innerHTML = 'Found: ' + d.found.map(f => `<span style="color:var(--green)">${esc(f.label)} @ ${esc(f.host)}:${f.port}</span>`).join(', ');
+        } else {
+            div.textContent = 'No radios found on network.';
+        }
+    } catch(e) { div.textContent = 'Scan failed.'; }
+}
+
+function updateModelList() {
+    const proto  = document.getElementById('m-proto').value;
+    const msel   = document.getElementById('m-model');
+    msel.innerHTML = (MODELS[proto] || []).map(m => `<option value="${m}">${m}</option>`).join('');
+}
+
+function openRadioModal(id=null) {
+    editingRadioId = id;
+    document.getElementById('modal-title').textContent = id ? 'Edit Radio' : 'Add Radio';
+    updateModelList();
+    if (id && radioList[id]) {
+        const r = radioList[id];
+        document.getElementById('m-proto').value = r.type || 'kenwood';
+        updateModelList();
+        document.getElementById('m-model').value = r.model || '';
+        document.getElementById('m-host').value  = r.host  || '';
+        document.getElementById('m-port').value  = r.port  || '';
+        document.getElementById('m-input').value = r.input || 1;
+    } else {
+        document.getElementById('m-host').value  = '';
+        document.getElementById('m-port').value  = '60001';
+        document.getElementById('m-input').value = 1;
+    }
+    document.getElementById('radio-modal').classList.add('open');
+}
+
+function closeModal() {
+    document.getElementById('radio-modal').classList.remove('open');
+    editingRadioId = null;
+}
+
+async function saveRadio() {
+    const data = {
+        type:  document.getElementById('m-proto').value,
+        model: document.getElementById('m-model').value,
+        host:  document.getElementById('m-host').value.trim(),
+        port:  parseInt(document.getElementById('m-port').value),
+        input: parseInt(document.getElementById('m-input').value),
+        enabled: true
+    };
+    try {
+        if (editingRadioId) {
+            await fetch('/radios/config/' + editingRadioId, { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify(data) });
+            radioList[editingRadioId] = data;
+        } else {
+            const r = await fetch('/radios/config', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(data) });
+            const d = await r.json();
+            radioList[d.id || Date.now()] = data;
+        }
+        renderRadios();
+        closeModal();
+        toast('Radio saved');
+    } catch(e) { toast('Failed', true); }
+}
+
+async function deleteRadio(id) {
+    if (!confirm('Remove this radio?')) return;
+    try {
+        await fetch('/radios/config/' + id, { method:'DELETE' });
+        delete radioList[id];
+        renderRadios();
+        toast('Radio removed');
+    } catch(e) { toast('Failed', true); }
+}
+
+// ── AMPLIFIER page ───────────────────────────────────────────────────────────
+function renderRfkit(cfg) {
+    document.getElementById('rfkit-ip').value   = cfg.host || cfg.ip || '';
+    document.getElementById('rfkit-port').value = cfg.port || '8080';
+    const status = document.getElementById('rfkit-status');
+    status.innerHTML = cfg.connected
+        ? '<span class="pill pill-green">ONLINE</span>'
+        : '<span class="pill pill-red">OFFLINE</span>';
+}
+
+async function saveRfkit() {
+    const data = {
+        host: document.getElementById('rfkit-ip').value.trim(),
+        port: parseInt(document.getElementById('rfkit-port').value)
+    };
+    try {
+        await fetch('/rfkit/config', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(data) });
+        toast('Amplifier settings saved');
+    } catch(e) { toast('Failed', true); }
+}
+
+// ── SYSTEM page ──────────────────────────────────────────────────────────────
+function renderSystem(st, prof) {
+    document.getElementById('sys-desc').value = prof.description || '';
+    document.getElementById('sys-iaru').value = prof.iaru_region || '1';
+    document.getElementById('sys-itu').value  = prof.itu_zone    || '';
+    document.getElementById('sys-cq').value   = prof.cq_zone     || '';
+    document.getElementById('sys-ip').textContent      = st.ip || location.hostname;
+    document.getElementById('sys-ver').textContent     = st.version || '—';
+    document.getElementById('sys-uptime').textContent  = st.uptime  || '—';
+    document.getElementById('device-sub').textContent  =
+        `Connected to ${location.hostname}  ·  ${portCount} ports  ·  ${inputCount === 2 ? 'SO2R' : 'Single radio'}`;
+}
+
+async function saveSystem() {
+    const data = {
+        description: document.getElementById('sys-desc').value.trim(),
+        iaru_region: parseInt(document.getElementById('sys-iaru').value),
+        itu_zone:    parseInt(document.getElementById('sys-itu').value),
+        cq_zone:     parseInt(document.getElementById('sys-cq').value)
+    };
+    try {
+        await fetch('/profile/set', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(data) });
+        toast('Station info saved');
+    } catch(e) { toast('Failed', true); }
+}
+
+async function confirmReset() {
+    if (!confirm('Are you sure? This will clear ALL settings and restart the app.')) return;
+    if (!confirm('Second confirmation — this cannot be undone. Reset now?')) return;
+    try {
+        await fetch('/factory_reset');
+        toast('Factory reset in progress — reconnecting in 5s…');
+        setTimeout(() => location.reload(), 5000);
+    } catch(e) { toast('Reset sent', false); }
+}
+
+// ── NETWORK page ─────────────────────────────────────────────────────────────
+let selectedSsid = null;
+
+function renderNetwork(st) {
+    document.getElementById('net-ip').textContent   = st.ip   || location.hostname;
+    document.getElementById('net-ssid').textContent = st.ssid || '—';
+}
+
+async function wifiScan() {
+    const btn    = document.getElementById('scan-btn');
+    const status = document.getElementById('scan-status');
+    const list   = document.getElementById('ssid-list');
+    btn.disabled = true;
+    status.textContent = 'Scanning…';
+    list.innerHTML = '';
+    selectedSsid = null;
+    document.getElementById('wifi-connect-row').style.display = 'none';
+    try {
+        const r = await fetch('/wifi/networks');
+        const d = await r.json();
+        const ssids = d.ssids || d.networks || d || [];
+        if (!ssids.length) {
+            status.textContent = 'No networks found.';
+        } else {
+            status.textContent = ssids.length + ' networks found';
+            list.innerHTML = ssids.map((s, i) =>
+                `<div class="radio-row" style="cursor:pointer" id="ssid-${i}" onclick="selectSsid('${esc(s)}',${i})">
+                    <span class="rname">${esc(s)}</span>
+                    <span class="rtag" id="ssid-tag-${i}">SELECT</span>
+                </div>`
+            ).join('');
+        }
+    } catch(e) {
+        status.textContent = 'Scan failed — host service may be unavailable.';
+    }
+    btn.disabled = false;
+}
+
+function selectSsid(ssid, idx) {
+    selectedSsid = ssid;
+    document.querySelectorAll('#ssid-list .rtag').forEach(t => { t.textContent = 'SELECT'; t.style.color = ''; });
+    const tag = document.getElementById('ssid-tag-' + idx);
+    if (tag) { tag.textContent = 'SELECTED'; tag.style.color = 'var(--green)'; }
+    document.getElementById('wifi-connect-row').style.display = '';
+    document.getElementById('wifi-password').focus();
+}
+
+async function wifiConnect() {
+    if (!selectedSsid) { toast('Select a network first', true); return; }
+    const password = document.getElementById('wifi-password').value;
+    const result   = document.getElementById('wifi-result');
+    result.innerHTML = '<span style="color:var(--muted)">Connecting…</span>';
+    try {
+        const r = await fetch('/wifi/connect', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ ssid: selectedSsid, password })
+        });
+        const d = await r.json();
+        if (d.ok) {
+            result.innerHTML = `<span style="color:var(--green)">✓ Connected to ${esc(selectedSsid)}</span>`;
+            document.getElementById('net-ssid').textContent = selectedSsid;
+        } else {
+            result.innerHTML = `<span style="color:var(--red)">✗ Failed: ${esc(d.error || 'unknown error')}</span>`;
+        }
+    } catch(e) {
+        result.innerHTML = '<span style="color:var(--orange)">Board may be reconnecting — try refreshing in a moment.</span>';
+    }
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+function esc(s) {
+    return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+loadAll();
+</script>
+</body>
+</html>

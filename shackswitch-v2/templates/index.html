@@ -5,150 +5,200 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>G0JKN ShackSwitch</title>
   <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { background: #1a1a1a; color: #e0e0e0; font-family: monospace; padding: 16px; }
-    h1 { color: #00cc66; font-size: 20px; margin-bottom: 2px; }
-    h3 { color: #555; font-size: 12px; font-weight: normal; margin-bottom: 16px; }
-    .nav { display: flex; gap: 8px; margin-bottom: 16px; }
-    .nav-btn {
-      padding: 6px 14px; border: 1px solid #444; border-radius: 4px;
-      background: #222; color: #888; font-family: monospace; font-size: 12px; cursor: pointer;
+    :root {
+      --bg:       #09101f;
+      --card-bg:  #0d1628;
+      --row-bg:   #0b1220;
+      --border:   #1c2a40;
+      --cyan:     #00d8ef;
+      --cyan-dim: #008fa0;
+      --green:    #22d46a;
+      --yellow:   #f5a623;
+      --orange:   #f97316;
+      --red:      #ef4444;
+      --text:     #dde6f0;
+      --muted:    #6b8099;
+      --input-bg: #0f1e30;
     }
-    .nav-btn.active { background: #00cc66; color: #000; border-color: #00cc66; font-weight: bold; }
-    .page { display: none; }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', system-ui, sans-serif; font-size: 13px; min-height: 100vh; }
+
+    /* Top bar */
+    .topbar { display: flex; align-items: center; gap: 12px; padding: 12px 18px; background: #060d1a; border-bottom: 1px solid var(--border); }
+    .topbar-title { color: var(--cyan); font-size: 16px; font-weight: 700; letter-spacing: .08em; flex: 1; }
+    .topbar-sub { font-size: 11px; color: var(--muted); }
+
+    /* Nav / Tab bar */
+    .nav { display: flex; gap: 2px; padding: 10px 18px 0; border-bottom: 1px solid var(--border); background: #070e1c; }
+    .nav-btn {
+      padding: 7px 18px; border: 1px solid var(--border); border-bottom: none;
+      border-radius: 6px 6px 0 0; background: #0a1220; color: var(--muted);
+      font-family: 'Segoe UI', system-ui, sans-serif; font-size: 12px; font-weight: 600;
+      letter-spacing: .07em; cursor: pointer; transition: all .15s;
+    }
+    .nav-btn:hover { color: var(--text); background: #0e1a2e; }
+    .nav-btn.active {
+      background: var(--card-bg); color: var(--cyan); border-color: var(--cyan-dim);
+      border-bottom: 1px solid var(--card-bg); margin-bottom: -1px;
+    }
+    .nav-btn.voice-on { background: var(--orange); color: #000; border-color: var(--orange); font-weight: bold; }
+
+    /* Page content */
+    .page { display: none; padding: 18px; }
     .page.active { display: block; }
+
+    /* Status cards */
     .status-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px; }
-    .card { background: #2a2a2a; border: 1px solid #333; border-radius: 6px; padding: 12px; }
-    .card-title { font-size: 11px; color: #666; text-transform: uppercase; margin-bottom: 4px; }
-    .card-band { font-size: 22px; font-weight: bold; color: #00cc66; }
-    .card-relay { font-size: 12px; color: #666; margin-top: 2px; }
+    .card { background: var(--card-bg); border: 1px solid var(--border); border-radius: 8px; padding: 14px; }
+    .card-title { font-size: 11px; color: var(--muted); text-transform: uppercase; margin-bottom: 4px; letter-spacing: .06em; }
+    .card-band { font-size: 22px; font-weight: bold; color: var(--cyan); }
+    .card-relay { font-size: 12px; color: var(--muted); margin-top: 2px; }
+
+    /* Switch matrix */
     .matrix { width: 100%; border-collapse: collapse; }
     .matrix td { padding: 3px 4px; vertical-align: middle; }
     .btn-input {
-      width: 100%; padding: 8px 4px; border: none; border-radius: 4px;
-      font-family: monospace; font-size: 12px; cursor: pointer;
-      background: #333; color: #666;
+      width: 100%; padding: 8px 4px; border: 1px solid var(--border); border-radius: 4px;
+      font-family: 'Segoe UI', system-ui, sans-serif; font-size: 12px; cursor: pointer;
+      background: var(--input-bg); color: var(--muted);
     }
-    .btn-input.active-1 { background: #00cc66; color: #000; font-weight: bold; }
-    .btn-input.active-2 { background: #ff8800; color: #000; font-weight: bold; }
+    .btn-input.active-1 { background: var(--cyan); color: #000; font-weight: bold; border-color: var(--cyan); }
+    .btn-input.active-2 { background: var(--orange); color: #000; font-weight: bold; border-color: var(--orange); }
     .btn-input:disabled { opacity: 0.25; cursor: not-allowed; }
+
+    /* Antenna name cells */
     .ant-name {
       text-align: center; padding: 8px 6px; border-radius: 4px;
-      background: #252525; color: #888; font-size: 12px; border: 1px solid #333;
+      background: var(--row-bg); color: var(--muted); font-size: 12px; border: 1px solid var(--border);
       transition: background 0.15s, border-color 0.15s, color 0.15s;
     }
-    .ant-name.used-1 { background: #1a3329; color: #00cc66; border-color: #00cc66; }
-    .ant-name.used-2 { background: #332200; color: #ff8800; border-color: #ff8800; }
+    .ant-name.used-1 { background: #041e2a; color: var(--cyan); border-color: var(--cyan-dim); }
+    .ant-name.used-2 { background: #1e0e00; color: var(--orange); border-color: var(--orange); }
     .ant-name.inactive { opacity: 0.25; }
     .ant-name.interlock-flash {
-      background: #4a0000 !important; color: #ff4444 !important;
-      border-color: #ff4444 !important;
+      background: #2a0000 !important; color: var(--red) !important;
+      border-color: var(--red) !important;
     }
-    .legend { display: flex; gap: 16px; margin-bottom: 12px; font-size: 11px; }
+
+    /* Legend */
+    .legend { display: flex; gap: 16px; margin-bottom: 12px; font-size: 11px; color: var(--muted); }
     .leg { display: flex; align-items: center; gap: 5px; }
     .leg-dot { width: 10px; height: 10px; border-radius: 2px; }
-    .leg-green { background: #00cc66; }
-    .leg-orange { background: #ff8800; }
-    .leg-grey { background: #333; }
-    .status-bar { font-size: 11px; color: #444; margin-top: 12px; text-align: right; }
+    .leg-green { background: var(--cyan); }
+    .leg-orange { background: var(--orange); }
+    .leg-grey { background: var(--border); }
+    .status-bar { font-size: 11px; color: var(--muted); margin-top: 12px; text-align: right; opacity: 0.6; }
+
+    /* Band map (pigeonhole) */
     .ph-wrap { overflow-x: auto; margin-top: 8px; }
     .ph-table { border-collapse: collapse; font-size: 11px; }
     .ph-table th {
-      padding: 4px 6px; color: #555; font-weight: normal;
-      border-bottom: 1px solid #2a2a2a; text-align: center; white-space: nowrap;
+      padding: 4px 6px; color: var(--muted); font-weight: normal;
+      border-bottom: 1px solid var(--border); text-align: center; white-space: nowrap;
     }
     .ph-table td { padding: 3px 4px; }
-    .ph-port-label { font-size: 11px; color: #666; white-space: nowrap; padding-right: 8px; text-align: right; }
-    .ph-port-label.active-port { color: #aaa; }
+    .ph-port-label { font-size: 11px; color: var(--muted); white-space: nowrap; padding-right: 8px; text-align: right; }
+    .ph-port-label.active-port { color: var(--text); }
     .ph-cell {
-      width: 32px; height: 28px; border: 1px solid #2a2a2a; border-radius: 3px;
-      background: #222; cursor: pointer; text-align: center; vertical-align: middle;
+      width: 32px; height: 28px; border: 1px solid var(--border); border-radius: 3px;
+      background: var(--row-bg); cursor: pointer; text-align: center; vertical-align: middle;
       font-size: 14px; color: transparent;
       transition: background 0.1s, border-color 0.1s;
     }
-    .ph-cell:hover { border-color: #444; background: #2a2a2a; }
-    .ph-cell.assigned { background: #1a3329; border-color: #00cc66; color: #00cc66; }
+    .ph-cell:hover { border-color: var(--cyan-dim); background: #0d1e30; }
+    .ph-cell.assigned { background: #041e2a; border-color: var(--cyan-dim); color: var(--cyan); }
     .ph-cell.inactive-port { opacity: 0.2; cursor: not-allowed; }
+
+    /* Settings sections */
     .settings-section { margin-bottom: 24px; }
-    .rs-slot { background:#1a1a1a; border:1px solid #333; border-radius:4px;
-               padding:10px 14px; min-width:150px; flex:1; }
+    .rs-slot {
+      background: var(--row-bg); border: 1px solid var(--border); border-radius: 4px;
+      padding: 10px 14px; min-width: 150px; flex: 1;
+    }
     .settings-section h4 {
-      color: #00cc66; font-size: 13px; margin-bottom: 10px;
-      border-bottom: 1px solid #333; padding-bottom: 6px;
+      color: var(--cyan); font-size: 13px; font-weight: 600; margin-bottom: 10px;
+      border-bottom: 1px solid var(--cyan-dim); padding-bottom: 6px; letter-spacing: .06em;
     }
     .settings-grid { width: 100%; border-collapse: collapse; }
     .settings-grid th {
-      font-size: 11px; color: #555; text-align: left;
-      padding: 4px 6px; border-bottom: 1px solid #2a2a2a;
+      font-size: 11px; color: var(--muted); text-align: left;
+      padding: 4px 6px; border-bottom: 1px solid var(--border);
     }
     .settings-grid td { padding: 4px 6px; }
-    .settings-grid tr:nth-child(even) td { background: #222; }
-    .band-label { font-size: 12px; color: #aaa; white-space: nowrap; }
-    input.ant-rename {
-      background: #2a2a2a; color: #ccc; border: 1px solid #444;
-      border-radius: 3px; font-family: monospace; font-size: 12px;
+    .settings-grid tr:nth-child(even) td { background: var(--row-bg); }
+    .band-label { font-size: 12px; color: var(--text); white-space: nowrap; }
+
+    /* Inputs / selects */
+    input.ant-rename, select.ant-rename {
+      background: var(--input-bg); color: var(--text); border: 1px solid var(--border);
+      border-radius: 3px; font-family: 'Segoe UI', system-ui, sans-serif; font-size: 12px;
       padding: 4px 8px; width: 100%;
     }
-    input.ant-rename:focus { outline: none; border-color: #00cc66; }
-    .row-save-btn {
-      padding: 4px 10px; background: #2a2a2a; color: #00cc66;
-      border: 1px solid #00cc66; border-radius: 3px;
-      font-family: monospace; font-size: 11px; cursor: pointer; white-space: nowrap;
-    }
-    .row-save-btn:hover { background: #1a3329; }
-    .save-btn {
-      margin-top: 12px; padding: 8px 20px; background: #00cc66; color: #000;
-      border: none; border-radius: 4px; font-family: monospace; font-size: 13px;
-      font-weight: bold; cursor: pointer;
-    }
-    .save-btn:hover { background: #00ee77; }
-    .save-msg { font-size: 11px; color: #00cc66; margin-top: 8px; min-height: 16px; }
-    .port-count-row { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
-    .port-count-row label { font-size: 12px; color: #aaa; }
-    .port-btn {
-      padding: 6px 16px; border: 1px solid #444; border-radius: 4px;
-      background: #222; color: #888; font-family: monospace; font-size: 12px; cursor: pointer;
-    }
-    .port-btn.selected { background: #00cc66; color: #000; border-color: #00cc66; font-weight: bold; }
-    .nav-btn.voice-on { background: #ff8800; color: #000; border-color: #ff8800; font-weight: bold; }
-    .port-save-msg { font-size: 11px; color: #00cc66; }
+    input.ant-rename:focus, select.ant-rename:focus { outline: none; border-color: var(--cyan-dim); }
 
+    /* Buttons */
+    .row-save-btn {
+      padding: 4px 10px; background: var(--input-bg); color: var(--cyan);
+      border: 1px solid var(--cyan-dim); border-radius: 3px;
+      font-family: 'Segoe UI', system-ui, sans-serif; font-size: 11px; cursor: pointer; white-space: nowrap;
+    }
+    .row-save-btn:hover { background: #041e2a; }
+    .save-btn {
+      margin-top: 12px; padding: 8px 20px; background: var(--cyan); color: #000;
+      border: none; border-radius: 4px; font-family: 'Segoe UI', system-ui, sans-serif;
+      font-size: 13px; font-weight: bold; cursor: pointer;
+    }
+    .save-btn:hover { background: #33e8f8; }
+    .save-msg { font-size: 11px; color: var(--cyan); margin-top: 8px; min-height: 16px; }
+    .port-count-row { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
+    .port-count-row label { font-size: 12px; color: var(--muted); }
+    .port-btn {
+      padding: 6px 16px; border: 1px solid var(--border); border-radius: 4px;
+      background: var(--input-bg); color: var(--muted);
+      font-family: 'Segoe UI', system-ui, sans-serif; font-size: 12px; cursor: pointer;
+    }
+    .port-btn.selected { background: var(--cyan); color: #000; border-color: var(--cyan); font-weight: bold; }
+    .port-save-msg { font-size: 11px; color: var(--cyan); }
+
+    /* Amplifier page */
     .amp-status-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px; }
-    .amp-metric { background: #2a2a2a; border: 1px solid #333; border-radius: 6px; padding: 12px; }
-    .amp-metric-title { font-size: 11px; color: #666; text-transform: uppercase; margin-bottom: 4px; }
-    .amp-metric-value { font-size: 26px; color: #00cc66; font-weight: bold; }
-    .amp-metric-unit { font-size: 12px; color: #555; margin-top: 2px; }
-    .amp-metric-value.warn { color: #ff8800; }
-    .amp-metric-value.danger { color: #ff4444; }
+    .amp-metric { background: var(--card-bg); border: 1px solid var(--border); border-radius: 8px; padding: 12px; }
+    .amp-metric-title { font-size: 11px; color: var(--muted); text-transform: uppercase; margin-bottom: 4px; letter-spacing: .06em; }
+    .amp-metric-value { font-size: 26px; color: var(--cyan); font-weight: bold; }
+    .amp-metric-unit { font-size: 12px; color: var(--muted); margin-top: 2px; }
+    .amp-metric-value.warn { color: var(--yellow); }
+    .amp-metric-value.danger { color: var(--red); }
     .amp-operate-row { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
-    .amp-mode-badge { padding: 6px 18px; border-radius: 4px; font-size: 13px; font-weight: bold; font-family: monospace; letter-spacing: 1px; }
-    .amp-mode-badge.operate { background: #00cc66; color: #000; }
-    .amp-mode-badge.standby { background: #333; color: #888; border: 1px solid #555; }
-    .amp-toggle-btn { padding: 6px 16px; border: 1px solid #00cc66; border-radius: 4px; background: #222; color: #00cc66; font-family: monospace; font-size: 12px; cursor: pointer; }
-    .amp-toggle-btn:hover { background: #1a3329; }
+    .amp-mode-badge { padding: 6px 18px; border-radius: 4px; font-size: 13px; font-weight: bold; font-family: 'Segoe UI', system-ui, sans-serif; letter-spacing: 1px; }
+    .amp-mode-badge.operate { background: var(--cyan); color: #000; }
+    .amp-mode-badge.standby { background: var(--row-bg); color: var(--muted); border: 1px solid var(--border); }
+    .amp-toggle-btn { padding: 6px 16px; border: 1px solid var(--cyan-dim); border-radius: 4px; background: var(--input-bg); color: var(--cyan); font-family: 'Segoe UI', system-ui, sans-serif; font-size: 12px; cursor: pointer; }
+    .amp-toggle-btn:hover { background: #041e2a; }
     .amp-fault-row { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
-    .amp-fault-badge { padding: 5px 14px; border-radius: 4px; font-size: 12px; font-family: monospace; background: #2a0000; color: #ff4444; border: 1px solid #ff4444; display: none; }
+    .amp-fault-badge { padding: 5px 14px; border-radius: 4px; font-size: 12px; font-family: 'Segoe UI', system-ui, sans-serif; background: #1a0000; color: var(--red); border: 1px solid var(--red); display: none; }
     .amp-fault-badge.visible { display: inline-block; }
-    .amp-reset-btn { padding: 5px 14px; border: 1px solid #ff4444; border-radius: 4px; background: #2a0000; color: #ff4444; font-family: monospace; font-size: 11px; cursor: pointer; display: none; }
+    .amp-reset-btn { padding: 5px 14px; border: 1px solid var(--red); border-radius: 4px; background: #1a0000; color: var(--red); font-family: 'Segoe UI', system-ui, sans-serif; font-size: 11px; cursor: pointer; display: none; }
     .amp-reset-btn.visible { display: inline-block; }
-    .amp-reset-btn:hover { background: #4a0000; }
-    .amp-unreachable { background: #222; border: 1px solid #333; border-radius: 6px; padding: 24px; text-align: center; color: #555; font-size: 13px; }
+    .amp-reset-btn:hover { background: #300000; }
+    .amp-unreachable { background: var(--row-bg); border: 1px solid var(--border); border-radius: 8px; padding: 24px; text-align: center; color: var(--muted); font-size: 13px; }
     .amp-ip-row { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; }
-    .amp-ip-label { font-size: 12px; color: #666; }
-    input.amp-ip-input { background: #2a2a2a; color: #ccc; border: 1px solid #444; border-radius: 3px; font-family: monospace; font-size: 12px; padding: 4px 8px; width: 160px; }
-    input.amp-ip-input:focus { outline: none; border-color: #00cc66; }
-    .amp-save-btn { padding: 4px 12px; background: #2a2a2a; color: #00cc66; border: 1px solid #00cc66; border-radius: 3px; font-family: monospace; font-size: 11px; cursor: pointer; }
-    .amp-save-btn:hover { background: #1a3329; }
-    .amp-status-bar { font-size: 11px; color: #444; text-align: right; margin-top: 8px; }
+    .amp-ip-label { font-size: 12px; color: var(--muted); }
+    input.amp-ip-input { background: var(--input-bg); color: var(--text); border: 1px solid var(--border); border-radius: 3px; font-family: 'Segoe UI', system-ui, sans-serif; font-size: 12px; padding: 4px 8px; width: 160px; }
+    input.amp-ip-input:focus { outline: none; border-color: var(--cyan-dim); }
+    .amp-save-btn { padding: 4px 12px; background: var(--input-bg); color: var(--cyan); border: 1px solid var(--cyan-dim); border-radius: 3px; font-family: 'Segoe UI', system-ui, sans-serif; font-size: 11px; cursor: pointer; }
+    .amp-save-btn:hover { background: #041e2a; }
+    .amp-status-bar { font-size: 11px; color: var(--muted); text-align: right; margin-top: 8px; opacity: 0.6; }
   </style>
 </head>
 <body>
-  <h1>G0JKN ShackSwitch</h1>
-  <h3 id="subtitle">v2.0 — Arduino Uno Q — 10.0.0.145</h3>
+  <div class="topbar">
+    <div class="topbar-title">G0JKN ShackSwitch</div>
+    <div class="topbar-sub" id="subtitle">v2.0 — Arduino Uno Q — 10.0.0.145</div>
+  </div>
   <div class="nav">
     <button class="nav-btn active" onclick="showPage('main', this)">Status</button>
     <button class="nav-btn" onclick="showPage('amplifier', this); loadAmplifier()">Amplifier</button>
-    <button class="nav-btn" onclick="showPage('settings', this)">Settings</button>
+    <button class="nav-btn" onclick="window.location.href='/settings'">Settings</button>
     <button class="nav-btn" id="voice-btn" onclick="toggleVoice()">Voice</button>
   </div>
   <!-- MAIN PAGE -->
@@ -172,12 +222,12 @@
     </div>
     <table class="matrix"><tbody id="matrix-body"></tbody></table>
     <div class="status-bar" id="status-bar">Connecting...</div>
-    <div id="voice-status" style="display:none;font-size:11px;color:#ff8800;margin-top:6px;">
+    <div id="voice-status" style="display:none;font-size:11px;color:var(--orange);margin-top:6px;">
       🎤 <span id="voice-transcript">Listening...</span>
     </div>
   </div><!-- SETTINGS PAGE -->
   <div class="page" id="page-settings">
-    <div style="margin-bottom:16px;padding-bottom:14px;border-bottom:1px solid #333;">
+    <div style="margin-bottom:16px;padding-bottom:14px;border-bottom:1px solid var(--border);">
       <button class="row-save-btn" onclick="goVoiceSettings()" style="font-size:12px;">Voice Settings &#9881;</button>
     </div>
     <div class="settings-section">
@@ -185,13 +235,13 @@
       <div class="port-count-row">
         <label>Active ports:</label>
         <input type="number" id="port-count-input" min="2" max="16" value="8"
-          style="width:60px;background:#2a2a2a;color:#ccc;border:1px solid #444;
-                 border-radius:3px;font-family:monospace;font-size:13px;
+          style="width:60px;background:var(--input-bg);color:var(--text);border:1px solid var(--border);
+                 border-radius:3px;font-family:'Segoe UI',system-ui,sans-serif;font-size:13px;
                  padding:4px 8px;text-align:center;">
         <button class="port-btn" onclick="applyPortCount()">Apply</button>
         <span class="port-save-msg" id="port-save-msg"></span>
       </div>
-      <div id="port-board-warn" style="display:none;font-size:11px;color:#ff8800;margin-bottom:8px;">
+      <div id="port-board-warn" style="display:none;font-size:11px;color:var(--orange);margin-bottom:8px;">
         ⚠ Ports 9–16 require a second MCP23017 board (Port A only)
       </div>
     </div>
@@ -199,7 +249,7 @@
       <h4>Number of Inputs</h4>
       <div class="port-count-row">
         <label>Inputs:</label>
-        <select id="input-count-select" style="background:#2a2a2a;color:#ccc;border:1px solid #444;border-radius:3px;font-family:monospace;font-size:13px;padding:4px 8px;">
+        <select id="input-count-select" style="background:var(--input-bg);color:var(--text);border:1px solid var(--border);border-radius:3px;font-family:'Segoe UI',system-ui,sans-serif;font-size:13px;padding:4px 8px;">
           <option value="1">1 — Single radio</option>
           <option value="2">2 — SO2R / dual radio</option>
         </select>
@@ -218,18 +268,18 @@
     </div>
     <div class="settings-section" id="rs-section">
       <h4>Radio Sources</h4>
-      <div id="rs-conflict-banner" style="display:none;background:#3a2000;border:1px solid #ff8800;
-           border-radius:4px;padding:8px 12px;margin-bottom:12px;font-size:12px;color:#ff8800;"></div>
+      <div id="rs-conflict-banner" style="display:none;background:#1e1000;border:1px solid var(--orange);
+           border-radius:4px;padding:8px 12px;margin-bottom:12px;font-size:12px;color:var(--orange);"></div>
       <div style="display:flex;gap:12px;margin-bottom:16px;flex-wrap:wrap;">
         <div class="rs-slot" id="rs-slot-1">
-          <div style="font-size:11px;color:#888;margin-bottom:4px;">INPUT 1</div>
-          <div id="rs-slot-1-label" style="font-size:13px;color:#0af;font-weight:bold;">—</div>
-          <div id="rs-slot-1-status" style="font-size:11px;color:#555;margin-top:2px;"></div>
+          <div style="font-size:11px;color:var(--muted);margin-bottom:4px;">INPUT 1</div>
+          <div id="rs-slot-1-label" style="font-size:13px;color:var(--cyan);font-weight:bold;">—</div>
+          <div id="rs-slot-1-status" style="font-size:11px;color:var(--muted);margin-top:2px;"></div>
         </div>
         <div class="rs-slot" id="rs-slot-2">
-          <div style="font-size:11px;color:#888;margin-bottom:4px;">INPUT 2</div>
-          <div id="rs-slot-2-label" style="font-size:13px;color:#0af;font-weight:bold;">—</div>
-          <div id="rs-slot-2-status" style="font-size:11px;color:#555;margin-top:2px;"></div>
+          <div style="font-size:11px;color:var(--muted);margin-bottom:4px;">INPUT 2</div>
+          <div id="rs-slot-2-label" style="font-size:13px;color:var(--cyan);font-weight:bold;">—</div>
+          <div id="rs-slot-2-status" style="font-size:11px;color:var(--muted);margin-top:2px;"></div>
         </div>
       </div>
       <table class="settings-grid" id="rs-table">
@@ -241,50 +291,50 @@
       <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
         <button class="row-save-btn" onclick="rsShowAddForm()">+ Add Radio</button>
         <button class="row-save-btn" id="rs-scan-btn" onclick="rsScan()">Scan Network</button>
-        <span id="rs-scan-msg" style="font-size:11px;color:#888;"></span>
+        <span id="rs-scan-msg" style="font-size:11px;color:var(--muted);"></span>
       </div>
       <div id="rs-scan-results" style="display:none;margin-top:10px;"></div>
-      <div id="rs-add-form" style="display:none;margin-top:14px;background:#1a1a1a;
-           border:1px solid #333;border-radius:4px;padding:12px;">
-        <div style="font-size:12px;color:#888;margin-bottom:10px;" id="rs-form-title">Add Radio</div>
+      <div id="rs-add-form" style="display:none;margin-top:14px;background:var(--row-bg);
+           border:1px solid var(--border);border-radius:4px;padding:12px;">
+        <div style="font-size:12px;color:var(--muted);margin-bottom:10px;" id="rs-form-title">Add Radio</div>
         <input type="hidden" id="rs-form-id">
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
-          <div><div style="font-size:11px;color:#777;margin-bottom:3px;">Label</div>
+          <div><div style="font-size:11px;color:var(--muted);margin-bottom:3px;">Label</div>
             <input class="ant-rename" id="rs-f-label" placeholder="e.g. IC-9700" style="width:100%;"></div>
-          <div><div style="font-size:11px;color:#777;margin-bottom:3px;">Protocol</div>
+          <div><div style="font-size:11px;color:var(--muted);margin-bottom:3px;">Protocol</div>
             <select id="rs-f-protocol" class="ant-rename" style="width:100%;" onchange="rsFormProtocolChange()">
               <option value="kenwood">Kenwood (IF;)</option>
               <option value="yaesu">Yaesu (IF;)</option>
               <option value="icom">Icom CI-V</option>
             </select></div>
-          <div><div style="font-size:11px;color:#777;margin-bottom:3px;">Transport</div>
+          <div><div style="font-size:11px;color:var(--muted);margin-bottom:3px;">Transport</div>
             <select id="rs-f-transport" class="ant-rename" style="width:100%;" onchange="rsFormTransportChange()">
               <option value="network">Network (TCP)</option>
               <option value="serial">Serial (USB)</option>
             </select></div>
-          <div><div style="font-size:11px;color:#777;margin-bottom:3px;">Input</div>
+          <div><div style="font-size:11px;color:var(--muted);margin-bottom:3px;">Input</div>
             <select id="rs-f-input" class="ant-rename" style="width:100%;">
               <option value="1">Input 1</option>
               <option value="2">Input 2</option>
             </select></div>
-          <div id="rs-f-host-row"><div style="font-size:11px;color:#777;margin-bottom:3px;">IP Address</div>
+          <div id="rs-f-host-row"><div style="font-size:11px;color:var(--muted);margin-bottom:3px;">IP Address</div>
             <input class="ant-rename" id="rs-f-host" placeholder="10.0.0.x" style="width:100%;"></div>
-          <div id="rs-f-port-row"><div style="font-size:11px;color:#777;margin-bottom:3px;">Port</div>
+          <div id="rs-f-port-row"><div style="font-size:11px;color:var(--muted);margin-bottom:3px;">Port</div>
             <input class="ant-rename" id="rs-f-port" type="number" value="60000" style="width:100%;"></div>
-          <div id="rs-f-device-row" style="display:none;"><div style="font-size:11px;color:#777;margin-bottom:3px;">Serial Device</div>
+          <div id="rs-f-device-row" style="display:none;"><div style="font-size:11px;color:var(--muted);margin-bottom:3px;">Serial Device</div>
             <input class="ant-rename" id="rs-f-device" placeholder="/dev/ttyUSB0" style="width:100%;"></div>
-          <div id="rs-f-baud-row" style="display:none;"><div style="font-size:11px;color:#777;margin-bottom:3px;">Baud Rate</div>
+          <div id="rs-f-baud-row" style="display:none;"><div style="font-size:11px;color:var(--muted);margin-bottom:3px;">Baud Rate</div>
             <select id="rs-f-baud" class="ant-rename" style="width:100%;">
               <option value="4800">4800</option><option value="9600" selected>9600</option>
               <option value="19200">19200</option><option value="38400">38400</option>
             </select></div>
-          <div id="rs-f-civ-row" style="display:none;"><div style="font-size:11px;color:#777;margin-bottom:3px;">CI-V Address</div>
+          <div id="rs-f-civ-row" style="display:none;"><div style="font-size:11px;color:var(--muted);margin-bottom:3px;">CI-V Address</div>
             <input class="ant-rename" id="rs-f-civ" placeholder="0x98 (IC-9700)" style="width:100%;"></div>
         </div>
         <div style="display:flex;gap:8px;align-items:center;">
           <button class="row-save-btn" onclick="rsSaveForm()">Save</button>
           <button class="row-save-btn" onclick="rsCancelForm()">Cancel</button>
-          <span id="rs-form-msg" style="font-size:11px;color:#ff8800;"></span>
+          <span id="rs-form-msg" style="font-size:11px;color:var(--orange);"></span>
         </div>
       </div>
     </div>
@@ -313,7 +363,7 @@
 
     <div class="settings-section">
       <h4>Band → Antenna Assignment</h4>
-      <p style="font-size:11px;color:#555;margin-bottom:8px;">
+      <p style="font-size:11px;color:var(--muted);margin-bottom:8px;">
         Click a cell to assign that band to that port. Click again to clear.
         One antenna per band. Greyed rows are beyond active port count.
       </p>
@@ -528,7 +578,7 @@ function rsRenderSlots(sources) {
     const st  = document.getElementById('rs-slot-' + inp + '-status');
     if (src) {
       lbl.textContent = src.label;
-      const col = src.connected ? '#0a0' : '#555';
+      const col = src.connected ? '#22d46a' : '#6b8099';
       const dot = src.connected ? '● ' : '○ ';
       const info = (src.band && src.band !== '—') ? src.band : (src.status || 'Idle');
       st.innerHTML = '<span style="color:' + col + '">' + dot + '</span>' + info;
@@ -554,33 +604,33 @@ function rsRenderTable(sources) {
   tbody.innerHTML = '';
   const catSources = sources.filter(s => s.protocol !== 'smartsdr');
   if (!catSources.length) {
-    tbody.innerHTML = '<tr><td colspan="6" style="color:#555;font-size:12px;padding:8px 0;">' +
+    tbody.innerHTML = '<tr><td colspan="6" style="color:var(--muted);font-size:12px;padding:8px 0;">' +
       'No CAT radios configured. Use + Add Radio or Scan Network.</td></tr>';
     return;
   }
   catSources.forEach(src => {
     const tr = document.createElement('tr');
     const dot = src.connected
-      ? '<span style="color:#0a0">&#9679;</span>'
-      : '<span style="color:#555">&#9679;</span>';
+      ? '<span style="color:#22d46a">&#9679;</span>'
+      : '<span style="color:#6b8099">&#9679;</span>';
     const conn = src.transport === 'network'
       ? (src.host ? src.host + ':' + src.port : '—')
       : (src.device || '—');
     const inputLabel = src.input ? 'Input ' + src.input : '—';
     const disBtn = '<button class="row-save-btn" onclick="rsToggle(\'' + src.id + '\',' +
       (src.enabled ? 'false' : 'true') + ')" style="' +
-      (src.enabled ? 'background:#600;border-color:#900;' : '') + '">' +
+      (src.enabled ? 'background:#300;border-color:#600;' : '') + '">' +
       (src.enabled ? 'Disable' : 'Enable') + '</button>';
     tr.innerHTML =
       '<td>' + dot + ' ' + src.label + '</td>' +
-      '<td style="color:#888;font-size:11px;">' + src.protocol + '</td>' +
-      '<td style="font-size:11px;color:#888;">' + conn + '</td>' +
+      '<td style="color:var(--muted);font-size:11px;">' + src.protocol + '</td>' +
+      '<td style="font-size:11px;color:var(--muted);">' + conn + '</td>' +
       '<td style="font-size:11px;">' + inputLabel + '</td>' +
-      '<td style="font-size:11px;color:#888;">' + (src.status || '—') + '</td>' +
+      '<td style="font-size:11px;color:var(--muted);">' + (src.status || '—') + '</td>' +
       '<td style="white-space:nowrap;">' + disBtn +
       ' <button class="row-save-btn" onclick="rsEdit(\'' + src.id + '\')">Edit</button>' +
       ' <button class="row-save-btn" onclick="rsDelete(\'' + src.id + '\')" ' +
-      'style="background:#600;border-color:#900;">&#10005;</button></td>';
+      'style="color:var(--red);border-color:var(--red);">&#10005;</button></td>';
     tbody.appendChild(tr);
   });
 }
@@ -687,18 +737,18 @@ function rsScan() {
     if (!found.length) { msg.textContent = 'No radios found.'; return; }
     msg.textContent = found.length + ' found';
     res.style.display = 'block';
-    res.innerHTML = '<div style="font-size:11px;color:#888;margin-bottom:6px;">Discovered on network:</div>' +
+    res.innerHTML = '<div style="font-size:11px;color:var(--muted);margin-bottom:6px;">Discovered on network:</div>' +
       found.map(r => {
         const already = _rsSources.some(s => s.host === r.ip && String(s.port) === String(r.port));
         const addBtn = already
-          ? '<span style="color:#555;font-size:11px;">already added</span>'
+          ? '<span style="color:var(--muted);font-size:11px;">already added</span>'
           : '<button class="row-save-btn" id="rs-add-' + r.ip.replace(/\./g,'-') + '-' + r.port +
             '" onclick=\'rsShowAddForm(' + JSON.stringify({label:r.label,protocol:r.protocol,
             transport:"network",host:r.ip,port:r.port}) + ')\'>Add</button>';
-        return '<div style="display:flex;gap:10px;align-items:center;padding:4px 0;border-bottom:1px solid #222;">' +
-          '<span style="color:#0a0;font-size:12px;">&#9679;</span>' +
+        return '<div style="display:flex;gap:10px;align-items:center;padding:4px 0;border-bottom:1px solid var(--border);">' +
+          '<span style="color:#22d46a;font-size:12px;">&#9679;</span>' +
           '<span style="font-family:monospace;font-size:12px;min-width:130px;">' + r.ip + ':' + r.port + '</span>' +
-          '<span style="font-size:12px;color:#aaa;flex:1;">' + r.label + '</span>' +
+          '<span style="font-size:12px;color:var(--text);flex:1;">' + r.label + '</span>' +
           addBtn + '</div>';
       }).join('');
   }).catch(() => { btn.disabled = false; msg.textContent = 'Scan failed.'; });
@@ -1151,11 +1201,11 @@ function updateVcStatusBadge() {
   const badge = document.getElementById('vc-status-badge');
   if (!badge) return;
   if (voiceEnabled) {
-    badge.textContent = 'ON'; badge.style.background = '#ff8800';
+    badge.textContent = 'ON'; badge.style.background = 'var(--orange)';
     badge.style.color = '#000'; badge.style.border = 'none';
   } else {
-    badge.textContent = 'OFF'; badge.style.background = '#333';
-    badge.style.color = '#666'; badge.style.border = '1px solid #555';
+    badge.textContent = 'OFF'; badge.style.background = 'var(--row-bg)';
+    badge.style.color = 'var(--muted)'; badge.style.border = '1px solid var(--border)';
   }
 }
 function toggleVoiceFromPage() { toggleVoice(); updateVcStatusBadge(); }
@@ -1173,7 +1223,7 @@ function renderCustomCommands() {
   const cmds = getCustomCommands();
   tbody.innerHTML = '';
   if (!cmds.length) {
-    tbody.innerHTML = '<tr><td colspan="3" style="font-size:11px;color:#555;padding:8px 6px;">No custom commands yet.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="3" style="font-size:11px;color:var(--muted);padding:8px 6px;">No custom commands yet.</td></tr>';
     return;
   }
   cmds.forEach((cmd, i) => {
@@ -1184,8 +1234,8 @@ function renderCustomCommands() {
     const tr = document.createElement('tr');
     tr.innerHTML =
       '<td class="band-label">&quot;' + cmd.phrase + '&quot;</td>' +
-      '<td style="font-size:12px;color:#aaa;">' + desc + '</td>' +
-      '<td><button class="row-save-btn" style="color:#ff4444;border-color:#ff4444;" onclick="deleteCustomCommand(' + i + ')">&#x2715;</button></td>';
+      '<td style="font-size:12px;color:var(--muted);">' + desc + '</td>' +
+      '<td><button class="row-save-btn" style="color:var(--red);border-color:var(--red);" onclick="deleteCustomCommand(' + i + ')">&#x2715;</button></td>';
     tbody.appendChild(tr);
   });
 }
@@ -1307,39 +1357,39 @@ function executeCustomCommand(cmd) {
     <div class="settings-section">
       <h4>Voice Control</h4>
       <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;">
-        <span style="font-size:12px;color:#aaa;">Status:</span>
-        <span id="vc-status-badge" style="padding:4px 14px;border-radius:4px;font-size:12px;font-family:monospace;background:#333;color:#666;border:1px solid #555;">OFF</span>
+        <span style="font-size:12px;color:var(--muted);">Status:</span>
+        <span id="vc-status-badge" style="padding:4px 14px;border-radius:4px;font-size:12px;font-family:'Segoe UI',system-ui,sans-serif;background:var(--row-bg);color:var(--muted);border:1px solid var(--border);">OFF</span>
         <button class="row-save-btn" onclick="toggleVoiceFromPage()">Toggle</button>
       </div>
     </div>
     <div class="settings-section">
       <h4>TTS Settings</h4>
-      <p style="font-size:11px;color:#555;margin-bottom:12px;">Choose a voice and adjust speech parameters. Available voices depend on your browser and OS.</p>
+      <p style="font-size:11px;color:var(--muted);margin-bottom:12px;">Choose a voice and adjust speech parameters. Available voices depend on your browser and OS.</p>
       <div style="display:flex;flex-direction:column;gap:12px;">
         <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
-          <label style="font-size:12px;color:#aaa;width:56px;">Voice</label>
+          <label style="font-size:12px;color:var(--muted);width:56px;">Voice</label>
           <select id="tts-voice" class="ant-rename" style="flex:1;min-width:200px;" onchange="saveTtsSettings()">
             <option value="">— Browser default —</option>
           </select>
         </div>
         <div style="display:flex;align-items:center;gap:10px;">
-          <label style="font-size:12px;color:#aaa;width:56px;">Rate</label>
+          <label style="font-size:12px;color:var(--muted);width:56px;">Rate</label>
           <input type="range" id="tts-rate" min="0.5" max="1.8" step="0.05" value="0.9" style="flex:1;" oninput="document.getElementById('tts-rate-val').textContent=parseFloat(this.value).toFixed(2);saveTtsSettings()">
-          <span id="tts-rate-val" style="font-size:12px;color:#ccc;width:36px;text-align:right;">0.90</span>
+          <span id="tts-rate-val" style="font-size:12px;color:var(--text);width:36px;text-align:right;">0.90</span>
         </div>
         <div style="display:flex;align-items:center;gap:10px;">
-          <label style="font-size:12px;color:#aaa;width:56px;">Pitch</label>
+          <label style="font-size:12px;color:var(--muted);width:56px;">Pitch</label>
           <input type="range" id="tts-pitch" min="0.5" max="1.8" step="0.05" value="1.0" style="flex:1;" oninput="document.getElementById('tts-pitch-val').textContent=parseFloat(this.value).toFixed(2);saveTtsSettings()">
-          <span id="tts-pitch-val" style="font-size:12px;color:#ccc;width:36px;text-align:right;">1.00</span>
+          <span id="tts-pitch-val" style="font-size:12px;color:var(--text);width:36px;text-align:right;">1.00</span>
         </div>
         <div style="display:flex;align-items:center;gap:10px;">
-          <label style="font-size:12px;color:#aaa;width:56px;">Volume</label>
+          <label style="font-size:12px;color:var(--muted);width:56px;">Volume</label>
           <input type="range" id="tts-volume" min="0" max="1" step="0.05" value="1.0" style="flex:1;" oninput="document.getElementById('tts-volume-val').textContent=parseFloat(this.value).toFixed(2);saveTtsSettings()">
-          <span id="tts-volume-val" style="font-size:12px;color:#ccc;width:36px;text-align:right;">1.00</span>
+          <span id="tts-volume-val" style="font-size:12px;color:var(--text);width:36px;text-align:right;">1.00</span>
         </div>
         <div style="display:flex;align-items:center;gap:10px;">
           <button class="row-save-btn" onclick="testTts()">&#9654; Test Voice</button>
-          <span id="tts-test-msg" style="font-size:11px;color:#888;"></span>
+          <span id="tts-test-msg" style="font-size:11px;color:var(--muted);"></span>
         </div>
       </div>
     </div>
@@ -1348,23 +1398,23 @@ function executeCustomCommand(cmd) {
       <table class="settings-grid">
         <thead><tr><th>Say</th><th>Action</th></tr></thead>
         <tbody>
-          <tr><td class="band-label">"status" or "what"</td><td style="font-size:12px;color:#aaa;">Announce current antenna state</td></tr>
-          <tr><td class="band-label">"input one antenna two"</td><td style="font-size:12px;color:#aaa;">Input A &rarr; Port 2 (words or digits)</td></tr>
-          <tr><td class="band-label">"input two antenna three"</td><td style="font-size:12px;color:#aaa;">Input B &rarr; Port 3</td></tr>
-          <tr><td class="band-label">"amplifier operate"</td><td style="font-size:12px;color:#aaa;">RF2K-S &rarr; Operate</td></tr>
-          <tr><td class="band-label">"amplifier standby"</td><td style="font-size:12px;color:#aaa;">RF2K-S &rarr; Standby</td></tr>
+          <tr><td class="band-label">"status" or "what"</td><td style="font-size:12px;color:var(--muted);">Announce current antenna state</td></tr>
+          <tr><td class="band-label">"input one antenna two"</td><td style="font-size:12px;color:var(--muted);">Input A &rarr; Port 2 (words or digits)</td></tr>
+          <tr><td class="band-label">"input two antenna three"</td><td style="font-size:12px;color:var(--muted);">Input B &rarr; Port 3</td></tr>
+          <tr><td class="band-label">"amplifier operate"</td><td style="font-size:12px;color:var(--muted);">RF2K-S &rarr; Operate</td></tr>
+          <tr><td class="band-label">"amplifier standby"</td><td style="font-size:12px;color:var(--muted);">RF2K-S &rarr; Standby</td></tr>
         </tbody>
       </table>
     </div>
     <div class="settings-section">
       <h4>Custom Commands</h4>
-      <p style="font-size:11px;color:#555;margin-bottom:10px;">Shortcut phrases stored in your browser.</p>
+      <p style="font-size:11px;color:var(--muted);margin-bottom:10px;">Shortcut phrases stored in your browser.</p>
       <table class="settings-grid">
         <thead><tr><th>Phrase</th><th>Action</th><th></th></tr></thead>
         <tbody id="custom-cmd-body"></tbody>
       </table>
-      <div style="margin-top:14px;background:#222;border:1px solid #333;border-radius:6px;padding:12px;">
-        <div style="font-size:11px;color:#666;margin-bottom:8px;">Add command:</div>
+      <div style="margin-top:14px;background:var(--card-bg);border:1px solid var(--border);border-radius:6px;padding:12px;">
+        <div style="font-size:11px;color:var(--muted);margin-bottom:8px;">Add command:</div>
         <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;">
           <input id="vc-phrase" class="ant-rename" placeholder="Say this..." style="width:140px;">
           <select id="vc-action" class="ant-rename" onchange="updateVcActionUI()" style="width:150px;">
