@@ -60,13 +60,16 @@ class _NextionDriver:
         self._bridge  = None   # set via init()
         self._running = False
 
-        self._active_port = None
-        self._wifi_ssids  = []
-        self._labels      = ['', '', '', '']
-        self._band        = '--'
-        self._freq        = '0.000 MHz'
-        self._radio_label = ''
-        self._ip          = ''
+        self._active_port   = None
+        self._active_port_b = None
+        self._port_count    = 4
+        self._input_count   = 1
+        self._wifi_ssids    = []
+        self._labels        = ['', '', '', '']
+        self._band          = '--'
+        self._freq          = '0.000 MHz'
+        self._radio_label   = ''
+        self._ip            = ''
 
     # ------------------------------------------------------------------
     # Bridge send
@@ -143,7 +146,19 @@ class _NextionDriver:
             bm = json.loads(bm_resp.read())
 
             antennas = bm.get('antennas', {})
-            port_count = data.get('port_count', 4)
+            port_count   = data.get('port_count', 4)
+            input_count  = data.get('input_count', 1)
+            self._port_count  = port_count
+            self._input_count = input_count
+
+            # Navigate to the correct page before pushing any data
+            if input_count == 2 or port_count > 4:
+                self._send('page page2')
+            elif port_count == 6:
+                self._send('page page1')
+            # else stay on page 0 (1×4)
+            time.sleep(0.15)
+
             labels = []
             for i in range(1, port_count + 1):
                 ant = antennas.get(str(i), {})
@@ -154,6 +169,8 @@ class _NextionDriver:
 
             active = data.get('input1_port') or data.get('input1_relay')
             self._active_port = int(active) if active else None
+            active_b = data.get('input2_port') or data.get('input2_relay')
+            self._active_port_b = int(active_b) if active_b else None
             self._push_buttons()
 
             if self._active_port and self._active_port <= len(self._labels):
@@ -237,11 +254,14 @@ class _NextionDriver:
     # Public update methods
     # ------------------------------------------------------------------
 
-    def update_port(self, port, labels=None, deselected=False):
+    def update_port(self, port, labels=None, deselected=False, input_n=1):
         if labels:
-            self._labels = list(labels)[:4]
+            self._labels = list(labels)[:self._port_count]
             self._push_labels()
-        self._active_port = None if deselected else port
+        if input_n == 2:
+            self._active_port_b = None if deselected else port
+        else:
+            self._active_port = None if deselected else port
         self._push_buttons()
         active_name = ''
         if port and not deselected and len(self._labels) >= port:
@@ -284,13 +304,19 @@ class _NextionDriver:
     # ------------------------------------------------------------------
 
     def _push_labels(self):
-        self._send_many([f't{i+3}.txt="{self._labels[i]}"' for i in range(4)])
+        cmds = [f't{i+3}.txt="{self._labels[i]}"' for i in range(len(self._labels))]
+        self._send_many(cmds)
 
     def _push_buttons(self):
         cmds = []
-        for n in range(1, 5):
-            c = COL_ACTIVE if n == self._active_port else COL_INACTIVE
-            cmds += [f'bA{n}.bco={c}', f'bA{n}.bco2={c}', f'ref bA{n}']
+        count = max(self._port_count, len(self._labels), 4)
+        has_b = self._input_count >= 2 or self._active_port_b is not None
+        for n in range(1, count + 1):
+            ca = COL_ACTIVE if n == self._active_port   else COL_INACTIVE
+            cmds += [f'bA{n}.bco={ca}', f'bA{n}.bco2={ca}', f'ref bA{n}']
+            if has_b:
+                cb = COL_ACTIVE if n == self._active_port_b else COL_INACTIVE
+                cmds += [f'bB{n}.bco={cb}', f'bB{n}.bco2={cb}', f'ref bB{n}']
         self._send_many(cmds)
 
 
@@ -374,19 +400,17 @@ def stop():
 
 
 def on_port_selected(input_n: str, port: int, deselected: bool = False):
-    if input_n != '1':
-        return
-    _driver.update_port(port, deselected=deselected)
+    _driver.update_port(port, deselected=deselected, input_n=int(input_n))
 
 
-def on_band_set(band: str, freq_hz: int, port: int, ant_name: str):
+def on_band_set(band: str, freq_hz: int, port: int, ant_name: str, input_n: str = '1'):
     _driver.update_band(band, freq_hz)
-    _driver.update_port(port)
+    _driver.update_port(port, input_n=int(input_n))
 
 
 def set_labels(labels: list):
     _driver.update_port(_driver._active_port, labels=labels,
-                        deselected=(_driver._active_port is None))
+                        deselected=(_driver._active_port is None), input_n=1)
 
 
 def set_radio(label: str):

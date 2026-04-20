@@ -244,6 +244,7 @@ def kk1l_select():
             config['input1_relay'] = None
         save_config(config)
         nextion.on_port_selected(input_n, port, deselected=True)
+        ag_push_port_status(int(input_n))
         return jsonify({"ok": True, "input": input_n, "port": port, "state": "deselected"})
     use_kk1l = get_input_count(config) == 2
     if current is not None:
@@ -254,6 +255,7 @@ def kk1l_select():
         config['input1_relay'] = port
     save_config(config)
     nextion.on_port_selected(input_n, port)
+    ag_push_port_status(int(input_n))
     return jsonify({"ok": True, "input": input_n, "port": port, "state": "selected"})
 
 @flask_app.route('/kk1l/deselect_all')
@@ -307,6 +309,7 @@ def kk1l_setband():
         bridge_call("kk1l_deselect" if use_kk1l else "relay_off", int(current))
     bridge_call(("kk1l_select_a" if input_n == "1" else "kk1l_select_b") if use_kk1l else "relay_on", port)
     config[this_key] = port
+    config[f'input{input_n}_band'] = band
     if not use_kk1l and input_n == '1':
         config['input1_relay'] = port
     save_config(config)
@@ -316,7 +319,8 @@ def kk1l_setband():
     _sdr = smartsdr_state()
     _raw_freq = (_sdr.get(int(input_n), {}) or {}).get("freq", 0) or 0
     _freq_hz = int(float(_raw_freq) * 1_000_000)
-    nextion.on_band_set(band, _freq_hz, port, ant_name)
+    nextion.on_band_set(band, _freq_hz, port, ant_name, input_n)
+    ag_push_port_status(int(input_n))
     return jsonify({"ok": True, "input": input_n, "band": band, "port": port, "antenna": ant_name})
 
 # ---------------------------------------------------------------------------
@@ -392,13 +396,17 @@ def rename():
 @flask_app.route('/rename/bulk', methods=['POST'])
 def rename_bulk():
     data = request.get_json()
-    if not data or 'antennas' not in data:
-        return jsonify({"ok": False, "error": "antennas required"}), 400
+    if not data:
+        return jsonify({"ok": False, "error": "body required"}), 400
+    # Accept both {"antennas": {"1": "name"}} and flat {"1": "name"}
+    names = data.get('antennas', data)
     config  = load_config()
     profile = get_profile(config)
-    for k, v in data['antennas'].items():
-        if str(k) in profile.get("antennas", {}):
-            profile["antennas"][str(k)]["name"] = v
+    for k, v in names.items():
+        key = str(k)
+        if key not in profile.setdefault("antennas", {}):
+            profile["antennas"][key] = {}
+        profile["antennas"][key]["name"] = v
     save_config(config)
     return jsonify({"ok": True})
 
@@ -406,10 +414,17 @@ def rename_bulk():
 # Routes — band map
 # ---------------------------------------------------------------------------
 
-@flask_app.route('/bandmap')
+@flask_app.route('/bandmap', methods=['GET', 'POST'])
 def bandmap():
     config  = load_config()
     profile = get_profile(config)
+    if request.method == 'POST':
+        data = request.get_json() or {}
+        bmap = profile.setdefault("band_map", {})
+        for band, port in data.items():
+            bmap[band] = int(port) if port is not None else None
+        save_config(config)
+        return jsonify({"ok": True})
     return jsonify({
         "ok":         True,
         "band_map":   profile.get("band_map", {}),
@@ -614,13 +629,21 @@ def set_port_count():
 # Routes — input labels
 # ---------------------------------------------------------------------------
 
-@flask_app.route('/label')
+@flask_app.route('/label', methods=['GET', 'POST'])
 def label():
+    config = load_config()
+    if request.method == 'POST':
+        data = request.get_json() or {}
+        if 'input1_label' in data:
+            config['input1_label'] = data['input1_label']
+        if 'input2_label' in data:
+            config['input2_label'] = data['input2_label']
+        save_config(config)
+        return jsonify({"ok": True})
     input_n = request.args.get('input')
     name    = request.args.get('name', '')
     if not input_n:
         return jsonify({"ok": False, "error": "input required"}), 400
-    config  = load_config()
     key     = "input1_label" if input_n == "1" else "input2_label"
     config[key] = name
     save_config(config)
@@ -647,12 +670,22 @@ def profile_get():
         "port_count":         profile.get("port_count", 8)
     })
 
-@flask_app.route('/profile/set')
+@flask_app.route('/profile/set', methods=['GET', 'POST'])
 def profile_set():
-    name   = request.args.get('name')
+    config = load_config()
+    if request.method == 'POST':
+        # Update station info fields in the active profile
+        data    = request.get_json() or {}
+        profile = get_profile(config)
+        for field in ('description', 'iaru_region', 'itu_zone', 'cq_zone'):
+            if field in data:
+                profile[field] = data[field]
+        save_config(config)
+        return jsonify({"ok": True})
+    # GET — switch active profile by name
+    name = request.args.get('name')
     if not name:
         return jsonify({"ok": False, "error": "name required"}), 400
-    config = load_config()
     if name not in config.get("profiles", {}):
         return jsonify({"ok": False, "error": "Profile not found"}), 404
     config["active_profile"] = name
@@ -1008,6 +1041,55 @@ AG_PORT    = 9007
 AG_VERSION = "2.0"
 AG_BCAST_INTERVAL = 5  # seconds
 
+AG_BANDS = [
+    (1,  "160m", 1.8,    2.0),
+    (2,  "80m",  3.5,    4.0),
+    (3,  "60m",  5.3,    5.4),
+    (4,  "40m",  7.0,    7.3),
+    (5,  "30m",  10.1,   10.15),
+    (6,  "20m",  14.0,   14.35),
+    (7,  "17m",  18.068, 18.168),
+    (8,  "15m",  21.0,   21.45),
+    (9,  "12m",  24.89,  24.99),
+    (10, "10m",  28.0,   29.7),
+    (11, "6m",   50.0,   54.0),
+]
+_AG_BAND_NAME_TO_ID = {b[1]: b[0] for b in AG_BANDS}
+
+# Connected AG client sockets — push state updates to all of them
+_ag_client_conns = set()
+_ag_client_lock  = threading.Lock()
+
+def _ag_port_status(port_num):
+    """Build port status fields for AG port 1 (Input A) or 2 (Input B)."""
+    cfg     = load_config()
+    ant  = cfg.get(f"input{port_num}_port") or 0
+    # Use stored band (set by kk1l/setband) — more reliable than reverse band_map lookup
+    band_name = cfg.get(f"input{port_num}_band", "")
+    band = _AG_BAND_NAME_TO_ID.get(band_name, 0)
+    return f"auto=1 band={band} rxant={ant} txant={ant} tx=0 inhibit=0"
+
+def ag_push(msg: str):
+    """Push an unsolicited message to all connected AG clients."""
+    dead = set()
+    with _ag_client_lock:
+        clients = set(_ag_client_conns)
+    print(f"AG PUSH ({len(clients)} clients): {msg.strip()}", flush=True)
+    for conn in clients:
+        try:
+            conn.sendall(msg.encode())
+        except Exception as exc:
+            print(f"AG PUSH failed: {exc}", flush=True)
+            dead.add(conn)
+    if dead:
+        with _ag_client_lock:
+            _ag_client_conns.difference_update(dead)
+
+def ag_push_port_status(port_num: int):
+    msg = f"S0|port {port_num} {_ag_port_status(port_num)}\r\n"
+    print(f"AG PUSH PORT STATUS: {msg.strip()}", flush=True)
+    ag_push(msg)
+
 def _ag_local_ip():
     """Best-effort: get the IP this machine uses to reach the LAN."""
     try:
@@ -1044,44 +1126,13 @@ def _ag_handle_command(conn, seq, cmd):
     profile = get_profile(cfg)
     cmd_l   = cmd.lower().strip()
 
-    # Band definitions — matches 4O3A AG band numbering
-    AG_BANDS = [
-        (1,  "160m", 1.8,   2.0),
-        (2,  "80m",  3.5,   4.0),
-        (3,  "60m",  5.3,   5.4),
-        (4,  "40m",  7.0,   7.3),
-        (5,  "30m",  10.1,  10.15),
-        (6,  "20m",  14.0,  14.35),
-        (7,  "17m",  18.068,18.168),
-        (8,  "15m",  21.0,  21.45),
-        (9,  "12m",  24.89, 24.99),
-        (10, "10m",  28.0,  29.7),
-        (11, "6m",   50.0,  54.0),
-    ]
-    BAND_NAME_TO_ID = {b[1]: b[0] for b in AG_BANDS}
-
     def band_mask(band_list):
-        """Convert a list of band name strings to a 16-bit AG bitmask."""
         mask = 0
         for b in (band_list or []):
-            bid = BAND_NAME_TO_ID.get(b)
+            bid = _AG_BAND_NAME_TO_ID.get(b)
             if bid:
                 mask |= (1 << (bid - 1))
         return mask
-
-    def port_status(port_num):
-        """Build AgPortStatus key=value fields for a radio port (1=A, 2=B).
-        Does NOT include the 'port N' prefix — caller adds that."""
-        key  = f"input{port_num}_port"
-        ant  = cfg.get(key) or 0
-        band = 0
-        if ant:
-            bm = profile.get("band_map", {})
-            for bname, bport in bm.items():
-                if bport == ant:
-                    band = BAND_NAME_TO_ID.get(bname, 0)
-                    break
-        return f"auto=1 band={band} rxant={ant} txant={ant} tx=0 inhibit=0"
 
     if cmd_l == "antenna list":
         antennas = profile.get("antennas", {})
@@ -1107,16 +1158,41 @@ def _ag_handle_command(conn, seq, cmd):
             port_num = int(cmd_l.split()[-1])
         except ValueError:
             port_num = 1
-        conn.sendall(f"R{seq}|00|port {port_num} {port_status(port_num)}\r\n".encode())
+        conn.sendall(f"R{seq}|00|port {port_num} {_ag_port_status(port_num)}\r\n".encode())
+
+    elif cmd_l.startswith("port set "):
+        # e.g. "port set 1 rxant=3 txant=3" — AetherSDR selecting an antenna
+        parts = cmd_l.split()
+        try:
+            port_num = int(parts[2])
+        except (IndexError, ValueError):
+            conn.sendall(f"R{seq}|00|\r\n".encode())
+            return
+        kvs = {}
+        for p in parts[3:]:
+            if '=' in p:
+                k, v = p.split('=', 1)
+                kvs[k] = v
+        rxant = kvs.get('rxant')
+        if rxant is not None:
+            ant_id = int(rxant)
+            sv = load_config()
+            sv[f'input{port_num}_port'] = ant_id if ant_id > 0 else None
+            save_config(sv)
+            if ant_id > 0:
+                fn = "kk1l_select_a" if port_num == 1 else "kk1l_select_b"
+                bridge_call(fn, ant_id)
+            print(f"AG: port set {port_num} rxant={ant_id}")
+        conn.sendall(f"R{seq}|00|\r\n".encode())
+        ag_push_port_status(port_num)
 
     elif cmd_l == "sub port all":
         conn.sendall(f"R{seq}|00|\r\n".encode())
         for port_num in (1, 2):
-            conn.sendall(f"S0|port {port_num} {port_status(port_num)}\r\n".encode())
+            conn.sendall(f"S0|port {port_num} {_ag_port_status(port_num)}\r\n".encode())
 
     elif cmd_l == "sub relay":
         conn.sendall(f"R{seq}|00|\r\n".encode())
-        # Push current relay/antenna states for all ports
         antennas = profile.get("antennas", {})
         count    = profile.get("port_count", 8)
         for i in range(1, count + 1):
@@ -1141,11 +1217,15 @@ def ag_handle_client(conn, addr):
             if not data:
                 break
             buf += data.decode(errors="ignore")
-            # Silently drop Arduino platform HTTP health checks
+            # Silently drop Arduino platform HTTP health checks — never register these
             if buf.startswith(("GET ", "POST ", "HEAD ")):
                 conn.sendall(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n")
                 return
-            real_client = True
+            if not real_client:
+                real_client = True
+                with _ag_client_lock:
+                    _ag_client_conns.add(conn)
+                print(f"AG: client registered {addr} (total={len(_ag_client_conns)})", flush=True)
             conn.settimeout(60)
             while "\n" in buf:
                 line, buf = buf.split("\n", 1)
@@ -1164,6 +1244,8 @@ def ag_handle_client(conn, addr):
         if real_client:
             print(f"AG client error: {e}")
     finally:
+        with _ag_client_lock:
+            _ag_client_conns.discard(conn)
         conn.close()
         if real_client:
             print(f"AG: {addr} disconnected")

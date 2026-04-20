@@ -15,7 +15,7 @@ const int DIP_PINS[]   = {6, 7, 8, 9};
 #define MCP_GPIOB   0x13
 #define MCP_GPPUA   0x0C
 #define MCP_GPPUB   0x0D
-#define KK1L_PORTS  6
+#define KK1L_PORTS  8
 
 uint8_t gpa_state = 0x00;
 uint8_t gpb_state = 0x00;
@@ -53,7 +53,7 @@ void mcp_init() {
         mcp2_write(MCP_IODIRB, 0xFF);
         mcp2_write(MCP_GPPUB,  0xFF);
         mcp2_write(MCP_GPIOA,  0x00);
-        Monitor.println("MCP23017 #2 found at 0x22 - RLYB board ready");
+        Monitor.println("MCP23017 #2 found at 0x21 - RLYB board ready");
     } else {
         mcp2_found = false;
         Monitor.println("MCP23017 #2 NOT found at 0x22");
@@ -85,7 +85,7 @@ bool kk1l_select_a(int port) {
     if (!mcp_found) return false;
     if (port < 1 || port > KK1L_PORTS) return false;
     int bit = port - 1;
-    gpa_state |=  (1 << bit);
+    gpa_state  = (1 << bit);    // exclusive: only one A port on at a time
     gpb_state &= ~(1 << bit);
     mcp_write(MCP_GPIOA, gpa_state);
     if (mcp2_found) mcp2_write(MCP_GPIOA, gpb_state);
@@ -97,7 +97,7 @@ bool kk1l_select_b(int port) {
     if (port < 1 || port > KK1L_PORTS) return false;
     int bit = port - 1;
     gpa_state &= ~(1 << bit);
-    gpb_state |=  (1 << bit);
+    gpb_state  = (1 << bit);    // exclusive: only one B port on at a time
     mcp_write(MCP_GPIOA, gpa_state);
     if (mcp2_found) mcp2_write(MCP_GPIOA, gpb_state);
     Monitor.println("KK1L port " + String(port) + " -> Input B");

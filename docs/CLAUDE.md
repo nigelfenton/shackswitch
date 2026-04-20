@@ -1,253 +1,196 @@
-# CLAUDE.md — G0JKN ShackSwitch Project Context
+# CLAUDE.md — G0JKN ShackSwitch v2.0
 
 This file gives Claude instant context for the ShackSwitch project.
-Paste the raw URL of this file at the start of each session:
-`https://raw.githubusercontent.com/nigelfenton/shackswitch/main/CLAUDE.md`
+Raw URL: `https://raw.githubusercontent.com/nigelfenton/shackswitch/main/docs/CLAUDE.md`
 
 ---
 
 ## Project Identity
 
-- **Project:** G0JKN ShackSwitch — open source HF shack antenna switcher
+- **Project:** G0JKN ShackSwitch — open-source HF shack antenna switcher
 - **Builder:** Nigel Fenton, G0JKN (retired, UK)
 - **GitHub:** https://github.com/nigelfenton/shackswitch
 - **Licence:** MIT
+- **Current version:** v2.0 on Arduino Uno Q
 
 ---
 
-## Current Firmware Version
+## Live Board
 
-**V2.0** - Arduino uno Q 
-**v1.5** — Arduino Uno R4 WiFi
-
-### Files
-new v 2.0
--- arduino-apps/first-app/sketch/sketch.ino
--- arduino-apps/first-app/python/main.py
--- arduino-apps/first-app/python/smartsdr.py
--- arduino-apps/first-app/python/config.json (host: /home/arduino/shackswitch_config.json)
-
-
-
-
-- `firmware/shackswitch.ino` — main sketch
-- `firmware/triggers.ino` — Nextion touch event handlers
-- `nodered/smartsdr.py` — SmartSDR band tracker (runs on Raspberry Pi)
-- `nodered/smartsdr-tracker.service` — systemd service file
-
----
-
-## Hardware — Built and Verified
-
-move Uno R4 WiFi and Raspberry Pi 4 to "retired"
-
-| Item | Detail |
+| Item | Value |
 |---|---|
-| Microcontroller | Arduino Uno R4 WiFi |
-| Display | Nextion NX8048P070 7" capacitive (primary) + NX4832T035 3.5" |
-| Relay module | 4x relay on D2-D5 (original shield) |
-| RF connectors | 5x SO239 — 1 radio input, 4 antenna outputs |
-| Power | 12V DC → relays, buck converter → 5V Arduino |
-| Enclosure | 3D printed, Fusion 360 |
-| Pi | Raspberry Pi 4, 64-bit OS, running Node-RED and smartsdr.py |
+| Board | Arduino Uno Q (Qualcomm QRB2210 quad-core Linux + STM32) |
+| IP | **10.0.0.145** |
+| App name | **`user:first-app`** (always use this — never `shackswitch`) |
+| Python path | `/home/arduino/ArduinoApps/first-app/python/` |
+| Sketch path | `/home/arduino/ArduinoApps/first-app/sketch/sketch.ino` |
+| Config | `/home/arduino/ArduinoApps/first-app/python/config.json` |
+| Tailscale IP | `100.93.237.125` |
 
-## Hardware — Ordered / In Hand, Not Yet Built
-
-- KK1L 2x6 relay board — 2 inputs, 6 outputs, 12V relays
-- MCP23017 GPIO expanders — devices in hand, not yet wired
+**Restart command:**
+```bash
+ssh -i ~/.ssh/id_ed25519_claude arduino@10.0.0.145 "arduino-app-cli app restart user:first-app"
+```
 
 ---
 
 ## Architecture
-update to show Uno Q with Flask/Bridge
 
 ```
-FlexRadio 6700 (10.0.0.250)
-    TCP port 4992
-    smartsdr.py (Raspberry Pi 10.0.0.57)
-    systemd service, subscribes via C1|sub slice all
-    maps RF_frequency to band name, fires on band change only
-    HTTP GET to ShackSwitch REST API (Arduino 10.0.0.85)
-    GET /setband?input=[1|2]&band=[name]
-    Firmware evaluateInterlock() and updateNextionBandDisplay()
-    Nextion display (tBandA, tBandB, tSO2R)
-    Web page (live via 5-second /status poll)
+FlexRadio 6700 (10.0.0.250, TCP 4992)
+    smartsdr.py  ──►  /kk1l/setband?input=1&band=20m
+                          Flask (port 5000) on Uno Q Linux
+                              bridge_call() via arduino-router.sock
+                                  STM32 firmware (sketch.ino)
+                                      MCP23017 boards (Wire1, 0x20 / 0x21)
+                                          KK1L relay matrix
+
+AetherSDR (10.0.0.107 / Windows)
+    AG UDP discovery (port 9007)  ──►  ShackSwitch emits beacon every 5s
+    AG TCP (port 9007)            ◄──►  sub port all / port set / S0|port N ...
+                                          ShackSwitchApplet shows live band + antenna
+
+Nextion NX8048P070 (7", 800×480)
+    Python → bridge_call("nextion_cmd") → STM32 Serial (D0/D1) → Nextion
+    Touch  → D0/D1 → STM32 → bridge_call("nextion_get_event") → Python poll 150ms
 ```
 
 ---
 
-## EEPROM Config Struct
-```cpp
-struct RelayConfig {
-  char     names[8][26];
-  char     wifiSSID[33];
-  char     wifiPass[64];
-  uint8_t  portMode;
-  uint32_t configMagic;
-};
-const uint32_t CONFIG_VERSION = 0xDEADC001;
-```
+## Hardware
 
-CRITICAL: portMode = 0 must only appear INSIDE the
-if (myConfig.configMagic != CONFIG_VERSION) block in loadConfig().
-If outside that block it overwrites the loaded value on every boot.
+| Item | Detail |
+|---|---|
+| Relay board (basic) | 4× relay on STM32 pins D2–D5 (single-input mode only) |
+| KK1L matrix | 2×8 via two MCP23017 boards (SO2R mode) |
+| MCP23017 #1 | Wire1, address **0x20** — GPA0–7 = Input A relays for ports 1–8 |
+| MCP23017 #2 | Wire1, address **0x21** — GPA0–7 = Input B relays for ports 1–8 |
+| Display | Nextion NX8048P070 Enhanced 7", VCC from external 5V |
+| RF-Kit RF2K-S | 10.0.0.78:8080 — amplifier control via rfkit.py |
 
-Boot order: Always apply 12V before USB.
-Page switch sent after WiFi with 3 second delay for 7 inch Nextion boot time.
+**MCP wiring rule:** Only Port A (GPA0–GPA7) has relay drivers. Port B is inputs only.
 
 ---
 
-## REST API Endpoints
+## Key Source Files (shackswitch-v2/)
+
+| File | Purpose |
+|---|---|
+| `main.py` | Flask REST API, AG TCP server, bridge_call wrappers |
+| `sketch.ino` | STM32 firmware — relay control, MCP23017, Nextion bridge |
+| `nextion.py` | Nextion display driver — startup push, event poll, button/label updates |
+| `smartsdr.py` | FlexRadio 6700 TCP client — band/freq tracking → /kk1l/setband |
+| `rfkit.py` | RF-Kit RF2K-S amplifier control |
+| `config.json` | Live config (profiles, band_map, antenna names, port states) |
+
+---
+
+## Flask API — Key Endpoints
 
 | Endpoint | Description |
 |---|---|
-| GET /status | Relay states, a1-a8, b1-b8, bandA, bandB, so2r as JSON |
-| GET /a/[n]/sel | Input 1 selects antenna n (toggle) |
-| GET /b/[n]/sel | Input 2 selects antenna n (toggle, interlock checked) |
-| GET /rename?id=[n]&name=[name] | Rename antenna port n |
-| GET /setband?input=[1or2]&band=[name] | Set band for Input 1 or 2 |
-| GET /setmode?mode=[0or1or2] | Set port mode, saves to EEPROM |
-| GET /settings | Settings web page with debug mode selector |
+| `GET /status` | Relay states, ports, band/freq, port_count, input_count |
+| `GET /kk1l/select?input=N&port=N` | Select antenna port (interlock enforced) |
+| `GET /kk1l/setband?input=N&band=Xm` | Auto-select port from band_map |
+| `GET /kk1l/deselect_all` | All relays off |
+| `GET /bandmap` | Return band→port map |
+| `POST /rename/bulk` | `{portId: name, ...}` — rename antenna ports |
+| `POST /bandmap` | `{band: port, ...}` — update band map |
+| `POST /label` | `{input1_label, input2_label}` |
+| `POST /config/inputs` | `{input_count: 1|2}` |
+| `POST /config/reset` | Factory reset — wipes user config, restarts app in 3s |
 
 ---
 
-## TCP Control Protocol (Port 9008)
+## AG Protocol (port 9007)
 
-Commands: C[seq]|command — Responses: R[seq]|code|body or S0|event
-Key commands: ping, antenna list, band list, port get n, port set n, interlock set, sub port all
-UDP discovery beacon every 5 seconds on port 9008.
+ShackSwitch emits an Antenna Genius–compatible UDP beacon every 5s:
+```
+AG ip=10.0.0.145 port=9007 v=2.0 serial=G0JKN-SW name=ShackSwitch ports=2 antennas=N mode=master\r\n
+```
+
+TCP commands handled: `ping`, `sub port all`, `sub relay`, `port get N`, `port set N rxant=X`, `relay get N`.
+
+Unsolicited push on any relay change:
+```
+S0|port N auto=1 band=X rxant=Y txant=Y tx=0 inhibit=0\r\n
+```
+
+HTTP health-checks from `172.21.0.1` (Arduino internal interface) are detected and discarded — connection only registered in `_ag_client_conns` after first real AG protocol data.
 
 ---
 
-## Input Port Architecture
+## Nextion Pages
 
-- Two input ports — Input 1 = Flex Slice A (TX, drives relays), Input 2 = Flex Slice B (tracked, no relay yet)
-- Either input can use any antenna — NOT the same output simultaneously
-- SO2R interlock via evaluateInterlock()
-- Conflict flashes CONFLICT! on tSO2R
-
----
-
-## Nextion HMI Pages
-
-| Page | Layout | Buttons |
+| Page | Content | Input mode |
 |---|---|---|
-| 0 | 4-port Input 1 only | bA1-bA4, t3-t6 |
-| 1 | 2x6 matrix | bA1-bA6, t3-t8, bB1-bB6 |
-| 2 | 2x8 matrix | bA1-bA8, t3-t10, bB1-bB8 |
-| 3 | 2x4 reserved | Future KK1L 2x4 |
+| 0 (page0) | 4-port, bA1–bA4, t3–t6 | Single input |
+| 1 (page1) | 6-port (dormant) | — |
+| 2 (page2) | 8-port SO2R, bA1–bA8, bB1–bB8, t3–t10 | Dual input |
+| 3 (page3) | RSSI + QR codes | — |
+| 8 (page8) | WiFi scan / connect / factory reset | — |
 
-Button layout: [bA] Antenna Name [bB] per row
-Page 0: bA only. Pages 1 and 2: both bA (green) and bB (orange).
-Centre panel all pages: tBandA, tBandB, tSO2R, tClock, t1
-
----
-
-## Trigger Number Map
-
-| Hex | Trigger | Purpose |
-|---|---|---|
-| 01-08 | trigger1-8 | bA1-bA8 Input 1 |
-| 11-18 | trigger17-24 | bB1-bB8 Input 2 |
-| 21 | trigger33 | WiFi scan |
-| 22 | trigger34 | WiFi connect |
-| 23 | trigger35 | Factory reset |
-| 24 | trigger36 | Enter config |
-| 25 | trigger37 | Enter monitor |
-| 26 | trigger38 | Leave monitor |
-
-Nextion printh format: printh 23 02 54 [hex]
-Example: bB1 = printh 23 02 54 11
+Touch buttons send `printh 23 02 54 NN` — NN = port number (bA) or 0x21/0x22/0x23 (WiFi/Reset).
 
 ---
 
-## Key Firmware Functions
+## input_count Feature
 
-- getRowCount() — returns 4, 6 or 8 from myConfig.portMode
-- syncButtonStates() — writes bA/bB colours, portMode aware
-- syncAntennaNames() — writes t3-t10, portMode aware
-- selectInputA(ant) — Input 1 toggle, drives relay
-- selectInputB(ant) — Input 2 toggle, interlock checked
-- controlRelay(n, state) — low level relay, updates portA.rxAntenna
-- evaluateInterlock() — SO2R conflict detection
-- updateNextionBandDisplay() — pushes tBandA, tBandB, tSO2R
+- `input_count: 1` — single radio, uses D2–D5 relays directly, MCP not needed
+- `input_count: 2` — SO2R, uses MCP23017 KK1L matrix, interlock between inputs
+- Stored in active profile in config.json
+- `POST /config/inputs {input_count: 1|2}` to change
 
 ---
 
-## I2C Architecture (Planned)
+## Config Profiles
 
-| Address | Device | Purpose |
-|---|---|---|
-| 0x20 | MCP23017 #1 | KK1L relay matrix GPA1-6 Input 1, GPB1-6 Input 2 |
-| 0x21 | MCP23017 #2 | Boot config detection |
-| 0x22 | MCP23017 #3 | Shack switching roadmap |
-
-MCP23017 devices in hand, not yet wired.
+Config has a top-level `profiles` dict and `active_profile` key.
+`get_profile()` returns the active profile dict.
+Profile keys: `port_count`, `input_count`, `band_map`, `antennas`, `input1_label`, `input2_label`.
 
 ---
 
-## Node-RED Status
+## AetherSDR Integration (Windows, 10.0.0.107)
 
-- Running on Pi port 1880, node-red-contrib-flexradio v1.2.5 installed
-- Discovery node confirmed working
-- Message node confirmed receiving data
-- sub slice all confirmed working via inject to request node
-- Still to do: message to function to HTTP /setband
-- Python smartsdr.py handling band tracking in the meantime
-
----
-
-## Coding Conventions
-
-- Raw WiFiClient/WiFiServer, no framework
-- request.indexOf("GET /endpoint") pattern
-- webClient.println("HTTP/1.1 200 OK\r\n...")
-- Manual indexOf/substring URL param parsing
-- EasyNextionLibrary myNex.writeStr() myNex.writeNum()
-- Band as int ID 1-11, use bandName() and reverse lookup
-- Never put myConfig.portMode = 0 outside EEPROM defaults block
+- Local fork: `C:\Users\nigel\Documents\AetherSDR`
+- ShackSwitch identified by `serial.startsWith("G0JKN")`
+- Auto-connects via `SS_ManualIp` setting (synthesised `G0JKN-manual` serial, no UDP race)
+- `ShackSwitchApplet` shows INPUT A/B headers, per-antenna A/B buttons, live band+antenna
+- **Status: FULLY WORKING** — band changes and port selections push to applet in real time
 
 ---
 
-## Known Design Considerations (Back Burner)
+## Known Bugs / Pending
 
-- Binaural/diversity RX — binaural_rx=1 in SmartSDR, diversity=1 on slice. May need two relays on same input for RX. TX unaffected.
-- Multi-RX per slice — TX slice is safety-critical path only
-- PA protection — MCP23017 #3, must not fire on wrong antenna
-
----
-
-## Band-to-Antenna Mapping (Planned)
-
-EEPROM extension needed: bandMask[8] (11-bit per antenna) and priority[8].
-Auto-select: band change, find matching antennas, sort by priority, skip conflicts, fire relay.
+1. **Multi-LED on MCP boards** — possibly I2C noise or stale sketch state; sketch fix (`gpa_state =` not `|=`) deployed to source but needs reflash and retest
+2. Relay state lost on container restart — needs startup sync from config
+3. PA sequencing (RF-Kit RF2K-S) not yet wired into `/kk1l/setband`
+4. Nextion WiFi connect flow (page8) — scan+host service confirmed, full connect path needs live test
 
 ---
 
-## Roadmap
+## Key Gotchas
 
-| Priority | Item |
-|---|---|
-| Immediate | Commit updated firmware and CLAUDE.md to GitHub |
-| Near term | Node-RED message to function to /setband |
-| Near term | MCP23017 I2C wiring and firmware |
-| Near term | Band-to-antenna auto-select settings page |
-| Near term | KK1L board build |
-| Near term | Remove debug mode selector when MCP23017 ready |
-| Roadmap | MCP23017 #3 shack switching |
-| Roadmap | PA protection sequencer |
-| Roadmap | Binaural/diversity RX |
-| Roadmap | AetherSDR issue #179 |
-| Future | Arduino Uno Q single-board replacement |
+- Live app is `user:first-app` — never edit the `shackswitch` app files
+- `Serial1` is reserved by arduino-router (ttyHS1 on Linux) — D0/D1 header pins are free for Nextion
+- I2C uses `Wire1` not `Wire` on Uno Q headers
+- MCP23017 Port A only has relay drivers — Port B is inputs with pull-ups
+- `gpa_state` = Input A relay bits, `gpb_state` = Input B relay bits (sketch globals)
+- Each `kk1l_select_a/b` is now exclusive (assignment not OR) — only one relay on per input
+- SmartSDR + CAT on same input is NOT a conflict (CAT is fallback only)
+- `input2_port` going stale on a 1-input switch causes silent port 3 interlock — always enforce via `input_count`
+- Nextion startup push fires 20s after app start (waits for Flask ready)
+- `172.21.0.1` = Arduino internal interface — floods port 9007 with HTTP health checks, must not register as AG client
 
 ---
 
-## Related Projects
+## Tailscale / Remote Access
 
-- AetherSDR — Linux Qt6 FlexRadio client, issue #179 native panel
-- K3NG rotator controller — Arduino Mega, Az/El satellite tracking
-- Arduino Uno Q — Qualcomm QRB2210 quad-core Linux + STM32
+- ShackSwitch: `100.93.237.125` — starts on boot
+- Windows PC (aurora13): `100.80.101.28`
+- Web UI from anywhere: `http://100.93.237.125:5000`
 
 ---
 
-*G0JKN ShackSwitch — 73 de G0JKN*
+*73 de G0JKN*
