@@ -8,8 +8,11 @@ import sys
 flask_app = Flask(__name__)
 CONFIG_PATH = "/app/python/config.json"
 
-MAX_PORTS = 16
-ALL_BANDS  = ["160m","80m","60m","40m","30m","20m","17m","15m","12m","10m","6m"]
+MAX_PORTS   = 16
+ALL_BANDS   = ["160m","80m","60m","40m","30m","20m","17m","15m","12m","10m","6m"]
+APP_VERSION = "v2.0"
+APP_DATE    = "21 Apr 2026"
+_START_TIME = time.time()
 
 # ---------------------------------------------------------------------------
 # Config I/O
@@ -327,6 +330,14 @@ def kk1l_setband():
 # Routes — status
 # ---------------------------------------------------------------------------
 
+def _fmt_uptime(secs):
+    secs = int(secs)
+    d, secs = divmod(secs, 86400)
+    h, secs = divmod(secs, 3600)
+    m, s    = divmod(secs, 60)
+    if d:   return f"{d}d {h:02d}:{m:02d}:{s:02d}"
+    return f"{h:02d}:{m:02d}:{s:02d}"
+
 @flask_app.route('/status')
 def status():
     result       = bridge_call("get_status")
@@ -374,6 +385,8 @@ def status():
         "freqA":          _freq(1),
         "bandB":          _band(2),
         "freqB":          _freq(2),
+        "version":        f"{APP_VERSION} — {APP_DATE}",
+        "uptime":         _fmt_uptime(time.time() - _START_TIME),
     })
 
 @flask_app.route("/radio/status")
