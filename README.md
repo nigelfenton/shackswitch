@@ -259,8 +259,8 @@ A deploy script is included to get ShackSwitch running on a fresh Arduino Uno Q 
 
 ### Prerequisites
 
-- Arduino Uno Q powered on and connected to your network
-- App Lab open on the board — let it create `user:first-app` (just needs to exist)
+- Arduino Uno Q plugged in via USB-C to your computer
+- **App Lab first-run wizard** completed — connect the board to your WiFi network. App Lab displays the board's IP address at the end of setup. Note it down — that's what you pass to the deploy script. It also creates `user:first-app` which ShackSwitch deploys into.
 - SSH key set up for the board (see Arduino Uno Q docs)
 - This repo cloned to your machine
 
@@ -268,7 +268,7 @@ A deploy script is included to get ShackSwitch running on a fresh Arduino Uno Q 
 
 ```bash
 cd shackswitch-v2
-./deploy.sh 10.0.0.XX
+./deploy.sh 10.0.0.XX    # use the IP shown by App Lab during setup
 ```
 
 The script will:
