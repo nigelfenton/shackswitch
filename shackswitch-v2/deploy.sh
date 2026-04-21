@@ -23,7 +23,24 @@
 set -e
 
 BOARD_IP="${1}"
-SSH_KEY="${HOME}/.ssh/id_ed25519_claude"
+# SSH key — auto-detected in order of preference, or override with:
+#   SSH_KEY=~/.ssh/mykey ./deploy.sh 10.0.0.56
+if [ -z "$SSH_KEY" ]; then
+    for candidate in \
+        "${HOME}/.ssh/id_ed25519_claude" \
+        "${HOME}/.ssh/id_ed25519" \
+        "${HOME}/.ssh/id_rsa" \
+        "${HOME}/.ssh/id_ecdsa"; do
+        if [ -f "$candidate" ]; then
+            SSH_KEY="$candidate"
+            break
+        fi
+    done
+fi
+if [ -z "$SSH_KEY" ]; then
+    echo "ERROR: No SSH key found. Set SSH_KEY=/path/to/key and retry."
+    exit 1
+fi
 REMOTE_USER="arduino"
 REMOTE_APP_DIR="/home/arduino/ArduinoApps/first-app"
 REMOTE_PY="${REMOTE_APP_DIR}/python"

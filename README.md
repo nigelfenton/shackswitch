@@ -224,7 +224,8 @@ shackswitch/
 │   ├── smartsdr.py          — FlexRadio SmartSDR band tracker
 │   ├── kenwood.py           — legacy standalone Kenwood interface (superseded by radios.py)
 │   ├── sketch.ino           — STM32U585 relay firmware
-│   ├── index.html           — web UI
+│   ├── deploy.sh            — one-command deployment to any Uno Q board
+│   ├── templates/           — Flask HTML templates (web UI pages)
 │   ├── migrate_config.py    — config format upgrade tool
 │   └── AETHERSDR-PROTOCOL.md — 4O3A Antenna Genius protocol documentation
 ├── services/
@@ -249,6 +250,46 @@ shackswitch/
 | 1.2 | Arduino R4 WiFi | NTP time sync, station monitor page, factory reset |
 | 1.1 | Arduino R4 WiFi | WiFi web server, web-based antenna control, EEPROM name storage |
 | 1.0 | Arduino R4 WiFi | Initial release — 4 relay antenna switching, Nextion display |
+
+---
+
+## Deploying to a New Board
+
+A deploy script is included to get ShackSwitch running on a fresh Arduino Uno Q in one command.
+
+### Prerequisites
+
+- Arduino Uno Q powered on and connected to your network
+- App Lab open on the board — let it create `user:first-app` (just needs to exist)
+- SSH key set up for the board (see Arduino Uno Q docs)
+- This repo cloned to your machine
+
+### Deploy
+
+```bash
+cd shackswitch-v2
+./deploy.sh 10.0.0.XX
+```
+
+The script will:
+1. Copy all Python files and templates to the board
+2. Ensure `app.yaml` exposes both ports — **5000** (web UI) and **9007** (AG emulator)
+3. Restart the app — flashes the STM32 sketch and starts the Python container
+
+If your SSH key is not at one of the standard locations (`~/.ssh/id_ed25519`, `~/.ssh/id_rsa` etc.) you can override it:
+
+```bash
+SSH_KEY=~/.ssh/my_custom_key ./deploy.sh 10.0.0.XX
+```
+
+### After Deployment
+
+1. Open `http://10.0.0.XX:5000` in a browser
+2. Go to **Settings → PORTS** — name your antenna ports
+3. Go to **Settings → ANT MAP** — assign bands to ports (click the grid cell to assign, saves instantly)
+4. In **AetherSDR → Radio Setup → Peripherals**, set the ShackSwitch IP to your board IP
+
+> **Note:** Each board starts with a fresh default config — antenna names and band assignments are set up via the web UI after deployment. WiFi and network settings are handled by the Uno Q OS, not ShackSwitch.
 
 ---
 
