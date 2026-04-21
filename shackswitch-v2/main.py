@@ -672,7 +672,12 @@ def profile_get():
         "iaru_region":        profile.get("iaru_region"),
         "itu_zone":           profile.get("itu_zone"),
         "cq_zone":            profile.get("cq_zone"),
-        "port_count":         profile.get("port_count", 8)
+        "port_count":         profile.get("port_count", 8),
+        "input_count":        profile.get("input_count", 1),
+        "antennas":           profile.get("antennas", {}),
+        "band_map":           profile.get("band_map", {}),
+        "input1_label":       config.get("input1_label", ""),
+        "input2_label":       config.get("input2_label", "")
     })
 
 @flask_app.route('/profile/set', methods=['GET', 'POST'])

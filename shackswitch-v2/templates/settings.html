@@ -184,12 +184,33 @@ select option { background: #0d1628; }
 }
 .port-item input { flex: 1; max-width: none; }
 
-/* ── Band map grid ───────────────────────────── */
-.band-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
-    gap: 6px;
+/* ── Band map pigeonhole grid ─────────────────── */
+.band-grid { overflow-x: auto; }
+.ph-grid { display: grid; gap: 2px; min-width: max-content; }
+.ph-cell {
+    display: flex; align-items: center; justify-content: center;
+    height: 32px; border-radius: 4px;
+    transition: background 0.12s; user-select: none;
 }
+.ph-cell.ph-header {
+    flex-direction: column; height: 48px; cursor: default;
+    background: rgba(255,255,255,0.07); gap: 1px; padding: 3px 2px;
+}
+.ph-cell.ph-band {
+    font-size: 11px; font-weight: 700; color: var(--cyan);
+    cursor: default; background: transparent;
+    justify-content: flex-end; padding-right: 8px;
+}
+.ph-cell.ph-corner { cursor: default; background: transparent; }
+.ph-cell.ph-dot { cursor: pointer; background: rgba(255,255,255,0.04); }
+.ph-cell.ph-dot:hover { background: rgba(0,216,239,0.2); }
+.ph-cell.ph-dot::after { content: '·'; color: rgba(255,255,255,0.18); font-size: 18px; line-height:1; }
+.ph-cell.ph-active { background: var(--cyan) !important; }
+.ph-cell.ph-active::after { content: '●'; color: #0a0e14; font-size: 13px; }
+.ph-hnum { font-size: 11px; font-weight: 700; color: var(--text); }
+.ph-hname { font-size: 9px; color: var(--muted); max-width: 64px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: center; }
+
+/* old band-item kept for safety */
 .band-item {
     background: var(--row-bg);
     border: 1px solid var(--border);
@@ -403,12 +424,9 @@ select option { background: #0d1628; }
     <div class="card">
         <div class="sh">Band → Port Assignment</div>
         <p style="color:var(--muted);font-size:11px;margin-bottom:12px">
-            Select which port each band routes to. Set to <strong style="color:var(--text)">None</strong> to disable automatic switching for that band.
+            Click a cell to assign a band to a port. Changes save instantly. <strong style="color:var(--cyan)">—</strong> means no auto-switching for that band.
         </p>
         <div class="band-grid" id="band-grid">Loading…</div>
-        <div style="margin-top:14px">
-            <button class="btn btn-cyan" onclick="saveBandMap()">Save Band Map</button>
-        </div>
     </div>
 </div>
 
@@ -742,7 +760,9 @@ async function setInputCount(n) {
     try {
         await fetch('/config/inputs', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({input_count: n}) });
         inputCount = n;
-        renderPorts();
+        const stRes = await fetch('/status');
+        const st = await stRes.json();
+        renderPorts(st);
         toast('Input count set to ' + n);
     } catch(e) { toast('Failed', true); }
 }
@@ -791,32 +811,49 @@ async function savePortNames() {
 
 // ── BAND MAP page ────────────────────────────────────────────────────────────
 function renderBandMap() {
-    const grid   = document.getElementById('band-grid');
-    const bmap   = profile.band_map || {};
-    const ants   = profile.antennas || {};
-    grid.innerHTML = '';
+    const wrap = document.getElementById('band-grid');
+    const bmap = profile.band_map || {};
+    const ants = profile.antennas || {};
+    const cols = portCount + 1; // None + ports 1..portCount
+
+    let html = `<div class="ph-grid" style="grid-template-columns:52px repeat(${cols},minmax(52px,1fr))">`;
+
+    // Header row
+    html += '<div class="ph-cell ph-corner"></div>';
+    html += '<div class="ph-cell ph-header"><span class="ph-hnum">—</span><span class="ph-hname">None</span></div>';
+    for (let i = 1; i <= portCount; i++) {
+        const name = ants[String(i)]?.name || `Port ${i}`;
+        html += `<div class="ph-cell ph-header"><span class="ph-hnum">${i}</span><span class="ph-hname" title="${esc(name)}">${esc(name)}</span></div>`;
+    }
+
+    // Band rows
     BANDS.forEach(band => {
         const cur = bmap[band];
-        let opts = '<option value="">None</option>';
+        const noneActive = (cur == null || cur === undefined);
+        html += `<div class="ph-cell ph-band">${band}</div>`;
+        html += `<div class="ph-cell ph-dot${noneActive ? ' ph-active' : ''}" onclick="setBandPort('${band}',null)"></div>`;
         for (let i = 1; i <= portCount; i++) {
-            const aname = ants[String(i)]?.name || `Port ${i}`;
-            opts += `<option value="${i}" ${cur == i ? 'selected' : ''}>${i}: ${esc(aname)}</option>`;
+            html += `<div class="ph-cell ph-dot${cur == i ? ' ph-active' : ''}" onclick="setBandPort('${band}',${i})"></div>`;
         }
-        const div = document.createElement('div');
-        div.className = 'band-item';
-        div.innerHTML = `<span class="band-name">${band}</span>
-                         <select data-band="${band}">${opts}</select>`;
-        grid.appendChild(div);
     });
+
+    html += '</div>';
+    wrap.innerHTML = html;
+}
+
+async function setBandPort(band, port) {
+    if (!profile.band_map) profile.band_map = {};
+    profile.band_map[band] = port;
+    renderBandMap();
+    try {
+        await fetch('/bandmap', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(profile.band_map) });
+        toast('Band map saved');
+    } catch(e) { toast('Save failed', true); }
 }
 
 async function saveBandMap() {
-    const sels = document.querySelectorAll('#band-grid select[data-band]');
-    const bmap = {};
-    sels.forEach(s => { bmap[s.dataset.band] = s.value ? parseInt(s.value) : null; });
     try {
-        await fetch('/bandmap', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(bmap) });
-        profile.band_map = bmap;
+        await fetch('/bandmap', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(profile.band_map || {}) });
         toast('Band map saved');
     } catch(e) { toast('Failed', true); }
 }
