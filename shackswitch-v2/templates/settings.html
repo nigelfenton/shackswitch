@@ -351,6 +351,7 @@ select option { background: #0d1628; }
                     <button class="toggle-btn" id="inp1" onclick="setInputCount(1)">1 — Single radio</button>
                     <button class="toggle-btn" id="inp2" onclick="setInputCount(2)">2 — SO2R / Dual</button>
                 </div>
+                <div id="mcp-status" style="margin-top:6px;font-size:11px;"></div>
             </div>
         </div>
         <div class="form-row">
@@ -400,9 +401,9 @@ select option { background: #0d1628; }
 ══════════════════════════════════════════════ -->
 <div id="page-bandmap" class="page">
     <div class="card">
-        <div class="sh">Band → Antenna Assignment</div>
+        <div class="sh">Band → Port Assignment</div>
         <p style="color:var(--muted);font-size:11px;margin-bottom:12px">
-            Select which antenna each band routes to. Set to <strong style="color:var(--text)">None</strong> to disable automatic switching for that band.
+            Select which port each band routes to. Set to <strong style="color:var(--text)">None</strong> to disable automatic switching for that band.
         </p>
         <div class="band-grid" id="band-grid">Loading…</div>
         <div style="margin-top:14px">
@@ -702,6 +703,17 @@ function renderPorts(st) {
     btn2.title    = kk1lAvailable ? '' : 'Requires MCP23017 boards — not detected';
     btn2.style.opacity = kk1lAvailable ? '' : '0.35';
     btn2.style.cursor  = kk1lAvailable ? '' : 'not-allowed';
+    // MCP status line
+    const mcpEl = document.getElementById('mcp-status');
+    if (mcpEl) {
+        const mcp = (st && st.mcp_boards) || 'none';
+        if (mcp === 'none') {
+            mcpEl.innerHTML = '<span style="color:#f97316">&#9888; No MCP23017 detected &mdash; single input only</span>';
+        } else {
+            const addrs = mcp.split(',').join(' &amp; ');
+            mcpEl.innerHTML = '<span style="color:#00d8ef">&#10003; MCP23017 found at ' + addrs + ' &mdash; SO2R ready</span>';
+        }
+    }
     document.getElementById('input2-label-row').style.display = inputCount === 2 ? '' : 'none';
 
     // Port count selector

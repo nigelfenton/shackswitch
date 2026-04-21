@@ -122,6 +122,14 @@ bool kk1l_deselect_all() {
     Monitor.println("KK1L all ports deselected");
     return true;
 }
+String mcp_status() {
+    String s = "";
+    if (mcp_found)  s += "0x20";
+    if (mcp_found && mcp2_found) s += ",";
+    if (mcp2_found) s += "0x21";
+    if (s.length() == 0) s = "none";
+    return s;
+}
 String kk1l_status() {
     if (!mcp_found) return "unavailable";
     String s = "";
@@ -257,6 +265,7 @@ void setup() {
     Bridge.provide("kk1l_deselect",     kk1l_deselect);
     Bridge.provide("kk1l_deselect_all", kk1l_deselect_all);
     Bridge.provide("kk1l_status",       kk1l_status);
+    Bridge.provide("mcp_status",        mcp_status);
     Bridge.provide("get_config",        get_config);
     Bridge.provide("nextion_cmd",       nextion_cmd);
     Bridge.provide("nextion_get_event", nextion_get_event);

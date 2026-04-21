@@ -334,6 +334,10 @@ def status():
     config       = load_config()
     profile      = get_profile(config)
     kk1l         = bridge_call("kk1l_status")
+    try:
+        mcp_boards = bridge_call("mcp_status")
+    except Exception:
+        mcp_boards = "none"  # sketch not yet reflashed with mcp_status
     kk1l_states  = kk1l.split(",") if kk1l != "unavailable" else []
     rs           = smartsdr_state()
     # CAT radio fallback: build band/freq per input from active CAT radios
@@ -355,7 +359,8 @@ def status():
         "ok":             True,
         "relays":         {str(i+1): int(states[i]) for i in range(len(states))},
         "kk1l":           {str(i+1): kk1l_states[i] for i in range(len(kk1l_states))},
-        "kk1l_available": get_input_count(config) == 2 and kk1l != "unavailable",
+        "kk1l_available": kk1l != "unavailable",  # hardware-detected, not mode-dependent
+        "mcp_boards":     mcp_boards,             # "none", "0x20", or "0x20,0x21"
         "port_count":     profile.get("port_count", 8),
         "input_count":    get_input_count(config),
         "active_profile": config.get("active_profile", "home"),
