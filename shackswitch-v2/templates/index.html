@@ -193,7 +193,7 @@
 <body>
   <div class="topbar">
     <div class="topbar-title">G0JKN ShackSwitch</div>
-    <div class="topbar-sub" id="subtitle">v2.0 — Arduino Uno Q — 10.0.0.145</div>
+    <div class="topbar-sub" id="subtitle">v2.0 — Arduino Uno Q</div>
   </div>
   <div class="nav">
     <button class="nav-btn active" onclick="showPage('main', this)">Status</button>
@@ -419,7 +419,7 @@
       document.getElementById('card2').style.display = inputCount >= 2 ? '' : 'none';
       document.getElementById('legend-b').style.display = inputCount >= 2 ? '' : 'none';
       document.getElementById('subtitle').textContent =
-        'v2.0 — Arduino Uno Q — 10.0.0.145 — ' + portCount + '-port';
+        'v2.0 — Arduino Uno Q — ' + location.hostname + ' — ' + portCount + '-port';
       if (data.input1_label) document.getElementById('label1').textContent = data.input1_label;
       if (data.input2_label) document.getElementById('label2').textContent = data.input2_label;
       for (let i = 1; i <= portCount; i++) {
