@@ -1,0 +1,666 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HF Propagation Dashboard</title>
+<style>
+:root {
+    --bg:        #09101f;
+    --card-bg:   #0d1628;
+    --border:    #1c2a40;
+    --cyan:      #00d8ef;
+    --cyan-dim:  #008fa0;
+    --green:     #22d46a;
+    --yellow:    #f5a623;
+    --orange:    #f97316;
+    --red:       #ef4444;
+    --text:      #dde6f0;
+    --muted:     #6b8099;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    font-size: 13px;
+    padding: 14px 18px;
+    min-height: 100vh;
+}
+
+/* ── Section header ─────────────────────────────── */
+.sh {
+    color: var(--cyan);
+    font-size: 15px;
+    font-weight: 600;
+    letter-spacing: .06em;
+    padding-bottom: 6px;
+    border-bottom: 1px solid var(--cyan-dim);
+    margin-bottom: 12px;
+}
+
+/* ── Current Conditions ─────────────────────────── */
+.cond-row {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 10px;
+    margin-bottom: 6px;
+}
+.cond-card {
+    background: var(--card-bg);
+    border: 1px solid var(--cyan);
+    border-radius: 8px;
+    padding: 14px 10px 10px;
+    text-align: center;
+    cursor: default;
+    position: relative;
+    transition: border-color .2s;
+}
+.cond-card:hover .tooltip { display: block; }
+.cond-label {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: .12em;
+    color: var(--muted);
+    text-transform: uppercase;
+    margin-bottom: 8px;
+}
+.cond-val {
+    font-size: 38px;
+    font-weight: 700;
+    line-height: 1;
+    margin-bottom: 8px;
+}
+.cond-desc { font-size: 11px; color: var(--muted); }
+
+.tooltip {
+    display: none;
+    position: absolute;
+    bottom: calc(100% + 6px);
+    left: 50%;
+    transform: translateX(-50%);
+    background: #1a2840;
+    border: 1px solid var(--cyan-dim);
+    border-radius: 6px;
+    padding: 8px 10px;
+    font-size: 11px;
+    color: var(--text);
+    white-space: nowrap;
+    z-index: 10;
+    max-width: 220px;
+    white-space: normal;
+    text-align: left;
+    line-height: 1.5;
+}
+
+.hint { font-size: 11px; color: var(--muted); font-style: italic; margin-bottom: 14px; }
+
+/* ── Two-column body ────────────────────────────── */
+.two-col {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+    margin-bottom: 14px;
+}
+.card {
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px;
+}
+
+/* ── Forecast table ─────────────────────────────── */
+.ftable {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+}
+.ftable th {
+    background: #131f33;
+    padding: 5px 8px;
+    font-weight: 500;
+    border: 1px solid var(--border);
+    color: var(--text);
+}
+.ftable td {
+    padding: 3px 6px;
+    text-align: center;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    font-weight: 600;
+    background: #0b1322;
+}
+.ftable .tc { text-align: left; font-size: 11px; color: var(--muted); padding-left: 8px; }
+.ftable .maxrow td { background: #1a1200; font-size: 13px; }
+.ftable .probrow td { background: #091520; font-size: 11px; }
+.ftable .probrow td.tc { color: var(--muted); }
+.fsummary { font-size: 11px; color: var(--muted); font-style: italic; margin-top: 8px; }
+
+/* ── Solar & Lunar ──────────────────────────────── */
+.sol-imgs { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px; }
+.sol-img-wrap { text-align: center; }
+.sol-img-wrap img, .sol-img-wrap canvas {
+    width: 100%;
+    max-width: 160px;
+    border-radius: 50%;
+    border: 2px solid #2a3a50;
+    display: block;
+    margin: 0 auto;
+}
+.sol-img-wrap img { cursor: pointer; }
+.sol-cap { font-size: 11px; color: var(--muted); margin-top: 5px; }
+
+.wtlf-title { font-size: 13px; font-weight: 600; margin-bottom: 3px; }
+.wtlf-sub   { font-size: 11px; color: var(--muted); margin-bottom: 8px; line-height: 1.4; }
+.wtlf-btns  { display: flex; gap: 8px; margin-bottom: 8px; }
+.wtlf-btn {
+    padding: 3px 14px;
+    border-radius: 12px;
+    border: 1px solid;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: .06em;
+    cursor: pointer;
+    background: transparent;
+}
+.wtlf-btn.view  { border-color: var(--cyan-dim); color: var(--cyan-dim); }
+.wtlf-btn.hf    { border-color: var(--green); color: var(--green); }
+.wtlf-btn.moon  { border-color: var(--yellow); color: var(--yellow); }
+.wtlf-btn.active { background: var(--cyan); border-color: var(--cyan); color: #000; }
+.wtlf-text { font-size: 11px; color: var(--muted); line-height: 1.6; }
+
+/* ── Band conditions ────────────────────────────── */
+.two-col-bands { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 14px; }
+.band-row {
+    display: flex;
+    align-items: center;
+    padding: 4px 0;
+    border-bottom: 1px solid var(--border);
+    gap: 8px;
+}
+.band-name  { font-size: 12px; color: var(--muted); width: 42px; flex-shrink: 0; }
+.band-bar-bg { flex: 1; height: 6px; background: #1a2a3a; border-radius: 3px; overflow: hidden; }
+.band-bar   { height: 100%; border-radius: 3px; transition: width .4s; }
+.band-label { font-size: 10px; font-weight: 700; letter-spacing: .05em; width: 54px; text-align: right; flex-shrink: 0; }
+
+/* ── Footer ─────────────────────────────────────── */
+.footer { font-size: 10px; color: var(--muted); text-align: right; margin-top: 4px; }
+
+/* ── Colour helpers ─────────────────────────────── */
+.green  { color: var(--green); }
+.yellow { color: var(--yellow); }
+.orange { color: var(--orange); }
+.red    { color: var(--red); }
+.cyan   { color: var(--cyan); }
+.bc-green  { border-color: var(--green)  !important; }
+.bc-yellow { border-color: var(--yellow) !important; }
+.bc-orange { border-color: var(--orange) !important; }
+.bc-red    { border-color: var(--red)    !important; }
+</style>
+</head>
+<body>
+
+<!-- Current Conditions -->
+<div class="sh">Current Conditions</div>
+<div class="cond-row">
+    <div class="cond-card" id="card-kp">
+        <div class="cond-label">K Index</div>
+        <div class="cond-val" id="val-kp">—</div>
+        <div class="cond-desc" id="desc-kp">Loading…</div>
+        <div class="tooltip" id="tip-kp"></div>
+    </div>
+    <div class="cond-card" id="card-a">
+        <div class="cond-label">A Index</div>
+        <div class="cond-val" id="val-a">—</div>
+        <div class="cond-desc" id="desc-a">Loading…</div>
+        <div class="tooltip" id="tip-a"></div>
+    </div>
+    <div class="cond-card" id="card-sfi">
+        <div class="cond-label">Solar Flux</div>
+        <div class="cond-val" id="val-sfi">—</div>
+        <div class="cond-desc" id="desc-sfi">Loading…</div>
+        <div class="tooltip" id="tip-sfi"></div>
+    </div>
+    <div class="cond-card" id="card-ssn">
+        <div class="cond-label">Sunspots</div>
+        <div class="cond-val" id="val-ssn">—</div>
+        <div class="cond-desc" id="desc-ssn">Loading…</div>
+        <div class="tooltip" id="tip-ssn"></div>
+    </div>
+    <div class="cond-card" id="card-xray">
+        <div class="cond-label">X-Ray</div>
+        <div class="cond-val" id="val-xray">—</div>
+        <div class="cond-desc" id="desc-xray">Loading…</div>
+        <div class="tooltip" id="tip-xray"></div>
+    </div>
+</div>
+<div class="hint">Hover any card for a quick plain-language explanation.</div>
+
+<!-- Forecast + Solar -->
+<div class="two-col">
+    <div class="card">
+        <div class="sh">3-Day Forecast</div>
+        <div id="forecast-wrap">Loading forecast…</div>
+    </div>
+    <div class="card">
+        <div class="sh">Solar And Lunar</div>
+        <div class="sol-imgs">
+            <div class="sol-img-wrap">
+                <img id="solar-img"
+                     src="https://sdo.gsfc.nasa.gov/assets/img/latest/latest_512_0193.jpg"
+                     alt="Solar image"
+                     title="Click to cycle wavelengths"
+                     onclick="cycleSolar()">
+                <div class="sol-cap" id="solar-cap">Corona (193Å)</div>
+            </div>
+            <div class="sol-img-wrap">
+                <canvas id="moon-cv" width="160" height="160"></canvas>
+                <div class="sol-cap" id="moon-cap">Loading…</div>
+            </div>
+        </div>
+        <div class="wtlf-title">What To Look For</div>
+        <div class="wtlf-sub">Click the solar image to cycle wavelengths and build intuition from different solar views.</div>
+        <div class="wtlf-btns">
+            <button class="wtlf-btn view"  onclick="setTab('view')">VIEW</button>
+            <button class="wtlf-btn hf"    onclick="setTab('hf')">HF</button>
+            <button class="wtlf-btn moon"  onclick="setTab('moon')">MOON</button>
+        </div>
+        <div class="wtlf-text" id="wtlf-text"></div>
+    </div>
+</div>
+
+<!-- Band Conditions -->
+<div class="two-col-bands">
+    <div class="card">
+        <div class="sh">HF Band Conditions</div>
+        <div id="hf-bands">Loading…</div>
+    </div>
+    <div class="card">
+        <div class="sh">VHF Conditions</div>
+        <div id="vhf-bands">Loading…</div>
+    </div>
+</div>
+
+<div class="footer" id="footer">Updating…</div>
+
+<script>
+// ── Colours & thresholds ────────────────────────────────────────────────────
+function kpColor(v) {
+    if (v < 3)  return 'green';
+    if (v < 4)  return 'yellow';
+    if (v < 5)  return 'orange';
+    return 'red';
+}
+function kpBorderClass(v) {
+    if (v < 3)  return 'bc-green';
+    if (v < 4)  return 'bc-yellow';
+    if (v < 5)  return 'bc-orange';
+    return 'bc-red';
+}
+function kpDesc(v) {
+    if (v < 1)  return 'Very quiet geomagnetic field';
+    if (v < 2)  return 'Quiet geomagnetic field';
+    if (v < 3)  return 'Mostly quiet';
+    if (v < 4)  return 'Unsettled conditions';
+    if (v < 5)  return 'Active – some disruption possible';
+    if (v < 6)  return 'Minor storm (G1)';
+    if (v < 7)  return 'Moderate storm (G2)';
+    return 'Severe storm (G3+)';
+}
+function kpTip(v) {
+    if (v < 3)  return 'K index measures geomagnetic disturbance on a 0–9 scale. Below 3 means calm conditions — polar paths are open and aurora is unlikely.';
+    if (v < 5)  return 'K index is elevated. Expect some degradation on polar paths and noisier signals at high latitudes.';
+    return 'Geomagnetic storm in progress. HF paths through the auroral zone are likely disrupted. Try lower bands and equatorial paths.';
+}
+function aColor(v) {
+    if (v < 8)  return 'green';
+    if (v < 16) return 'yellow';
+    if (v < 30) return 'orange';
+    return 'red';
+}
+function aDesc(v) {
+    if (v < 8)  return 'Quiet – calm 24-hour average';
+    if (v < 16) return 'Unsettled – some disturbance';
+    if (v < 30) return 'Active conditions';
+    if (v < 50) return 'Minor storm';
+    return 'Storm energy staying elevated';
+}
+function aTip(v) {
+    return 'The A index is the 24-hour average of geomagnetic activity (0–400 scale). Values under 8 are quiet; above 30 indicate storm conditions that degrade HF propagation, especially at high latitudes.';
+}
+function sfiColor(v) {
+    if (v < 90)  return 'green';
+    if (v < 120) return 'yellow';
+    return 'orange';
+}
+function sfiDesc(v) {
+    if (v < 90)  return 'Low flux – higher bands may be closed';
+    if (v < 120) return 'Lower bands likely lead today';
+    if (v < 150) return 'Moderate flux – good mid-band conditions';
+    return 'High flux – upper bands well-supported';
+}
+function sfiTip(v) {
+    return 'Solar Flux Index (F10.7) measures the Sun\'s radio output at 10.7cm. Values above 120 support the upper HF bands (10–17m). Below 90, those bands tend to close early.';
+}
+function ssnColor(v) {
+    if (v < 30)  return 'green';
+    if (v < 80)  return 'yellow';
+    return 'yellow';
+}
+function ssnDesc(v) {
+    if (v < 10)  return 'Very few active regions';
+    if (v < 30)  return 'Few active regions in view';
+    if (v < 80)  return 'Moderate solar activity';
+    return 'High solar activity';
+}
+function ssnTip() {
+    return 'The daily sunspot number reflects solar activity. More sunspots generally mean higher solar flux and better propagation on the upper HF bands.';
+}
+function classifyXRay(flux) {
+    const f = parseFloat(flux);
+    if (f >= 1e-4) return { cls: 'X',  sub: (f/1e-4).toFixed(1), color:'red' };
+    if (f >= 1e-5) return { cls: 'M',  sub: (f/1e-5).toFixed(1), color:'orange' };
+    if (f >= 1e-6) return { cls: 'C',  sub: (f/1e-6).toFixed(1), color:'yellow' };
+    if (f >= 1e-7) return { cls: 'B',  sub: (f/1e-7).toFixed(1), color:'cyan' };
+    return             { cls: 'A',  sub: (f/1e-8).toFixed(1), color:'green' };
+}
+function xrayDesc(cls) {
+    const d = { A:'Solar X-ray flux is very quiet', B:'Solar X-ray flux is quiet', C:'Minor solar flare activity', M:'Moderate flare – possible HF fadeouts', X:'Major flare – expect HF blackouts' };
+    return d[cls] || '';
+}
+function xrayTip(cls) {
+    const t = {
+        A: 'A-class X-ray flux is background level — no impact on HF propagation.',
+        B: 'B-class is quiet. Solar X-rays are slightly elevated but cause no HF disruption.',
+        C: 'C-class flare. A brief HF radio blackout on the sunlit side is possible.',
+        M: 'M-class flare. Expect short-wave radio fadeouts (R1–R2) on the sunlit hemisphere.',
+        X: 'X-class flare. Strong to extreme HF blackouts (R3+) likely on the sunlit side. Check for associated CME.'
+    };
+    return t[cls] || '';
+}
+
+// ── NOAA data fetch ─────────────────────────────────────────────────────────
+async function loadData() {
+    try {
+        const [wwvRes, forecastRes, xrayRes] = await Promise.all([
+            fetch('https://services.swpc.noaa.gov/json/wwv.json'),
+            fetch('https://services.swpc.noaa.gov/products/noaa-planetary-k-index-forecast.json'),
+            fetch('https://services.swpc.noaa.gov/json/goes/primary/xrays-6-hour.json')
+        ]);
+        const wwv      = await wwvRes.json();
+        const forecast = await forecastRes.json();
+        const xray     = await xrayRes.json();
+
+        updateConditions(wwv, xray);
+        updateForecast(forecast);
+        updateBands(wwv);
+        document.getElementById('footer').textContent =
+            'Last updated: ' + new Date().toUTCString();
+    } catch(e) {
+        document.getElementById('footer').textContent = 'Update failed – check connection';
+    }
+}
+
+// ── Current Conditions ──────────────────────────────────────────────────────
+function setCard(id, value, colorClass, desc, borderClass, tipText) {
+    const card = document.getElementById('card-' + id);
+    const val  = document.getElementById('val-' + id);
+    const dsc  = document.getElementById('desc-' + id);
+    const tip  = document.getElementById('tip-' + id);
+    val.textContent = value;
+    val.className   = 'cond-val ' + colorClass;
+    dsc.textContent = desc;
+    card.className  = 'cond-card ' + borderClass;
+    if (tip) tip.textContent = tipText;
+}
+
+function updateConditions(wwv, xray) {
+    // wwv is an array; take the latest entry
+    const w = Array.isArray(wwv) ? wwv[wwv.length - 1] : wwv;
+    const geo   = w.Geophysical || {};
+    const solar = w.Solar || {};
+
+    const kp  = parseFloat(geo.K  || 0);
+    const a   = parseFloat(geo.A  || 0);
+    const sfi = parseFloat(solar.SFI || solar['SFI'] || 0);
+    const ssn = parseFloat(solar.SSN || solar['SSN'] || 0);
+
+    setCard('kp',  kp.toFixed(2), kpColor(kp),   kpDesc(kp),   kpBorderClass(kp), kpTip(kp));
+    setCard('a',   a.toString(),  aColor(a),      aDesc(a),     aColor(a)==='green'?'bc-green':aColor(a)==='yellow'?'bc-yellow':aColor(a)==='orange'?'bc-orange':'bc-red', aTip(a));
+    setCard('sfi', sfi.toString(), sfiColor(sfi), sfiDesc(sfi), sfiColor(sfi)==='green'?'bc-green':sfiColor(sfi)==='yellow'?'bc-yellow':'bc-orange', sfiTip(sfi));
+    setCard('ssn', ssn.toString(), ssnColor(ssn), ssnDesc(ssn), 'bc-yellow', ssnTip());
+
+    // X-ray – take last 0.1-0.8nm reading
+    const xr = xray.filter(r => r.energy === '0.1-0.8nm').pop() || xray[xray.length - 1];
+    if (xr) {
+        const x = classifyXRay(xr.flux || xr.observed_flux || 0);
+        setCard('xray', x.cls + x.sub, x.color, xrayDesc(x.cls), x.color==='green'?'bc-green':x.color==='cyan'?'':'bc-'+x.color, xrayTip(x.cls));
+    }
+}
+
+// ── 3-Day Forecast ──────────────────────────────────────────────────────────
+function updateForecast(data) {
+    // First row is headers
+    const rows = data.slice(1).filter(r => r[2] !== 'estimated' || true);
+
+    // Group into 3-day slots by date
+    const days = {};
+    rows.forEach(r => {
+        const dt   = new Date(r[0] + ' UTC');
+        const date = dt.toLocaleDateString('en-GB', { day:'numeric', month:'short' });
+        const hour = dt.getUTCHours();
+        const slot = String(hour).padStart(2,'0') + '-' + String((hour+3)%24).padStart(2,'0');
+        if (!days[date]) days[date] = {};
+        days[date][slot] = parseFloat(r[1]);
+    });
+
+    const dayKeys = Object.keys(days).slice(0, 3);
+    const slots   = ['00-03','03-06','06-09','09-12','12-15','15-18','18-21','21-00'];
+
+    let html = '<table class="ftable"><thead><tr><th class="tc">UTC</th>';
+    dayKeys.forEach(d => html += `<th>${d}</th>`);
+    html += '</tr></thead><tbody>';
+
+    slots.forEach(slot => {
+        html += `<tr><td class="tc">${slot}</td>`;
+        dayKeys.forEach(d => {
+            const kp  = days[d] && days[d][slot] != null ? days[d][slot] : null;
+            const cls = kp != null ? kpColor(kp) : 'green';
+            const txt = kp != null ? kp.toFixed(2) : '0.00';
+            html += `<td class="kp-cell ${cls}">${txt}</td>`;
+        });
+        html += '</tr>';
+    });
+
+    // Max Kp row
+    html += '<tr class="maxrow"><td class="tc">Max Kp</td>';
+    dayKeys.forEach(d => {
+        const vals = Object.values(days[d] || {});
+        const max  = vals.length ? Math.max(...vals) : 0;
+        const cls  = kpColor(max);
+        html += `<td class="${cls}">${max.toFixed(2)}</td>`;
+    });
+    html += '</tr>';
+
+    // Storm probabilities (rough estimate from max Kp)
+    const probLabel = ['R1-R2', 'R3+', 'S1+'];
+    const probFn = [
+        d => Math.min(100, Math.round(Math.max(0, (Math.max(...Object.values(d||{})) - 4) * 25))) + '%',
+        d => Math.min(100, Math.round(Math.max(0, (Math.max(...Object.values(d||{})) - 6) * 20))) + '%',
+        d => '1%'
+    ];
+    probLabel.forEach((lbl, i) => {
+        html += `<tr class="probrow"><td class="tc">${lbl}</td>`;
+        dayKeys.forEach(d => {
+            const pct = probFn[i](days[d]);
+            const cls = pct === '0%' ? 'green' : parseInt(pct) < 20 ? 'green' : 'yellow';
+            html += `<td class="${cls}">${pct}</td>`;
+        });
+        html += '</tr>';
+    });
+
+    html += '</tbody></table>';
+    html += '<div class="fsummary" id="forecast-summary">There is a slight chance for minor (R1–R2) radio blackouts.</div>';
+    document.getElementById('forecast-wrap').innerHTML = html;
+}
+
+// ── Band Conditions ─────────────────────────────────────────────────────────
+function updateBands(wwv) {
+    const w    = Array.isArray(wwv) ? wwv[wwv.length - 1] : wwv;
+    const kp   = parseFloat((w.Geophysical || {}).K  || 0);
+    const sfi  = parseFloat((w.Solar       || {}).SFI || 100);
+
+    const hfBands = [
+        { name:'160m', minSfi:66,  goodKp:2 },
+        { name:'80m',  minSfi:66,  goodKp:3 },
+        { name:'60m',  minSfi:70,  goodKp:3 },
+        { name:'40m',  minSfi:75,  goodKp:4 },
+        { name:'30m',  minSfi:85,  goodKp:4 },
+        { name:'20m',  minSfi:90,  goodKp:5 },
+        { name:'17m',  minSfi:100, goodKp:5 },
+        { name:'15m',  minSfi:110, goodKp:5 },
+        { name:'12m',  minSfi:120, goodKp:5 },
+        { name:'10m',  minSfi:130, goodKp:5 },
+    ];
+
+    function bandScore(b) {
+        let score = Math.min(100, (sfi / b.minSfi) * 80);
+        if (kp >= b.goodKp) score *= 0.4;
+        else if (kp >= b.goodKp - 1) score *= 0.7;
+        return Math.round(Math.min(100, Math.max(0, score)));
+    }
+    function bandStatus(s) {
+        if (s >= 70) return { label:'GOOD',   color:'#22d46a' };
+        if (s >= 40) return { label:'FAIR',   color:'#f5a623' };
+        if (s >= 15) return { label:'POOR',   color:'#f97316' };
+        return              { label:'CLOSED', color:'#ef4444' };
+    }
+
+    let hfHtml = '';
+    hfBands.forEach(b => {
+        const s  = bandScore(b);
+        const st = bandStatus(s);
+        hfHtml += `<div class="band-row">
+            <span class="band-name">${b.name}</span>
+            <div class="band-bar-bg"><div class="band-bar" style="width:${s}%;background:${st.color}"></div></div>
+            <span class="band-label" style="color:${st.color}">${st.label}</span>
+        </div>`;
+    });
+    document.getElementById('hf-bands').innerHTML = hfHtml;
+
+    const vhfBands = [
+        { name:'6m',   note: sfi > 130 ? 'Es / F2 possible' : 'Sporadic-E watch',  good: sfi > 110 },
+        { name:'4m',   note: 'Sporadic-E seasonal',   good: false },
+        { name:'2m',   note: kp > 4 ? 'Aurora path open' : 'Tropo conditions', good: kp > 4 },
+        { name:'70cm', note: 'Tropo / aircraft scatter', good: false },
+    ];
+    let vhfHtml = '';
+    vhfBands.forEach(b => {
+        const color = b.good ? '#22d46a' : '#6b8099';
+        const label = b.good ? 'ENHANCED' : 'NORMAL';
+        vhfHtml += `<div class="band-row">
+            <span class="band-name">${b.name}</span>
+            <div class="band-bar-bg"><div class="band-bar" style="width:${b.good?70:20}%;background:${color}"></div></div>
+            <span class="band-label" style="color:${color};width:80px">${label}</span>
+        </div>
+        <div style="font-size:11px;color:var(--muted);padding:1px 0 4px 50px">${b.note}</div>`;
+    });
+    document.getElementById('vhf-bands').innerHTML = vhfHtml;
+}
+
+// ── Solar image cycling ─────────────────────────────────────────────────────
+const SOLAR_VIEWS = [
+    { url:'https://sdo.gsfc.nasa.gov/assets/img/latest/latest_512_0193.jpg', cap:'Corona (193Å)',        tip:'In 193Å, watch for dark coronal holes and bright active regions. Coronal holes often line up with faster solar wind reaching Earth a day or two later.' },
+    { url:'https://sdo.gsfc.nasa.gov/assets/img/latest/latest_512_0304.jpg', cap:'Chromosphere (304Å)',  tip:'304Å shows the chromosphere and transition region. Bright loops and filaments indicate active magnetic areas that can produce flares.' },
+    { url:'https://sdo.gsfc.nasa.gov/assets/img/latest/latest_512_0171.jpg', cap:'Corona (171Å)',        tip:'171Å reveals quiet corona and upper transition region. The bright points are magnetic footprints; arching loops connect active regions.' },
+    { url:'https://sdo.gsfc.nasa.gov/assets/img/latest/latest_512_HMIBC.jpg', cap:'Magnetogram (HMI)',   tip:'The magnetogram shows magnetic polarity — white is north, black is south. Tight opposite-polarity regions are where flares and CMEs originate.' },
+];
+let solarIdx = 0;
+function cycleSolar() {
+    solarIdx = (solarIdx + 1) % SOLAR_VIEWS.length;
+    const v = SOLAR_VIEWS[solarIdx];
+    document.getElementById('solar-img').src = v.url;
+    document.getElementById('solar-cap').textContent = v.cap;
+    if (activeTab === 'view') document.getElementById('wtlf-text').textContent = v.tip;
+}
+
+// ── What To Look For tabs ───────────────────────────────────────────────────
+const WTLF = {
+    view: () => SOLAR_VIEWS[solarIdx].tip,
+    hf:   () => 'Right now the radio takeaway is caution because geomagnetic or flare activity is elevated. Expect noisier daylight or polar paths and try lower bands first when signals feel rough.',
+    moon: () => 'Moon phase is mostly a side note for ordinary HF. It matters much more for EME work than for everyday band openings. New moon = darkest skies for 160m / 80m weak-signal work.'
+};
+let activeTab = 'hf';
+function setTab(tab) {
+    activeTab = tab;
+    document.querySelectorAll('.wtlf-btn').forEach(b => b.classList.remove('active'));
+    document.querySelector('.wtlf-btn.' + tab).classList.add('active');
+    document.getElementById('wtlf-text').textContent = WTLF[tab]();
+}
+setTab('hf');
+
+// ── Moon phase canvas ───────────────────────────────────────────────────────
+function drawMoon() {
+    const canvas = document.getElementById('moon-cv');
+    const ctx    = canvas.getContext('2d');
+    const W = canvas.width, H = canvas.height;
+    const cx = W/2, cy = H/2, r = W/2 - 4;
+
+    // Phase calculation (days since known new moon)
+    const known   = new Date('2000-01-06T18:14:00Z');
+    const synodic = 29.53058867;
+    const age     = ((Date.now() - known.getTime()) / 86400000 % synodic + synodic) % synodic;
+    const illum   = (1 - Math.cos(age / synodic * 2 * Math.PI)) / 2;
+    const waning  = age > synodic / 2;
+
+    ctx.clearRect(0, 0, W, H);
+
+    // Dark disk
+    ctx.fillStyle = '#1a1f30';
+    ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI*2); ctx.fill();
+
+    // Lit side
+    if (illum > 0.01) {
+        ctx.save();
+        // clip to circle
+        ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI*2); ctx.clip();
+
+        const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
+        grad.addColorStop(0,   '#e8e0b0');
+        grad.addColorStop(0.7, '#c8b870');
+        grad.addColorStop(1,   '#8a7840');
+
+        ctx.fillStyle = grad;
+        // Draw full lit half
+        ctx.beginPath();
+        ctx.arc(cx, cy, r, -Math.PI/2, Math.PI/2, waning);
+        ctx.closePath();
+        ctx.fill();
+
+        // Ellipse for terminator
+        const termW = Math.abs(1 - 2*illum) * r;
+        ctx.fillStyle = illum > 0.5 ? grad : '#1a1f30';
+        ctx.beginPath();
+        ctx.ellipse(cx, cy, termW, r, 0, -Math.PI/2, Math.PI/2, illum > 0.5 ? waning : !waning);
+        ctx.closePath();
+        ctx.fill();
+
+        ctx.restore();
+    }
+
+    // Rim
+    ctx.strokeStyle = '#2a3a50';
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI*2); ctx.stroke();
+
+    const pct = Math.round(illum * 100);
+    document.getElementById('moon-cap').textContent = pct + '% illuminated';
+}
+
+// ── Init & refresh ──────────────────────────────────────────────────────────
+drawMoon();
+loadData();
+setInterval(loadData, 5 * 60 * 1000); // refresh every 5 minutes
+</script>
+</body>
+</html>
