@@ -6,6 +6,7 @@ import time
 import sys
 
 flask_app = Flask(__name__)
+flask_app.config["TEMPLATES_AUTO_RELOAD"] = True   # always serve fresh templates
 CONFIG_PATH = "/app/python/config.json"
 
 MAX_PORTS   = 16
