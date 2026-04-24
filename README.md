@@ -12,13 +12,11 @@
 
 ### Hardware
 
-![Back panel — SO239 connectors and rear panel layout](images/back-panel.jpeg)
-
-![Nextion display — live band and antenna status](images/nextion-display.jpeg)
+*Hardware photos coming soon — current v2.0 build (Arduino Uno Q)*
 
 ### Web Interface
 
-![Web UI — live antenna selection and SO2R status](images/web-interface.jpeg)
+*Web UI screenshots coming soon*
 
 ### AetherSDR Integration
 
