@@ -10,17 +10,25 @@
 
 ## Photos
 
-<!-- PHOTO: Hardware overview — Arduino Uno Q board with relay shield and KK1L board installed -->
-*Photo coming soon — hardware overview*
+### Hardware
 
-<!-- PHOTO: Enclosure — front/rear panel showing SO239 connectors and finished build -->
-*Photo coming soon — enclosure front/rear*
+![Back panel — SO239 connectors and rear panel layout](images/back-panel.jpeg)
 
-<!-- PHOTO: Web UI — main status page in browser showing live antenna selection and SO2R status -->
-*Screenshot coming soon — web UI status page*
+![Nextion display — live band and antenna status](images/nextion-display.jpeg)
 
-<!-- PHOTO: Web UI settings — band assignment grid -->
-*Screenshot coming soon — web UI settings / band assignment grid*
+### Web Interface
+
+![Web UI — live antenna selection and SO2R status](images/web-interface.jpeg)
+
+### AetherSDR Integration
+
+**Uno Q — dual input (SO2R), INPUT A on 20m, INPUT B on 80m:**
+
+![AetherSDR ShackSwitch applet — Uno Q dual input](images/V2.0.png)
+
+**R4 — single input, INPUT A on 40m:**
+
+![AetherSDR ShackSwitch applet — R4 single input](images/V1.5.png)
 
 ---
 
@@ -172,7 +180,7 @@ ShackSwitch emulates a 4O3A Antenna Genius device so that AetherSDR can discover
 
 See [shackswitch-v2/AETHERSDR-PROTOCOL.md](shackswitch-v2/AETHERSDR-PROTOCOL.md) for full protocol documentation.
 
-> **Note:** As of AetherSDR 0.8.7 the TCP infrastructure is complete and working, but the antenna selection UI panel in AetherSDR is not yet implemented upstream.
+> **Status (April 2026):** Full two-way integration is working — ShackSwitch is auto-discovered by AetherSDR, displays as a dedicated ShackSwitch applet showing live band and antenna selection for both inputs (R4: single input; Uno Q: dual input SO2R). A pull request to upstream AetherSDR is planned after the Dayton Hamvention release (mid-May 2026).
 
 ---
 
