@@ -68,6 +68,17 @@ def smartsdr_state():
 def bridge_call(method, *args):
     return Bridge.call(method, *args)
 
+def _pa_seq(cfg, switch_fn):
+    """Standby PA → execute relay switch → 20 ms settle → restore PA.
+    Only acts when rfkit_enabled=True and rfkit_ip is set in config."""
+    amp_on = cfg.get('rfkit_enabled') and cfg.get('rfkit_ip')
+    if amp_on:
+        rfkit.rfkit_standby()
+    switch_fn()
+    if amp_on:
+        time.sleep(0.02)
+        rfkit.rfkit_operate_mode()
+
 # ---------------------------------------------------------------------------
 # Factory reset template
 # Illustrative defaults — every capability type shown so builders understand
@@ -183,15 +194,17 @@ def select():
         return jsonify({"ok": False, "error": "Interlock"}), 409
     old_relay = config.get(this)
     if old_relay == relay:
-        bridge_call("relay_off", relay)
+        _pa_seq(config, lambda: bridge_call("relay_off", relay))
         config[this] = None
         save_config(config)
         nextion.on_port_selected(input_n, relay, deselected=True)
         return jsonify({"ok": True, "input": input_n, "relay": relay, "state": "deselected"})
     else:
-        if old_relay is not None:
-            bridge_call("relay_off", int(old_relay))
-        bridge_call("relay_on", relay)
+        def _do():
+            if old_relay is not None:
+                bridge_call("relay_off", int(old_relay))
+            bridge_call("relay_on", relay)
+        _pa_seq(config, _do)
         config[this] = relay
     save_config(config)
     nextion.on_port_selected(input_n, relay)
@@ -212,9 +225,11 @@ def setband():
     if config.get(other) == relay:
         return jsonify({"ok": False, "error": "Interlock"}), 409
     old_relay = config.get(this)
-    if old_relay is not None:
-        bridge_call("relay_off", int(old_relay))
-    bridge_call("relay_on", relay)
+    def _do_setband():
+        if old_relay is not None:
+            bridge_call("relay_off", int(old_relay))
+        bridge_call("relay_on", relay)
+    _pa_seq(config, _do_setband)
     config[this] = relay
     save_config(config)
     return jsonify({"ok": True, "input": input_n, "band": band, "relay": relay})
@@ -242,7 +257,7 @@ def kk1l_select():
     current  = config.get(this_key)
     if current == port:
         use_kk1l = get_input_count(config) == 2
-        bridge_call("kk1l_deselect" if use_kk1l else "relay_off", port)
+        _pa_seq(config, lambda: bridge_call("kk1l_deselect" if use_kk1l else "relay_off", port))
         config[this_key] = None
         if not use_kk1l and input_n == '1':
             config['input1_relay'] = None
@@ -251,9 +266,11 @@ def kk1l_select():
         ag_push_port_status(int(input_n))
         return jsonify({"ok": True, "input": input_n, "port": port, "state": "deselected"})
     use_kk1l = get_input_count(config) == 2
-    if current is not None:
-        bridge_call("kk1l_deselect" if use_kk1l else "relay_off", int(current))
-    bridge_call(("kk1l_select_a" if input_n == "1" else "kk1l_select_b") if use_kk1l else "relay_on", port)
+    def _do_kk1l_sel():
+        if current is not None:
+            bridge_call("kk1l_deselect" if use_kk1l else "relay_off", int(current))
+        bridge_call(("kk1l_select_a" if input_n == "1" else "kk1l_select_b") if use_kk1l else "relay_on", port)
+    _pa_seq(config, _do_kk1l_sel)
     config[this_key] = port
     if not use_kk1l and input_n == '1':
         config['input1_relay'] = port
@@ -309,9 +326,11 @@ def kk1l_setband():
         return jsonify({"ok": False, "error": "Interlock - port in use"}), 409
     current  = config.get(this_key)
     use_kk1l = get_input_count(config) == 2
-    if current is not None:
-        bridge_call("kk1l_deselect" if use_kk1l else "relay_off", int(current))
-    bridge_call(("kk1l_select_a" if input_n == "1" else "kk1l_select_b") if use_kk1l else "relay_on", port)
+    def _do_kk1l_setband():
+        if current is not None:
+            bridge_call("kk1l_deselect" if use_kk1l else "relay_off", int(current))
+        bridge_call(("kk1l_select_a" if input_n == "1" else "kk1l_select_b") if use_kk1l else "relay_on", port)
+    _pa_seq(config, _do_kk1l_setband)
     config[this_key] = port
     config[f'input{input_n}_band'] = band
     if not use_kk1l and input_n == '1':
