@@ -258,17 +258,18 @@ class _NextionDriver:
         inv_a = {v: k for k, v in COMP_BA.items()}
         port_a = inv_a.get(comp)
         if port_a is not None:
-            # Optimistic update from poll thread — avoids Flask-thread bridge conflict
-            new_port = None if self._active_port == port_a else port_a
-            self._active_port = new_port
-            self._push_buttons()
+            old = self._active_port
+            new = None if old == port_a else port_a
+            self._active_port = new
+            self._update_button_a(old, new)
             threading.Thread(target=_select_port, args=(port_a, 1), daemon=True).start()
             return
         port_b = COMP_BB_INV.get(comp)
         if port_b is not None:
-            new_port = None if self._active_port_b == port_b else port_b
-            self._active_port_b = new_port
-            self._push_buttons()
+            old = self._active_port_b
+            new = None if old == port_b else port_b
+            self._active_port_b = new
+            self._update_button_b(old, new)
             threading.Thread(target=_select_port, args=(port_b, 2), daemon=True).start()
             return
         if comp == COMP_SKIP:
@@ -346,6 +347,7 @@ class _NextionDriver:
         self._send_many(cmds)
 
     def _push_buttons(self):
+        """Redraw all button states — used on startup or after label change."""
         cmds = []
         count = max(self._port_count, len(self._labels), 4)
         has_b = self._input_count >= 2 or self._active_port_b is not None
@@ -356,6 +358,22 @@ class _NextionDriver:
                 pb = PIC_B_ON if n == self._active_port_b else PIC_B_OFF
                 cmds += [f'bB{n}.pic={pb}', f'bB{n}.pic2={pb}', f'ref bB{n}']
         self._send_many(cmds)
+
+    def _update_button_a(self, old_port, new_port):
+        """Fast update: only touch the two bA buttons that changed."""
+        for n, pic in [(old_port, PIC_A_OFF), (new_port, PIC_A_ON)]:
+            if n:
+                self._send(f'bA{n}.pic={pic}')
+                self._send(f'bA{n}.pic2={pic}')
+                self._send(f'ref bA{n}')
+
+    def _update_button_b(self, old_port, new_port):
+        """Fast update: only touch the two bB buttons that changed."""
+        for n, pic in [(old_port, PIC_B_OFF), (new_port, PIC_B_ON)]:
+            if n:
+                self._send(f'bB{n}.pic={pic}')
+                self._send(f'bB{n}.pic2={pic}')
+                self._send(f'ref bB{n}')
 
 
 # ---------------------------------------------------------------------------
