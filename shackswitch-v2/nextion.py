@@ -51,11 +51,17 @@ COMP_WIFI_BACK    = 0xFF  # bBackt (if configured with printh 23 02 54 FF)
 COMP_WIFI_RESET   = 0x23  # b2 factory reset on page8 (printh 23 02 54 23)
 WIFI_SCAN_SVC     = "http://172.21.0.1:5555/scan"
 
-# Nextion RGB565 colours
-COL_ACTIVE_A = 2016   # bright green  — Input A selected
-COL_ACTIVE_B = 64512  # orange        — Input B selected
-COL_INACTIVE = 16904  # dark grey
-COL_ACTIVE   = COL_ACTIVE_A  # legacy alias
+# Nextion button image IDs (sta=image buttons — bco is ignored, use pic/pic2)
+PIC_A_OFF = 23   # bA button normal/inactive
+PIC_A_ON  = 24   # bA button active (Input A selected)
+PIC_B_OFF = 25   # bB button normal/inactive
+PIC_B_ON  = 26   # bB button active (Input B selected)
+
+# Legacy colour constants (kept for any future solid-colour components)
+COL_ACTIVE_A = 2016
+COL_ACTIVE_B = 64512
+COL_INACTIVE = 16904
+COL_ACTIVE   = COL_ACTIVE_A
 
 
 # ---------------------------------------------------------------------------
@@ -344,11 +350,11 @@ class _NextionDriver:
         count = max(self._port_count, len(self._labels), 4)
         has_b = self._input_count >= 2 or self._active_port_b is not None
         for n in range(1, count + 1):
-            ca = COL_ACTIVE_A if n == self._active_port   else COL_INACTIVE
-            cmds += [f'bA{n}.bco={ca}', f'bA{n}.bco2={ca}', f'ref bA{n}']
+            pa = PIC_A_ON if n == self._active_port   else PIC_A_OFF
+            cmds += [f'bA{n}.pic={pa}', f'bA{n}.pic2={pa}', f'ref bA{n}']
             if has_b:
-                cb = COL_ACTIVE_B if n == self._active_port_b else COL_INACTIVE
-                cmds += [f'bB{n}.bco={cb}', f'bB{n}.bco2={cb}', f'ref bB{n}']
+                pb = PIC_B_ON if n == self._active_port_b else PIC_B_OFF
+                cmds += [f'bB{n}.pic={pb}', f'bB{n}.pic2={pb}', f'ref bB{n}']
         self._send_many(cmds)
 
 
