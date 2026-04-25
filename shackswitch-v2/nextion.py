@@ -38,8 +38,12 @@ PAGE_WIFI  = 8
 # VERIFY in Nextion Editor: click each component → check .id in attributes.
 # Press each bA button with NEXTION_DEBUG=1 to read real IDs from the log.
 # ---------------------------------------------------------------------------
-COMP_BA   = {1: 1, 2: 2, 3: 3, 4: 4}   # bA1–bA4
-COMP_WIFI      = 9     # bWiFiMonitor on page0
+COMP_BA   = {i: i        for i in range(1, 9)}  # bA1–bA8: NN = 0x01–0x08
+COMP_BB   = {i: i + 0x10 for i in range(1, 9)}  # bB1–bB8: NN = 0x11–0x18
+COMP_BB_INV = {v: k for k, v in COMP_BB.items()}
+COMP_WIFI      = 0x09  # bWiFiMonitor (page0 and page2)
+COMP_BACK      = 0x0A  # bBackt — navigate to main page
+COMP_NEXT      = 0x0B  # bNext  — navigate to RSSI page
 COMP_WIFI_SCAN    = 0x21  # b0 SCAN on page8 (printh 23 02 54 21)
 COMP_WIFI_CONNECT = 0x22  # b1 CONNECT on page8 (printh 23 02 54 22)
 COMP_WIFI_BACK    = 0xFF  # bBackt (if configured with printh 23 02 54 FF)
@@ -66,8 +70,8 @@ class _NextionDriver:
         self._input_count   = 1
         self._wifi_ssids    = []
         self._labels        = ['', '', '', '']
-        self._band          = '--'
-        self._freq          = '0.000 MHz'
+        self._band_a        = '--'
+        self._band_b        = '--'
         self._radio_label   = ''
         self._ip            = ''
 
@@ -230,25 +234,32 @@ class _NextionDriver:
 
     def _on_touch(self, page: int, comp: int):
         log.info(f'Nextion touch page={page} comp={comp}')
-        print(f'NEXTION TOUCH page={page} comp={comp}', flush=True)
-        if page == PAGE_MAIN:
-            inv = {v: k for k, v in COMP_BA.items()}
-            port = inv.get(comp)
-            if port is not None:
-                _select_port(port)
-                return
-            if comp == COMP_WIFI:
-                self._send('page page8')
-            elif comp == COMP_WIFI_SCAN:
-                _wifi_scan_and_push()
-            elif comp == COMP_WIFI_CONNECT:
-                _wifi_connect()
-            elif comp == COMP_WIFI_BACK:
-                self._send('page page0')
-            elif comp == COMP_WIFI_RESET:
-                _factory_reset()
-        elif page == PAGE_WIFI:  # standard touch events from page8 (non-printh)
-            pass  # printh buttons handled in PAGE_MAIN block above
+        print(f'NEXTION TOUCH page={page} comp={comp:#04x}', flush=True)
+        # All printh events arrive with page=0 regardless of current HMI page.
+        # Route by comp value only.
+        inv_a = {v: k for k, v in COMP_BA.items()}
+        port_a = inv_a.get(comp)
+        if port_a is not None:
+            _select_port(port_a, input_n=1)
+            return
+        port_b = COMP_BB_INV.get(comp)
+        if port_b is not None:
+            _select_port(port_b, input_n=2)
+            return
+        if comp == COMP_WIFI:
+            self._send('page page8')
+        elif comp == COMP_BACK:
+            self._send('page page0')
+        elif comp == COMP_NEXT:
+            self._send('page page3')
+        elif comp == COMP_WIFI_SCAN:
+            _wifi_scan_and_push()
+        elif comp == COMP_WIFI_CONNECT:
+            _wifi_connect()
+        elif comp == COMP_WIFI_BACK:
+            self._send('page page0')
+        elif comp == COMP_WIFI_RESET:
+            _factory_reset()
 
     # ------------------------------------------------------------------
     # Public update methods
@@ -268,14 +279,14 @@ class _NextionDriver:
             active_name = self._labels[port - 1]
         self._send(f'tSO2R.txt="{active_name}"')
 
-    def update_band(self, band: str, freq_hz: int):
-        self._band = band if band else '--'
-        mhz = freq_hz / 1_000_000 if freq_hz else 0.0
-        self._freq = f'{mhz:.3f} MHz'
-        self._send_many([
-            f'tBandA.txt="{self._band}"',
-            f'tBandB.txt="{self._freq}"',
-        ])
+    def update_band(self, band: str, freq_hz: int, input_n: int = 1):
+        label = band if band else '--'
+        if input_n == 2:
+            self._band_b = label
+            self._send(f'tBandB.txt="{label}"')
+        else:
+            self._band_a = label
+            self._send(f'tBandA.txt="{label}"')
 
     def update_radio(self, label: str):
         self._radio_label = label
@@ -324,10 +335,10 @@ class _NextionDriver:
 # Flask helpers
 # ---------------------------------------------------------------------------
 
-def _select_port(port: int):
+def _select_port(port: int, input_n: int = 1):
     try:
         urllib.request.urlopen(
-            f'http://127.0.0.1:5000/kk1l/select?input=1&port={port}', timeout=2)
+            f'http://127.0.0.1:5000/kk1l/select?input={input_n}&port={port}', timeout=2)
     except Exception as exc:
         log.warning(f'Nextion port select failed: {exc}')
 
@@ -404,7 +415,7 @@ def on_port_selected(input_n: str, port: int, deselected: bool = False):
 
 
 def on_band_set(band: str, freq_hz: int, port: int, ant_name: str, input_n: str = '1'):
-    _driver.update_band(band, freq_hz)
+    _driver.update_band(band, freq_hz, input_n=int(input_n))
     _driver.update_port(port, input_n=int(input_n))
 
 
