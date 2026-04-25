@@ -44,6 +44,7 @@ COMP_BB_INV = {v: k for k, v in COMP_BB.items()}
 COMP_WIFI      = 0x09  # bWiFiMonitor (page0 and page2)
 COMP_BACK      = 0x0A  # bBackt — navigate to main page
 COMP_NEXT      = 0x0B  # bNext  — navigate to RSSI page
+COMP_SKIP         = 0x30  # bNext on page0 splash — navigate to correct main page
 COMP_WIFI_SCAN    = 0x21  # b0 SCAN on page8 (printh 23 02 54 21)
 COMP_WIFI_CONNECT = 0x22  # b1 CONNECT on page8 (printh 23 02 54 22)
 COMP_WIFI_BACK    = 0xFF  # bBackt (if configured with printh 23 02 54 FF)
@@ -214,6 +215,15 @@ class _NextionDriver:
         except Exception as exc:
             log.debug(f'Nextion RSSI poll: {exc}')
 
+    def _navigate_to_main(self):
+        """Go to the correct main page based on current port/input config."""
+        if self._input_count == 2 or self._port_count > 4:
+            self._send('page page2')
+        elif self._port_count == 6:
+            self._send('page page1')
+        else:
+            self._send('page page0')
+
     def _push_clock(self):
         import datetime
         utc = datetime.datetime.utcnow()
@@ -246,7 +256,9 @@ class _NextionDriver:
         if port_b is not None:
             _select_port(port_b, input_n=2)
             return
-        if comp == COMP_WIFI:
+        if comp == COMP_SKIP:
+            self._navigate_to_main()
+        elif comp == COMP_WIFI:
             self._send('page page8')
         elif comp == COMP_BACK:
             self._send('page page0')
