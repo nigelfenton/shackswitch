@@ -52,8 +52,10 @@ COMP_WIFI_RESET   = 0x23  # b2 factory reset on page8 (printh 23 02 54 23)
 WIFI_SCAN_SVC     = "http://172.21.0.1:5555/scan"
 
 # Nextion RGB565 colours
-COL_ACTIVE   = 2016   # bright green
+COL_ACTIVE_A = 2016   # bright green  — Input A selected
+COL_ACTIVE_B = 64512  # orange        — Input B selected
 COL_INACTIVE = 16904  # dark grey
+COL_ACTIVE   = COL_ACTIVE_A  # legacy alias
 
 
 # ---------------------------------------------------------------------------
@@ -250,11 +252,18 @@ class _NextionDriver:
         inv_a = {v: k for k, v in COMP_BA.items()}
         port_a = inv_a.get(comp)
         if port_a is not None:
-            _select_port(port_a, input_n=1)
+            # Optimistic update from poll thread — avoids Flask-thread bridge conflict
+            new_port = None if self._active_port == port_a else port_a
+            self._active_port = new_port
+            self._push_buttons()
+            threading.Thread(target=_select_port, args=(port_a, 1), daemon=True).start()
             return
         port_b = COMP_BB_INV.get(comp)
         if port_b is not None:
-            _select_port(port_b, input_n=2)
+            new_port = None if self._active_port_b == port_b else port_b
+            self._active_port_b = new_port
+            self._push_buttons()
+            threading.Thread(target=_select_port, args=(port_b, 2), daemon=True).start()
             return
         if comp == COMP_SKIP:
             self._navigate_to_main()
@@ -335,10 +344,10 @@ class _NextionDriver:
         count = max(self._port_count, len(self._labels), 4)
         has_b = self._input_count >= 2 or self._active_port_b is not None
         for n in range(1, count + 1):
-            ca = COL_ACTIVE if n == self._active_port   else COL_INACTIVE
+            ca = COL_ACTIVE_A if n == self._active_port   else COL_INACTIVE
             cmds += [f'bA{n}.bco={ca}', f'bA{n}.bco2={ca}', f'ref bA{n}']
             if has_b:
-                cb = COL_ACTIVE if n == self._active_port_b else COL_INACTIVE
+                cb = COL_ACTIVE_B if n == self._active_port_b else COL_INACTIVE
                 cmds += [f'bB{n}.bco={cb}', f'bB{n}.bco2={cb}', f'ref bB{n}']
         self._send_many(cmds)
 
