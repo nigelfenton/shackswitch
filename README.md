@@ -12,11 +12,47 @@
 
 ### Hardware
 
-*Hardware photos coming soon — current v2.0 build (Arduino Uno Q)*
+![ShackSwitch v2.0 — back panel](images/back-panel.jpeg)
+
+![Nextion 7" display](images/nextion-display.jpeg)
 
 ### Web Interface
 
-*Web UI screenshots coming soon*
+**Status page** — live frequency display per radio input, active antenna highlighted in the band grid, manual override buttons. Cyan = Input A, orange = Input B.
+
+![Status page](images/webui/webui-status.png)
+
+**Amplifier page** — RF-Kit RF2K-S live telemetry: forward power, reflected power, SWR, temperature, supply voltage, current.
+
+![Amplifier page](images/webui/webui-amplifier.png)
+
+**Settings → PORTS** — number of inputs (1 = single radio, 2 = SO2R), port count, input labels, and antenna port names. MCP23017 detection shown here with SO2R-ready status.
+
+![Settings — PORTS](images/webui/webui-settings-ports.png)
+
+**Settings → ANT MAP** — band-to-port assignment grid. Click any cell to assign a band to a port; changes save instantly. The diagonal shows the example 8-antenna one-band-per-antenna setup.
+
+![Settings — ANT MAP](images/webui/webui-settings-antmap.png)
+
+**Settings → RADIOS** — CAT radio connections. Add, edit, or remove radios here. FlexRadio/SmartSDR is configured separately and always takes priority over CAT.
+
+![Settings — RADIOS](images/webui/webui-settings-radios.png)
+
+**Settings → AMPLIFIER** — RF-Kit RF2K-S IP address and port configuration.
+
+![Settings — AMPLIFIER](images/webui/webui-settings-amplifier.png)
+
+**Settings → VOICE** — links to ShackSpeak, the companion voice announcement app that monitors band changes and antenna selections.
+
+![Settings — VOICE](images/webui/webui-settings-voice.png)
+
+**Settings → NETWORK** — shows current WiFi connection and allows scanning for and joining a new network without SSH access.
+
+![Settings — NETWORK](images/webui/webui-settings-network.png)
+
+**Settings → SYSTEM** — station info (description, IARU region, ITU/CQ zone), board IP, app version and uptime, and factory reset.
+
+![Settings — SYSTEM](images/webui/webui-settings-system.png)
 
 ### AetherSDR Integration
 
