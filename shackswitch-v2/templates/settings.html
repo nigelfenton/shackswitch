@@ -438,6 +438,263 @@ select option { background: #0d1628; }
 <!-- Toast --><!-- Toast -->
 <div id="toast"></div>
 
+<!-- ══════════════════════════════════════════════
+     PAGE: PORTS
+══════════════════════════════════════════════ -->
+<div id="page-ports" class="page active">
+    <div class="card">
+        <div class="sh">Inputs & Ports</div>
+        <div class="form-row">
+            <span class="form-label">Number of Inputs</span>
+            <div class="form-value">
+                <div class="toggle-group">
+                    <button class="toggle-btn" id="inp1" onclick="setInputCount(1)">1 — Single radio</button>
+                    <button class="toggle-btn" id="inp2" onclick="setInputCount(2)">2 — SO2R / Dual</button>
+                </div>
+                <div id="mcp-status" style="margin-top:6px;font-size:11px;"></div>
+            </div>
+        </div>
+        <div class="form-row">
+            <span class="form-label">Number of Ports</span>
+            <div class="form-value" style="display:flex;align-items:center;gap:10px">
+                <select id="port-count-sel" onchange="setPortCount(this.value)">
+                    <option value="2">2</option><option value="4">4</option>
+                    <option value="6">6</option><option value="8">8</option>
+                    <option value="10">10</option><option value="12">12</option>
+                    <option value="14">14</option><option value="16">16</option>
+                </select>
+                <span class="pill pill-muted" id="hw-note">2× MCP23017 required for 8+ ports</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="sh">Input Labels</div>
+        <div class="form-row">
+            <span class="form-label">Input 1 label</span>
+            <div class="form-value">
+                <input type="text" id="input1-label" placeholder="e.g. Flex 6700 A" maxlength="20">
+            </div>
+        </div>
+        <div class="form-row" id="input2-label-row">
+            <span class="form-label">Input 2 label</span>
+            <div class="form-value">
+                <input type="text" id="input2-label" placeholder="e.g. Flex 6700 B" maxlength="20">
+            </div>
+        </div>
+        <div style="margin-top:10px">
+            <button class="btn btn-cyan" onclick="saveLabels()">Save Labels</button>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="sh">Port Names</div>
+        <div class="port-grid" id="port-name-grid">Loading…</div>
+        <div style="margin-top:12px">
+            <button class="btn btn-cyan" onclick="savePortNames()">Save Port Names</button>
+        </div>
+    </div>
+</div>
+
+<!-- ══════════════════════════════════════════════
+     PAGE: ANTENNA MAP
+══════════════════════════════════════════════ -->
+<div id="page-bandmap" class="page">
+    <div class="card">
+        <div class="sh">Antenna Map</div>
+        <p style="color:var(--muted);font-size:11px;margin-bottom:12px">
+            Click a cell to assign a band to an antenna. Changes save instantly. <strong style="color:var(--cyan)">—</strong> means no auto-switching for that band.
+        </p>
+        <div class="band-grid" id="band-grid">Loading…</div>
+    </div>
+</div>
+
+<!-- ══════════════════════════════════════════════
+     PAGE: RADIOS
+══════════════════════════════════════════════ -->
+<div id="page-radios" class="page">
+    
+<!-- FlexRadio / SmartSDR -->
+<div class="card">
+    <div class="card-title">FlexRadio / SmartSDR</div>
+    <div id="sdr-radio-list"><span style="color:var(--muted)">Loading…</span></div>
+</div>
+
+<div class="card">
+        <div class="sh">CAT Radio Connections</div>
+        <p style="color:var(--muted);font-size:11px;margin-bottom:10px">
+            CAT radios are fallback band sources. FlexRadio / SmartSDR is configured separately and always takes priority.
+        </p>
+        <div class="radio-list" id="radio-list">Loading…</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <button class="btn btn-cyan" onclick="openRadioModal()">+ Add Radio</button>
+            <button class="btn btn-ghost" onclick="scanRadios()">⟳ Scan Network</button>
+        </div>
+        <div id="scan-results" style="margin-top:10px;font-size:11px;color:var(--muted)"></div>
+    </div>
+</div>
+
+<!-- ══════════════════════════════════════════════
+     PAGE: AMPLIFIER
+══════════════════════════════════════════════ -->
+<div id="page-amplifier" class="page">
+    <div class="card">
+        <div class="sh">RF-Kit RF2K-S Amplifier</div>
+        <div class="form-row">
+            <span class="form-label">IP Address</span>
+            <div class="form-value">
+                <input type="text" id="rfkit-ip" placeholder="e.g. 10.0.0.78" maxlength="40">
+            </div>
+        </div>
+        <div class="form-row">
+            <span class="form-label">Port</span>
+            <div class="form-value">
+                <input type="number" id="rfkit-port" placeholder="8080" min="1" max="65535">
+            </div>
+        </div>
+        <div class="form-row">
+            <span class="form-label">Status</span>
+            <div class="form-value" id="rfkit-status">—</div>
+        </div>
+        <div style="margin-top:10px">
+            <button class="btn btn-cyan" onclick="saveRfkit()">Save</button>
+        </div>
+    </div>
+</div>
+
+<!-- ══════════════════════════════════════════════
+     PAGE: VOICE
+══════════════════════════════════════════════ -->
+<div id="page-voice" class="page">
+    <div class="card">
+        <div class="sh">Voice Announcements</div>
+        <p style="color:var(--muted);line-height:1.7;font-size:12px">
+            Voice announcements are handled by <strong style="color:var(--cyan)">ShackSpeak</strong>,
+            a separate companion application that monitors radio CAT data and announces
+            band changes, frequencies, and antenna selections.
+        </p>
+        <p style="color:var(--muted);line-height:1.7;font-size:12px;margin-top:10px">
+            ShackSpeak connects to ShackSwitch via the REST API and runs independently
+            on any machine on your network.
+        </p>
+        <div style="margin-top:14px">
+            <a href="https://github.com/nigelfenton/shackspeak" target="_blank">
+                <button class="btn btn-ghost">Open ShackSpeak on GitHub ↗</button>
+            </a>
+        </div>
+    </div>
+</div>
+
+<!-- ══════════════════════════════════════════════
+     PAGE: NETWORK
+══════════════════════════════════════════════ -->
+<div id="page-network" class="page">
+    <div class="card">
+        <div class="sh">Current Connection</div>
+        <div class="form-row">
+            <span class="form-label">IP Address</span>
+            <div class="form-value" id="net-ip" style="color:var(--muted)">—</div>
+        </div>
+        <div class="form-row">
+            <span class="form-label">SSID</span>
+            <div class="form-value" id="net-ssid" style="color:var(--muted)">—</div>
+        </div>
+        <div class="form-row">
+            <span class="form-label">Assignment</span>
+            <div class="form-value"><span class="pill pill-muted">DHCP</span>
+            <span style="color:var(--muted);font-size:11px;margin-left:8px">Static IP requires SSH access</span></div>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="sh">Change WiFi Network</div>
+        <p style="color:var(--muted);font-size:11px;margin-bottom:12px">
+            Scan for nearby networks, select one and enter the password to connect.
+            The board will reconnect automatically — this page may briefly become unreachable.
+        </p>
+        <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px">
+            <button class="btn btn-ghost" id="scan-btn" onclick="wifiScan()">⟳ Scan for Networks</button>
+            <span id="scan-status" style="font-size:11px;color:var(--muted)"></span>
+        </div>
+
+        <div id="ssid-list" style="display:flex;flex-direction:column;gap:5px;margin-bottom:12px"></div>
+
+        <div class="form-row" id="wifi-connect-row" style="display:none">
+            <span class="form-label">Password</span>
+            <div class="form-value" style="display:flex;gap:8px;align-items:center">
+                <input type="text" id="wifi-password" placeholder="WiFi password" maxlength="64" style="max-width:240px">
+                <button class="btn btn-cyan" onclick="wifiConnect()">Connect</button>
+            </div>
+        </div>
+        <div id="wifi-result" style="font-size:12px;margin-top:8px"></div>
+    </div>
+</div>
+
+<!-- ══════════════════════════════════════════════
+     PAGE: SYSTEM
+══════════════════════════════════════════════ -->
+<div id="page-system" class="page">
+    <div class="card">
+        <div class="sh">Station Info</div>
+        <div class="form-row">
+            <span class="form-label">Description</span>
+            <div class="form-value">
+                <input type="text" id="sys-desc" placeholder="Home station" maxlength="60" style="max-width:380px">
+            </div>
+        </div>
+        <div class="form-row">
+            <span class="form-label">IARU Region</span>
+            <div class="form-value">
+                <select id="sys-iaru">
+                    <option value="1">Region 1 (Europe/Africa/Russia)</option>
+                    <option value="2">Region 2 (Americas)</option>
+                    <option value="3">Region 3 (Asia-Pacific)</option>
+                </select>
+            </div>
+        </div>
+        <div class="form-row">
+            <span class="form-label">ITU Zone</span>
+            <div class="form-value">
+                <input type="number" id="sys-itu" min="1" max="90">
+            </div>
+        </div>
+        <div class="form-row">
+            <span class="form-label">CQ Zone</span>
+            <div class="form-value">
+                <input type="number" id="sys-cq" min="1" max="40">
+            </div>
+        </div>
+        <div style="margin-top:10px">
+            <button class="btn btn-cyan" onclick="saveSystem()">Save Station Info</button>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="sh">Device</div>
+        <div class="form-row">
+            <span class="form-label">Board IP</span>
+            <div class="form-value" id="sys-ip" style="color:var(--muted)">—</div>
+        </div>
+        <div class="form-row">
+            <span class="form-label">App version</span>
+            <div class="form-value" id="sys-ver" style="color:var(--muted)">—</div>
+        </div>
+        <div class="form-row">
+            <span class="form-label">Uptime</span>
+            <div class="form-value" id="sys-uptime" style="color:var(--muted)">—</div>
+        </div>
+    </div>
+
+    <div class="card danger-card">
+        <div class="sh">Factory Reset</div>
+        <p style="color:var(--muted);font-size:12px;line-height:1.6;margin-bottom:12px">
+            Clears all antenna names, band map, radio config, and port settings.
+            Restores defaults. WiFi settings are not affected.
+        </p>
+        <button class="btn btn-red" onclick="confirmReset()">Factory Reset…</button>
+    </div>
+</div>
+
 <script>
 // ── State ────────────────────────────────────────────────────────────────────
 let profile     = {};
@@ -489,7 +746,7 @@ async function loadAll() {
         portCount  = profile.port_count  || 4;
         inputCount = profile.input_count || 1;
 
-        renderPorts(st);
+            renderPorts(st);
         renderBandMap();
         renderRadios();
         loadSdrRadios();
