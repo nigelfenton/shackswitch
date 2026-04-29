@@ -350,13 +350,13 @@ select option { background: #0d1628; }
 
 <!-- Tab bar -->
 <div class="tabbar">
-    <button class="tab-btn active" onclick="showTab('ports')">PORTS</button>
-    <button class="tab-btn" onclick="showTab('bandmap')">ANT MAP</button>
-    <button class="tab-btn" onclick="showTab('radios')">RADIOS</button>
-    <button class="tab-btn" onclick="showTab('amplifier')">AMPLIFIER</button>
-    <button class="tab-btn" onclick="showTab('voice')">VOICE</button>
-    <button class="tab-btn" onclick="showTab('network')">NETWORK</button>
-    <button class="tab-btn" onclick="showTab('system')">SYSTEM</button>
+    <button class="tab-btn active" onclick="showTab('ports',this)">PORTS</button>
+    <button class="tab-btn" onclick="showTab('bandmap',this)">ANT MAP</button>
+    <button class="tab-btn" onclick="showTab('radios',this)">RADIOS</button>
+    <button class="tab-btn" onclick="showTab('amplifier',this)">AMPLIFIER</button>
+    <button class="tab-btn" onclick="showTab('voice',this)">VOICE</button>
+    <button class="tab-btn" onclick="showTab('network',this)">NETWORK</button>
+    <button class="tab-btn" onclick="showTab('system',this)">SYSTEM</button>
 </div>
 
 <!-- ======================================================
@@ -457,11 +457,11 @@ const DEFAULT_BAUD = {kenwood: 9600, yaesu847: 57600, yaesu: 38400, icom: 19200}
 const PROTO_LABEL  = {kenwood: 'Kenwood', yaesu847: 'Yaesu FT-847', yaesu: 'Yaesu', icom: 'Icom'};
 
 // ── Tabs ─────────────────────────────────────────────────────────────────────
-function showTab(name) {
+function showTab(name, btn) {
     document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
     document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
     document.getElementById('page-' + name).classList.add('active');
-    event.currentTarget.classList.add('active');
+    btn.classList.add('active');
     if (name === 'radios') loadSdrRadios();
 }
 
