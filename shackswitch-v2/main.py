@@ -914,18 +914,23 @@ def radios_status():
     cfg = load_config()
     radios_cfg = cfg.get('radios', {})
 
-    # SmartSDR sources — fixed slice 0 → input1, slice 1 → input2
+    # SmartSDR sources — driven by smartsdr_radios in config
     sdr = smartsdr_state()
+    _default_sdr = [
+        {"host": "10.0.0.250", "port": 4992, "input": 1, "enabled": True},
+        {"host": "",           "port": 4992, "input": 2, "enabled": False},
+    ]
     sources = []
-    for slice_idx in (0, 1):
-        inp = str(slice_idx + 1)
-        state = sdr.get(slice_idx + 1, {})
+    for r in cfg.get('smartsdr_radios', _default_sdr):
+        inp   = str(r['input'])
+        state = sdr.get(r['input'], {})
         sources.append({
-            'id':        f'smartsdr_{slice_idx}',
-            'label':     cfg.get(f'input{inp}_label', f'Flex slice {slice_idx}'),
+            'id':        f'smartsdr_{inp}',
+            'label':     cfg.get(f'input{inp}_label', r.get('label', f'Flex {inp}')),
+            'host':      r.get('host', ''),
             'protocol':  'smartsdr',
             'input':     inp,
-            'enabled':   bool(state),
+            'enabled':   r.get('enabled', True),
             'connected': bool(state),
             'band':      state.get('band', '—'),
             'freq':      state.get('freq', 0),
@@ -1028,6 +1033,25 @@ def radios_config_delete(radio_id):
     cfg.get('radios', {}).pop(radio_id, None)
     save_config(cfg)
     return jsonify({'ok': True})
+
+@flask_app.route('/config/smartsdr_radio', methods=['PUT'])
+def smartsdr_radio_update():
+    """Enable or disable a SmartSDR radio by host IP. Triggers live reload — no restart needed."""
+    data = request.get_json(force=True)
+    host    = data.get('host', '')
+    enabled = bool(data.get('enabled', True))
+    cfg = load_config()
+    radios = cfg.get('smartsdr_radios', [])
+    for r in radios:
+        if r.get('host') == host:
+            r['enabled'] = enabled
+            break
+    cfg['smartsdr_radios'] = radios
+    save_config(cfg)
+    m = sys.modules.get('smartsdr')
+    if m and hasattr(m, 'reload'):
+        m.reload()
+    return jsonify({'ok': True, 'host': host, 'enabled': enabled})
 
 
 @flask_app.route("/rfkit/config", methods=["GET"])
@@ -1156,7 +1180,7 @@ def ag_broadcaster():
             ip      = _ag_local_ip()
             pkt = (
                 f"AG ip={ip} port={AG_PORT} v={AG_VERSION} "
-                f"serial=G0JKN-SW name=ShackSwitch ports=2 antennas={count} mode=master\r\n"
+                f"serial=G0JKN-SW name=ShackSwitch ports=2 antennas={count} webport=5000 mode=master\r\n"
             ).encode()
             sock.sendto(pkt, ("255.255.255.255", AG_PORT))
         except Exception as e:

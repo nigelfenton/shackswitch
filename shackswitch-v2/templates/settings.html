@@ -359,281 +359,27 @@ select option { background: #0d1628; }
     <button class="tab-btn" onclick="showTab('system')">SYSTEM</button>
 </div>
 
-<!-- ══════════════════════════════════════════════
-     PAGE: PORTS
-══════════════════════════════════════════════ -->
-<div id="page-ports" class="page active">
-    <div class="card">
-        <div class="sh">Inputs & Ports</div>
-        <div class="form-row">
-            <span class="form-label">Number of Inputs</span>
-            <div class="form-value">
-                <div class="toggle-group">
-                    <button class="toggle-btn" id="inp1" onclick="setInputCount(1)">1 — Single radio</button>
-                    <button class="toggle-btn" id="inp2" onclick="setInputCount(2)">2 — SO2R / Dual</button>
-                </div>
-                <div id="mcp-status" style="margin-top:6px;font-size:11px;"></div>
-            </div>
-        </div>
-        <div class="form-row">
-            <span class="form-label">Number of Ports</span>
-            <div class="form-value" style="display:flex;align-items:center;gap:10px">
-                <select id="port-count-sel" onchange="setPortCount(this.value)">
-                    <option value="2">2</option><option value="4">4</option>
-                    <option value="6">6</option><option value="8">8</option>
-                    <option value="10">10</option><option value="12">12</option>
-                    <option value="14">14</option><option value="16">16</option>
-                </select>
-                <span class="pill pill-muted" id="hw-note">2× MCP23017 required for 8+ ports</span>
-            </div>
-        </div>
-    </div>
-
-    <div class="card">
-        <div class="sh">Input Labels</div>
-        <div class="form-row">
-            <span class="form-label">Input 1 label</span>
-            <div class="form-value">
-                <input type="text" id="input1-label" placeholder="e.g. Flex 6700 A" maxlength="20">
-            </div>
-        </div>
-        <div class="form-row" id="input2-label-row">
-            <span class="form-label">Input 2 label</span>
-            <div class="form-value">
-                <input type="text" id="input2-label" placeholder="e.g. Flex 6700 B" maxlength="20">
-            </div>
-        </div>
-        <div style="margin-top:10px">
-            <button class="btn btn-cyan" onclick="saveLabels()">Save Labels</button>
-        </div>
-    </div>
-
-    <div class="card">
-        <div class="sh">Port Names</div>
-        <div class="port-grid" id="port-name-grid">Loading…</div>
-        <div style="margin-top:12px">
-            <button class="btn btn-cyan" onclick="savePortNames()">Save Port Names</button>
-        </div>
-    </div>
-</div>
-
-<!-- ══════════════════════════════════════════════
-     PAGE: ANTENNA MAP
-══════════════════════════════════════════════ -->
-<div id="page-bandmap" class="page">
-    <div class="card">
-        <div class="sh">Antenna Map</div>
-        <p style="color:var(--muted);font-size:11px;margin-bottom:12px">
-            Click a cell to assign a band to an antenna. Changes save instantly. <strong style="color:var(--cyan)">—</strong> means no auto-switching for that band.
-        </p>
-        <div class="band-grid" id="band-grid">Loading…</div>
-    </div>
-</div>
-
-<!-- ══════════════════════════════════════════════
-     PAGE: RADIOS
-══════════════════════════════════════════════ -->
-<div id="page-radios" class="page">
-    <div class="card">
-        <div class="sh">CAT Radio Connections</div>
-        <p style="color:var(--muted);font-size:11px;margin-bottom:10px">
-            CAT radios are fallback band sources. FlexRadio / SmartSDR is configured separately and always takes priority.
-        </p>
-        <div class="radio-list" id="radio-list">Loading…</div>
-        <div style="display:flex;gap:8px;flex-wrap:wrap">
-            <button class="btn btn-cyan" onclick="openRadioModal()">+ Add Radio</button>
-            <button class="btn btn-ghost" onclick="scanRadios()">⟳ Scan Network</button>
-        </div>
-        <div id="scan-results" style="margin-top:10px;font-size:11px;color:var(--muted)"></div>
-    </div>
-</div>
-
-<!-- ══════════════════════════════════════════════
-     PAGE: AMPLIFIER
-══════════════════════════════════════════════ -->
-<div id="page-amplifier" class="page">
-    <div class="card">
-        <div class="sh">RF-Kit RF2K-S Amplifier</div>
-        <div class="form-row">
-            <span class="form-label">IP Address</span>
-            <div class="form-value">
-                <input type="text" id="rfkit-ip" placeholder="e.g. 10.0.0.78" maxlength="40">
-            </div>
-        </div>
-        <div class="form-row">
-            <span class="form-label">Port</span>
-            <div class="form-value">
-                <input type="number" id="rfkit-port" placeholder="8080" min="1" max="65535">
-            </div>
-        </div>
-        <div class="form-row">
-            <span class="form-label">Status</span>
-            <div class="form-value" id="rfkit-status">—</div>
-        </div>
-        <div style="margin-top:10px">
-            <button class="btn btn-cyan" onclick="saveRfkit()">Save</button>
-        </div>
-    </div>
-</div>
-
-<!-- ══════════════════════════════════════════════
-     PAGE: VOICE
-══════════════════════════════════════════════ -->
-<div id="page-voice" class="page">
-    <div class="card">
-        <div class="sh">Voice Announcements</div>
-        <p style="color:var(--muted);line-height:1.7;font-size:12px">
-            Voice announcements are handled by <strong style="color:var(--cyan)">ShackSpeak</strong>,
-            a separate companion application that monitors radio CAT data and announces
-            band changes, frequencies, and antenna selections.
-        </p>
-        <p style="color:var(--muted);line-height:1.7;font-size:12px;margin-top:10px">
-            ShackSpeak connects to ShackSwitch via the REST API and runs independently
-            on any machine on your network.
-        </p>
-        <div style="margin-top:14px">
-            <a href="https://github.com/nigelfenton/shackspeak" target="_blank">
-                <button class="btn btn-ghost">Open ShackSpeak on GitHub ↗</button>
-            </a>
-        </div>
-    </div>
-</div>
-
-<!-- ══════════════════════════════════════════════
-     PAGE: NETWORK
-══════════════════════════════════════════════ -->
-<div id="page-network" class="page">
-    <div class="card">
-        <div class="sh">Current Connection</div>
-        <div class="form-row">
-            <span class="form-label">IP Address</span>
-            <div class="form-value" id="net-ip" style="color:var(--muted)">—</div>
-        </div>
-        <div class="form-row">
-            <span class="form-label">SSID</span>
-            <div class="form-value" id="net-ssid" style="color:var(--muted)">—</div>
-        </div>
-        <div class="form-row">
-            <span class="form-label">Assignment</span>
-            <div class="form-value"><span class="pill pill-muted">DHCP</span>
-            <span style="color:var(--muted);font-size:11px;margin-left:8px">Static IP requires SSH access</span></div>
-        </div>
-    </div>
-
-    <div class="card">
-        <div class="sh">Change WiFi Network</div>
-        <p style="color:var(--muted);font-size:11px;margin-bottom:12px">
-            Scan for nearby networks, select one and enter the password to connect.
-            The board will reconnect automatically — this page may briefly become unreachable.
-        </p>
-        <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px">
-            <button class="btn btn-ghost" id="scan-btn" onclick="wifiScan()">⟳ Scan for Networks</button>
-            <span id="scan-status" style="font-size:11px;color:var(--muted)"></span>
-        </div>
-
-        <div id="ssid-list" style="display:flex;flex-direction:column;gap:5px;margin-bottom:12px"></div>
-
-        <div class="form-row" id="wifi-connect-row" style="display:none">
-            <span class="form-label">Password</span>
-            <div class="form-value" style="display:flex;gap:8px;align-items:center">
-                <input type="text" id="wifi-password" placeholder="WiFi password" maxlength="64" style="max-width:240px">
-                <button class="btn btn-cyan" onclick="wifiConnect()">Connect</button>
-            </div>
-        </div>
-        <div id="wifi-result" style="font-size:12px;margin-top:8px"></div>
-    </div>
-</div>
-
-<!-- ══════════════════════════════════════════════
-     PAGE: SYSTEM
-══════════════════════════════════════════════ -->
-<div id="page-system" class="page">
-    <div class="card">
-        <div class="sh">Station Info</div>
-        <div class="form-row">
-            <span class="form-label">Description</span>
-            <div class="form-value">
-                <input type="text" id="sys-desc" placeholder="Home station" maxlength="60" style="max-width:380px">
-            </div>
-        </div>
-        <div class="form-row">
-            <span class="form-label">IARU Region</span>
-            <div class="form-value">
-                <select id="sys-iaru">
-                    <option value="1">Region 1 (Europe/Africa/Russia)</option>
-                    <option value="2">Region 2 (Americas)</option>
-                    <option value="3">Region 3 (Asia-Pacific)</option>
-                </select>
-            </div>
-        </div>
-        <div class="form-row">
-            <span class="form-label">ITU Zone</span>
-            <div class="form-value">
-                <input type="number" id="sys-itu" min="1" max="90">
-            </div>
-        </div>
-        <div class="form-row">
-            <span class="form-label">CQ Zone</span>
-            <div class="form-value">
-                <input type="number" id="sys-cq" min="1" max="40">
-            </div>
-        </div>
-        <div style="margin-top:10px">
-            <button class="btn btn-cyan" onclick="saveSystem()">Save Station Info</button>
-        </div>
-    </div>
-
-    <div class="card">
-        <div class="sh">Device</div>
-        <div class="form-row">
-            <span class="form-label">Board IP</span>
-            <div class="form-value" id="sys-ip" style="color:var(--muted)">—</div>
-        </div>
-        <div class="form-row">
-            <span class="form-label">App version</span>
-            <div class="form-value" id="sys-ver" style="color:var(--muted)">—</div>
-        </div>
-        <div class="form-row">
-            <span class="form-label">Uptime</span>
-            <div class="form-value" id="sys-uptime" style="color:var(--muted)">—</div>
-        </div>
-    </div>
-
-    <div class="card danger-card">
-        <div class="sh">Factory Reset</div>
-        <p style="color:var(--muted);font-size:12px;line-height:1.6;margin-bottom:12px">
-            Clears all antenna names, band map, radio config, and port settings.
-            Restores defaults. WiFi settings are not affected.
-        </p>
-        <button class="btn btn-red" onclick="confirmReset()">Factory Reset…</button>
-    </div>
-</div>
-
-<!-- ══════════════════════════════════════════════
+<!-- ======================================================
      RADIO MODAL
-══════════════════════════════════════════════ -->
+====================================================== -->
 <div class="modal-overlay" id="radio-modal">
     <div class="modal">
         <div class="modal-title" id="modal-title">Add Radio</div>
         <div class="modal-row">
+            <span class="modal-label">Label</span>
+            <input type="text" id="m-label" placeholder="e.g. FT-847" maxlength="24">
+        </div>
+        <div class="modal-row">
             <span class="modal-label">Protocol</span>
-            <select id="m-proto" onchange="updateModelList()">
-                <option value="kenwood">Kenwood / Elecraft</option>
-                <option value="yaesu">Yaesu</option>
-                <option value="icom">Icom</option>
-            </select>
+            <select id="m-proto" onchange="updateProtocol()"></select>
         </div>
         <div class="modal-row">
-            <span class="modal-label">Model</span>
-            <select id="m-model"></select>
-        </div>
-        <div class="modal-row">
-            <span class="modal-label">Host / IP</span>
-            <input type="text" id="m-host" placeholder="10.0.0.x">
-        </div>
-        <div class="modal-row">
-            <span class="modal-label">Port</span>
-            <input type="number" id="m-port" placeholder="60001" min="1" max="65535">
+            <span class="modal-label">Transport</span>
+            <div class="toggle-group">
+                <button class="toggle-btn" id="t-serial" onclick="setTransport('serial')">Serial / USB</button>
+                <button class="toggle-btn active" id="t-network" onclick="setTransport('network')">Network</button>
+            </div>
+            <input type="hidden" id="m-transport" value="network">
         </div>
         <div class="modal-row">
             <span class="modal-label">Input</span>
@@ -642,6 +388,46 @@ select option { background: #0d1628; }
                 <option value="2">Input 2</option>
             </select>
         </div>
+        <div id="m-serial-rows" style="display:none">
+            <div class="modal-row">
+                <span class="modal-label">Device</span>
+                <input type="text" id="m-device" placeholder="/dev/ttyUSB0" list="m-device-list">
+                <datalist id="m-device-list">
+                    <option value="/dev/ttyFT847">
+                    <option value="/dev/ttyKenwood">
+                    <option value="/dev/ttyUSB0">
+                    <option value="/dev/ttyUSB1">
+                    <option value="/dev/ttyUSB2">
+                </datalist>
+            </div>
+            <div class="modal-row">
+                <span class="modal-label">Baud rate</span>
+                <select id="m-baud">
+                    <option value="1200">1200</option>
+                    <option value="2400">2400</option>
+                    <option value="4800">4800</option>
+                    <option value="9600">9600</option>
+                    <option value="19200">19200</option>
+                    <option value="38400">38400</option>
+                    <option value="57600">57600</option>
+                    <option value="115200">115200</option>
+                </select>
+            </div>
+        </div>
+        <div id="m-network-rows">
+            <div class="modal-row">
+                <span class="modal-label">Host / IP</span>
+                <input type="text" id="m-host" placeholder="10.0.0.x">
+            </div>
+            <div class="modal-row">
+                <span class="modal-label">Port</span>
+                <input type="number" id="m-port" placeholder="60001" min="1" max="65535">
+            </div>
+        </div>
+        <div class="modal-row" id="m-civ-row" style="display:none">
+            <span class="modal-label">CI-V Address</span>
+            <input type="text" id="m-civ" placeholder="0x98" maxlength="6">
+        </div>
         <div class="modal-footer">
             <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
             <button class="btn btn-cyan" onclick="saveRadio()">Save</button>
@@ -649,7 +435,7 @@ select option { background: #0d1628; }
     </div>
 </div>
 
-<!-- Toast -->
+<!-- Toast --><!-- Toast -->
 <div id="toast"></div>
 
 <script>
@@ -661,11 +447,14 @@ let radioList   = {};
 let editingRadioId = null;
 
 const BANDS = ['160m','80m','60m','40m','30m','20m','17m','15m','12m','10m','6m'];
-const MODELS = {
-    kenwood: ['TS-450SAT','TS-480HX','TS-590','TS-890S','TS-990S','Elecraft K3','Elecraft K4'],
-    yaesu:   ['FT-817','FT-818','FT-847','FT-891','FT-991A','FT-DX10','FT-DX101'],
-    icom:    ['IC-705','IC-7300','IC-7610','IC-9700']
-};
+const PROTOCOLS = [
+    {val: 'kenwood',  lbl: 'Kenwood / Elecraft'},
+    {val: 'yaesu847', lbl: 'Yaesu FT-847'},
+    {val: 'yaesu',    lbl: 'Yaesu (other)'},
+    {val: 'icom',     lbl: 'Icom'},
+];
+const DEFAULT_BAUD = {kenwood: 9600, yaesu847: 57600, yaesu: 38400, icom: 19200};
+const PROTO_LABEL  = {kenwood: 'Kenwood', yaesu847: 'Yaesu FT-847', yaesu: 'Yaesu', icom: 'Icom'};
 
 // ── Tabs ─────────────────────────────────────────────────────────────────────
 function showTab(name) {
@@ -673,6 +462,7 @@ function showTab(name) {
     document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
     document.getElementById('page-' + name).classList.add('active');
     event.currentTarget.classList.add('active');
+    if (name === 'radios') loadSdrRadios();
 }
 
 // ── Toast ────────────────────────────────────────────────────────────────────
@@ -702,6 +492,7 @@ async function loadAll() {
         renderPorts(st);
         renderBandMap();
         renderRadios();
+        loadSdrRadios();
         renderRfkit(rfk);
         renderSystem(st, profile);
         renderNetwork(st);
@@ -858,22 +649,85 @@ async function saveBandMap() {
     } catch(e) { toast('Failed', true); }
 }
 
+// ── SmartSDR radios ──────────────────────────────────────────────────────────
+var _sdrRadios = [];
+
+function sdrToggle(idx) {
+    var r = _sdrRadios[idx];
+    if (r) toggleSdrRadio(r.host, !r.enabled);
+}
+
+async function loadSdrRadios() {
+    var list = document.getElementById('sdr-radio-list');
+    if (!list) return;
+    try {
+        var d = await fetch('/radios/status').then(function(r){ return r.json(); });
+        _sdrRadios = (d.sources || []).filter(function(s){ return s.protocol === 'smartsdr'; });
+        if (!_sdrRadios.length) {
+            list.innerHTML = '<div style="color:var(--muted);font-size:12px;padding:8px 0">No SmartSDR radios configured.</div>';
+            return;
+        }
+        list.innerHTML = _sdrRadios.map(function(r, i) {
+            var dot  = r.connected ? '<span style="color:#22d46a">&#9679;</span>' : '<span style="color:#6b8099">&#9679;</span>';
+            var inp  = '<span class="pill pill-cyan" style="font-size:10px;padding:2px 6px">Input ' + r.input + '</span>';
+            var lbl  = '<span class="rname">' + esc(r.label) + '</span>';
+            var host = '<span class="rdetail">' + esc(r.host || '&mdash;') + '</span>';
+            var btnCls = r.enabled ? 'btn btn-red btn-sm' : 'btn btn-ghost btn-sm';
+            var btnTxt = r.enabled ? 'Disable' : 'Enable';
+            var btn  = '<button class="' + btnCls + '" onclick="sdrToggle(' + i + ')">' + btnTxt + '</button>';
+            return '<div class="radio-row">' + dot + ' ' + lbl + host + inp + btn + '</div>';
+        }).join('');
+    } catch(e) {
+        if (list) list.innerHTML = '<div style="color:var(--muted);font-size:12px">Could not load.</div>';
+    }
+}
+
+async function toggleSdrRadio(host, enabled) {
+    try {
+        await fetch('/config/smartsdr_radio', {
+            method: 'PUT',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({host: host, enabled: enabled})
+        });
+        toast(enabled ? 'SmartSDR radio enabled' : 'SmartSDR radio disabled');
+        await loadSdrRadios();
+    } catch(e) { toast('Failed', true); }
+}
+
 // ── RADIOS page ──────────────────────────────────────────────────────────────
 function renderRadios() {
-    const list = document.getElementById('radio-list');
-    const entries = Object.entries(radioList);
+    var list = document.getElementById('radio-list');
+    var entries = Object.entries(radioList);
     if (!entries.length) {
         list.innerHTML = '<div style="color:var(--muted);font-size:12px;padding:8px 0">No CAT radios configured.</div>';
         return;
     }
-    list.innerHTML = entries.map(([id, r]) => `
-        <div class="radio-row">
-            <span class="rname">${esc(r.model || r.type)}</span>
-            <span class="rdetail">${esc(r.host || '')}:${r.port || ''}  —  Input ${r.input || 1}</span>
-            <span class="rtag">${(r.type||'').toUpperCase()}</span>
-            <button class="btn btn-ghost btn-sm" onclick="openRadioModal('${id}')">Edit</button>
-            <button class="btn btn-red btn-sm" onclick="deleteRadio('${id}')">✕</button>
-        </div>`).join('');
+    list.innerHTML = entries.map(function(entry) {
+        var id = entry[0], r = entry[1];
+        var dot  = r.enabled ? '<span style="color:#22d46a">&#9679;</span>' : '<span style="color:#6b8099">&#9679;</span>';
+        var name = esc(r.label || id);
+        var tag  = esc(PROTO_LABEL[r.protocol] || r.protocol || '');
+        var conn = r.transport === 'serial'
+            ? esc(r.device || '—')
+            : esc((r.host || '—') + (r.port ? ':' + r.port : ''));
+        var inp  = 'Input ' + (r.input || 1);
+        var enBtn = r.enabled
+            ? '<button class="btn btn-sm" style="background:#300;border-color:#600;color:#f66" onclick="toggleCatRadio(' + JSON.stringify(id) + ',false)">Disable</button>'
+            : '<button class="btn btn-ghost btn-sm" onclick="toggleCatRadio(' + JSON.stringify(id) + ',true)">Enable</button>';
+        var editBtn = '<button class="btn btn-ghost btn-sm" onclick="openRadioModal(' + JSON.stringify(id) + ')">Edit</button>';
+        var delBtn  = '<button class="btn btn-red btn-sm" onclick="deleteRadio(' + JSON.stringify(id) + ')">&#x2715;</button>';
+        return '<div class="radio-row">' + dot + ' <span class="rname">' + name + '</span><span class="rdetail">' + conn + ' — ' + inp + '</span><span class="rtag">' + tag + '</span>' + enBtn + editBtn + delBtn + '</div>';
+    }).join('');
+}
+
+async function toggleCatRadio(id, enabled) {
+    var r = Object.assign({}, radioList[id], {enabled: enabled});
+    try {
+        await fetch('/radios/config/' + id, {method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify(r)});
+        radioList[id] = r;
+        renderRadios();
+        toast(enabled ? 'Radio enabled' : 'Radio disabled');
+    } catch(e) { toast('Failed', true); }
 }
 
 async function scanRadios() {
@@ -890,30 +744,50 @@ async function scanRadios() {
     } catch(e) { div.textContent = 'Scan failed.'; }
 }
 
-function updateModelList() {
-    const proto  = document.getElementById('m-proto').value;
-    const msel   = document.getElementById('m-model');
-    msel.innerHTML = (MODELS[proto] || []).map(m => `<option value="${m}">${m}</option>`).join('');
-}
 
 function openRadioModal(id=null) {
     editingRadioId = id;
+    var protoSel = document.getElementById('m-proto');
+    protoSel.innerHTML = PROTOCOLS.map(function(p){ return '<option value="' + p.val + '">' + p.lbl + '</option>'; }).join('');
     document.getElementById('modal-title').textContent = id ? 'Edit Radio' : 'Add Radio';
-    updateModelList();
     if (id && radioList[id]) {
-        const r = radioList[id];
-        document.getElementById('m-proto').value = r.type || 'kenwood';
-        updateModelList();
-        document.getElementById('m-model').value = r.model || '';
-        document.getElementById('m-host').value  = r.host  || '';
-        document.getElementById('m-port').value  = r.port  || '';
-        document.getElementById('m-input').value = r.input || 1;
+        var r = radioList[id];
+        document.getElementById('m-label').value   = r.label    || '';
+        protoSel.value                              = r.protocol || 'kenwood';
+        document.getElementById('m-input').value   = r.input    || '1';
+        document.getElementById('m-device').value  = r.device   || '';
+        document.getElementById('m-baud').value    = r.baud     || DEFAULT_BAUD[r.protocol] || 9600;
+        document.getElementById('m-host').value    = r.host     || '';
+        document.getElementById('m-port').value    = r.port     || '';
+        document.getElementById('m-civ').value     = r.civ_address || '';
+        setTransport(r.transport || 'network');
     } else {
-        document.getElementById('m-host').value  = '';
-        document.getElementById('m-port').value  = '60001';
-        document.getElementById('m-input').value = 1;
+        document.getElementById('m-label').value   = '';
+        protoSel.value                             = 'kenwood';
+        document.getElementById('m-input').value  = '1';
+        document.getElementById('m-device').value = '';
+        document.getElementById('m-baud').value   = '9600';
+        document.getElementById('m-host').value   = '';
+        document.getElementById('m-port').value   = '60001';
+        document.getElementById('m-civ').value    = '';
+        setTransport('network');
     }
+    updateProtocol();
     document.getElementById('radio-modal').classList.add('open');
+}
+
+function setTransport(t) {
+    document.getElementById('m-transport').value = t;
+    document.getElementById('t-serial').classList.toggle('active', t === 'serial');
+    document.getElementById('t-network').classList.toggle('active', t === 'network');
+    document.getElementById('m-serial-rows').style.display  = (t === 'serial')  ? '' : 'none';
+    document.getElementById('m-network-rows').style.display = (t === 'network') ? '' : 'none';
+}
+
+function updateProtocol() {
+    var p = document.getElementById('m-proto').value;
+    document.getElementById('m-baud').value = DEFAULT_BAUD[p] || 9600;
+    document.getElementById('m-civ-row').style.display = (p === 'icom') ? '' : 'none';
 }
 
 function closeModal() {
@@ -922,23 +796,28 @@ function closeModal() {
 }
 
 async function saveRadio() {
-    const data = {
-        type:  document.getElementById('m-proto').value,
-        model: document.getElementById('m-model').value,
-        host:  document.getElementById('m-host').value.trim(),
-        port:  parseInt(document.getElementById('m-port').value),
-        input: parseInt(document.getElementById('m-input').value),
-        enabled: true
+    var proto     = document.getElementById('m-proto').value;
+    var transport = document.getElementById('m-transport').value;
+    var label     = document.getElementById('m-label').value.trim();
+    var data = {
+        label:    label,
+        protocol: proto,
+        transport: transport,
+        input:    document.getElementById('m-input').value,
+        enabled:  editingRadioId ? (radioList[editingRadioId] ? radioList[editingRadioId].enabled : true) : true,
+        civ_address: (proto === 'icom') ? document.getElementById('m-civ').value.trim() : '',
     };
+    if (transport === 'serial') {
+        data.device = document.getElementById('m-device').value.trim();
+        data.baud   = parseInt(document.getElementById('m-baud').value) || 9600;
+    } else {
+        data.host = document.getElementById('m-host').value.trim();
+        data.port = parseInt(document.getElementById('m-port').value) || 60001;
+    }
+    var rid = editingRadioId || label.toLowerCase().replace(/[^a-z0-9]/g, '') || ('radio' + Date.now());
     try {
-        if (editingRadioId) {
-            await fetch('/radios/config/' + editingRadioId, { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify(data) });
-            radioList[editingRadioId] = data;
-        } else {
-            const r = await fetch('/radios/config', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(data) });
-            const d = await r.json();
-            radioList[d.id || Date.now()] = data;
-        }
+        await fetch('/radios/config/' + rid, {method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify(data)});
+        radioList[rid] = data;
         renderRadios();
         closeModal();
         toast('Radio saved');
