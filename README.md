@@ -136,6 +136,48 @@ Each radio runs in its own background thread with automatic reconnection. Serial
 
 ---
 
+## Wiring
+
+### Nextion Display
+
+Connect the Nextion to the Arduino Uno Q header pins as follows:
+
+| Nextion pin | Uno Q pin |
+|---|---|
+| GND | GND |
+| +5V | 5V |
+| TX | **D0** (RX) |
+| RX | **D1** (TX) |
+
+> ⚠️ **Critical — use D0/D1, not D2/D3.**
+> The Uno Q Zephyr OS maps serial ports as follows:
+> - `Serial` → internal SoC↔STM32 link (`ttyHS1`) — **never use this for peripherals**
+> - `Serial1` → D0/D1 header pins → **this is the Nextion connection**
+>
+> If you connect to D2/D3 the display will receive nothing. All sketch Nextion functions (`nextion_cmd`, `nextion_poll_serial`, etc.) call `Serial1`, which physically drives D0/D1.
+
+📷 *Photo: close-up of D0/D1 jumper wires on the Uno Q header, with labels*
+
+### MCP23017 I2C (KK1L Relay Board)
+
+| MCP23017 pin | Uno Q pin |
+|---|---|
+| SDA | SDA (A4) |
+| SCL | SCL (A5) |
+| VCC | 3.3V (check board spec) |
+| GND | GND |
+| A0, A1, A2 | GND (I2C address 0x20) |
+
+> If you have address conflicts on the I2C bus, tie A0/A1/A2 to different combinations of GND/VCC to select addresses 0x20–0x27.
+
+📷 *Photo: MCP23017 / KK1L board wired to Uno Q SDA/SCL*
+
+### USB-C Port Gotcha
+
+The Uno Q has two USB-C ports. One is programming/console only; the other is the host USB port used for serial radio adapters. **If USB serial devices don't appear as `/dev/ttyUSB*`, try flipping the USB-C cable** — the host port is orientation-sensitive.
+
+---
+
 ## How It Works
 
 ```
@@ -214,7 +256,7 @@ ShackSwitch emulates a 4O3A Antenna Genius device so that AetherSDR can discover
 
 See [shackswitch-v2/AETHERSDR-PROTOCOL.md](shackswitch-v2/AETHERSDR-PROTOCOL.md) for full protocol documentation.
 
-> **Status (April 2026):** Full two-way integration is working — ShackSwitch is auto-discovered by AetherSDR, displays as a dedicated ShackSwitch applet showing live band and antenna selection for both inputs (R4: single input; Uno Q: dual input SO2R). A pull request to upstream AetherSDR is planned after the Dayton Hamvention release (mid-May 2026).
+> **Status (April 2026):** Full two-way integration is working — ShackSwitch is auto-discovered by AetherSDR, displays as a dedicated ShackSwitch applet showing live band and antenna selection for both inputs (R4: single input; Uno Q: dual input SO2R). Pull request [#2214](https://github.com/ten9876/AetherSDR/pull/2214) is open against the upstream AetherSDR repository; all CI checks passing.
 
 ---
 
@@ -335,6 +377,110 @@ SSH_KEY=~/.ssh/my_custom_key ./deploy.sh 10.0.0.XX
 
 ---
 
+## udev Rules
+
+To give serial radio adapters persistent device names on the Uno Q, create `/etc/udev/rules.d/99-shackswitch.rules`:
+
+```
+# Icom CI-V — Prolific USB-serial adapter
+SUBSYSTEM=="tty", ATTRS{idVendor}=="067b", ATTRS{idProduct}=="2303", SYMLINK+="ttyICOM"
+
+# Kenwood / Yaesu — FTDI USB-serial adapter
+SUBSYSTEM=="tty", ATTRS{idVendor}=="0403", ATTRS{idProduct}=="6001", SYMLINK+="ttyKENWOOD"
+```
+
+Apply without rebooting:
+```bash
+sudo udevadm control --reload-rules && sudo udevadm trigger
+```
+
+Use the symlink in `config.json` (e.g. `"device": "/dev/ttyICOM"`) so the path survives USB re-plug events.
+
+To find vendor/product IDs for an unknown adapter: `lsusb` or `udevadm info -a -n /dev/ttyUSB0 | grep -E "idVendor|idProduct"`.
+
+---
+
+## Key Configuration Settings
+
+The main config file lives at `~first-app/app/config.json` on the board (or `/app/config.json` inside the running Docker container).
+
+| Key | Default | Description |
+|---|---|---|
+| `ports` | `8` | Number of antenna ports (2–16) |
+| `inputs` | `2` | Radio inputs — `1` = single, `2` = SO2R |
+| `station.serial` | `"G0JKN-001"` | Station identifier used in AG beacon |
+| `station.name` | `"ShackSwitch"` | Display name shown in AetherSDR |
+| `smartsdr.host` | `""` | FlexRadio IP address (empty = disabled) |
+| `smartsdr.port` | `4992` | SmartSDR TCP port |
+| `kk1l.enabled` | `false` | Enable KK1L relay board via MCP23017 |
+| `kk1l.i2c_address` | `"0x20"` | MCP23017 I2C address |
+| `rf2ks.host` | `""` | RF2K-S amplifier IP (empty = disabled) |
+
+> **AetherSDR identification:** `station.serial` must start with `G0JKN` **or** `station.name` must contain `ShackSwitch` (case-insensitive) for AetherSDR to show the dedicated ShackSwitch applet instead of a generic Antenna Genius panel.
+
+📷 *Screenshot: Settings → SYSTEM page showing station serial and name fields*
+
+---
+
+## Nextion Display — Page Map
+
+Navigation is driven entirely by Python (`nextion.py`). The HMI Touch Release events send `printh 23 02 54 NN` byte sequences (where `NN` is the button code); Python reads those events and issues numeric `page N` commands back to the display.
+
+| Page | Name | Content |
+|---|---|---|
+| 0 | Splash | ShackSwitch logo, firmware version, **SKIP** button |
+| 1 | Single (Main) | Input A band, active antenna, NEXT / PREV |
+| 2 | SO2R | Input A and B side-by-side, antenna, interlock state |
+| 3 | RSSI | Signal level bars (future) |
+| 8 | WiFi | SSID, IP address, signal strength, **BACK** |
+
+### Navigation flow
+
+```
+[Boot] → page 0 (splash, 20s auto-advance) → page 1
+page 1 → NEXT → page 2 → NEXT → page 3 → NEXT → page 8
+page 8 → BACK → page 0 (splash)
+```
+
+> **Serial port note:** The Nextion must be connected to D0/D1 (`Serial1` in the sketch). `Serial` is the internal SoC↔STM32 link and cannot be used for the display.
+
+📷 *Photo: Nextion 7" display showing the SO2R page 2 with both inputs active*
+
+---
+
+## Troubleshooting
+
+| Symptom | Likely Cause | Fix |
+|---|---|---|
+| Nextion stays on splash page | Wrong serial port in sketch | Confirm sketch uses `Serial1.begin(9600)` (D0/D1), not `Serial.begin()` |
+| Display shows garbage | Baud mismatch | Both sketch and Nextion HMI must be set to 9600 baud |
+| No relay clicks | STM32 sketch not loaded | Check boot script ran: `journalctl -u shackswitch.service` |
+| Web UI not reachable at `:5000` | Container not running | `ssh first-app@[ip]` → `docker ps` |
+| AetherSDR can't discover ShackSwitch | AG beacon not running | `ss -ulnp \| grep 9007` inside container — check port 9007 UDP |
+| AetherSDR shows "Antenna Genius" label | Station name/serial mismatch | Ensure `station.serial` starts with `G0JKN` or `station.name` contains `ShackSwitch` |
+| Serial radio not found (`/dev/ttyUSB*` missing) | USB-C orientation | Flip USB-C cable on Uno Q host USB port |
+| Band changes not tracked | CAT radio disconnected | Check Settings → RADIOS; verify IP/port/device path; check radio is powered |
+| SO2R interlock triggered unexpectedly | Both inputs on same band | This is correct behaviour — interlock clears when bands differ |
+| Relay state lost on restart | Known issue — state not persisted | Roadmap item; workaround: re-select band from web UI after restart |
+
+---
+
+## Key File Locations (on the Board)
+
+| File | Path on board | Purpose |
+|---|---|---|
+| Main config | `~first-app/app/config.json` | All station settings — ports, radios, profiles |
+| Boot script | `/usr/local/bin/shackswitch-boot.sh` | Loads STM32 firmware, starts Docker container |
+| systemd service | `/etc/systemd/system/shackswitch.service` | Runs boot script on power-up |
+| STM32 firmware | `~first-app/app/sketch.ino.bin` | Relay driver binary, loaded into STM32 RAM by OpenOCD |
+| Python app | `~first-app/app/*.py` | Flask REST API, radio drivers, AG emulator |
+| Nextion module | `~first-app/app/nextion.py` | Nextion display driver and page navigation |
+| Templates | `~first-app/app/templates/` | Web UI HTML pages |
+
+📷 *Screenshot: SSH terminal showing `docker ps` output with the shackswitch container running*
+
+---
+
 ## Licence
 
 Released under the **MIT Licence**. Free to use, modify and distribute for personal or commercial purposes. Attribution to G0JKN appreciated but not required.
@@ -343,7 +489,7 @@ Released under the **MIT Licence**. Free to use, modify and distribute for perso
 
 ## About
 
-Built by **G0JKN** — a retired amateur radio operator keeping the mind sharp one solder joint at a time.
+Built by **G0JKN/W3** — a retired amateur radio operator keeping the mind sharp one solder joint at a time.
 
 Feedback, suggestions and pull requests welcome.
 
