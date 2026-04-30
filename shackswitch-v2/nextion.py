@@ -27,11 +27,11 @@ log = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 # Page IDs  (match Nextion Editor page order)
 # ---------------------------------------------------------------------------
-PAGE_MAIN  = 0
-PAGE_6PORT = 1
-PAGE_8PORT = 2
-PAGE_RSSI  = 3
-PAGE_WIFI  = 8
+PAGE_SPLASH = 0   # splash shown on boot — auto-dismissed by startup push
+PAGE_MAIN   = 1   # single-radio 4-port main
+PAGE_SO2R   = 2   # dual-radio SO2R
+PAGE_RSSI   = 3
+PAGE_WIFI   = 8
 
 # ---------------------------------------------------------------------------
 # Component IDs on PAGE_MAIN
@@ -95,7 +95,8 @@ class _NextionDriver:
         try:
             self._bridge('nextion_cmd', cmd)
         except Exception as exc:
-            log.debug(f'Nextion send failed: {exc}')
+            print(f'NEXTION BRIDGE ERROR cmd={cmd!r}: {exc}', flush=True)
+            log.warning(f'Nextion send failed: {exc}')
 
     def _send_many(self, cmds, gap=0.02):
         for cmd in cmds:
@@ -164,27 +165,21 @@ class _NextionDriver:
             self._port_count  = port_count
             self._input_count = input_count
 
-            # Navigate to the correct page before pushing any data
-            if input_count == 2 or port_count > 4:
-                self._send('page page2')
-            elif port_count == 6:
-                self._send('page page1')
-            # else stay on page 0 (1×4)
-            time.sleep(0.15)
-
+            # Build state before navigating so page populates immediately on arrival
             labels = []
             for i in range(1, port_count + 1):
                 ant = antennas.get(str(i), {})
                 name = ant.get('name', f'Port {i}') if isinstance(ant, dict) else str(ant)
                 labels.append(name[:24])
             self._labels = labels
-            self._push_labels()
 
             active = data.get('input1_port') or data.get('input1_relay')
             self._active_port = int(active) if active else None
             active_b = data.get('input2_port') or data.get('input2_relay')
             self._active_port_b = int(active_b) if active_b else None
-            self._push_buttons()
+
+            # Navigate away from splash — _navigate_to_main() pushes labels+buttons
+            self._navigate_to_main()
 
             if self._active_port and self._active_port <= len(self._labels):
                 self._send(f'tSO2R.txt="{self._labels[self._active_port - 1]}"')
@@ -200,6 +195,7 @@ class _NextionDriver:
             self._push_clock()
             log.info('Nextion: startup state pushed')
         except Exception as exc:
+            print(f'NEXTION: startup push FAILED: {exc}', flush=True)
             log.warning(f'Nextion startup push failed: {exc}')
 
     def _poll_rssi(self):
@@ -225,12 +221,17 @@ class _NextionDriver:
 
     def _navigate_to_main(self):
         """Go to the correct main page based on current port/input config."""
-        if self._input_count == 2 or self._port_count > 4:
-            self._send('page page2')
-        elif self._port_count == 6:
-            self._send('page page1')
-        else:
-            self._send('page page0')
+        # Use numeric index: 1=single-radio main, 2=SO2R
+        page_n = 2 if (self._input_count == 2 or self._port_count > 4) else 1
+        cmd = f'page {page_n}'
+        print(f'NEXTION: navigate_to_main input_count={self._input_count} port_count={self._port_count} cmd={cmd!r}', flush=True)
+        self._send(cmd)
+        time.sleep(0.5)
+        self._send(cmd)        # send twice — ensures Nextion receives it
+        time.sleep(0.3)
+        print(f'NEXTION: navigate done, pushing labels+buttons', flush=True)
+        self._push_labels()    # push labels first so page populates immediately
+        self._push_buttons()   # then button/indicator state
 
     def _push_clock(self):
         import datetime
@@ -277,7 +278,7 @@ class _NextionDriver:
         elif comp == COMP_WIFI:
             self._send('page page8')
         elif comp == COMP_BACK:
-            self._send('page page0')
+            self._navigate_to_main()
         elif comp == COMP_NEXT:
             self._send('page page3')
         elif comp == COMP_WIFI_SCAN:
@@ -285,7 +286,7 @@ class _NextionDriver:
         elif comp == COMP_WIFI_CONNECT:
             _wifi_connect()
         elif comp == COMP_WIFI_BACK:
-            self._send('page page0')
+            self._navigate_to_main()
         elif comp == COMP_WIFI_RESET:
             _factory_reset()
 
@@ -343,7 +344,10 @@ class _NextionDriver:
     # ------------------------------------------------------------------
 
     def _push_labels(self):
+        # Page 1: t3-t(3+count) — antenna name labels
         cmds = [f't{i+3}.txt="{self._labels[i]}"' for i in range(len(self._labels))]
+        # Page 2: t16-t(16+count) — antenna name labels
+        cmds += [f't{i+16}.txt="{self._labels[i]}"' for i in range(len(self._labels))]
         self._send_many(cmds)
 
     def _push_buttons(self):
@@ -352,28 +356,39 @@ class _NextionDriver:
         count = max(self._port_count, len(self._labels), 4)
         has_b = self._input_count >= 2 or self._active_port_b is not None
         for n in range(1, count + 1):
+            # Page 1 — bA/bB picture buttons
             pa = PIC_A_ON if n == self._active_port   else PIC_A_OFF
             cmds += [f'bA{n}.pic={pa}', f'bA{n}.pic2={pa}', f'ref bA{n}']
             if has_b:
                 pb = PIC_B_ON if n == self._active_port_b else PIC_B_OFF
                 cmds += [f'bB{n}.pic={pb}', f'bB{n}.pic2={pb}', f'ref bB{n}']
+            # Page 2 — vis indicator pics (t0-t7 = Input A, t8-t15 = Input B)
+            cmds.append(f"vis t{n+7},{"1" if n == self._active_port else "0"}")
+            if has_b:
+                cmds.append(f"vis t{n-1},{"1" if n == self._active_port_b else "0"}")
         self._send_many(cmds)
 
     def _update_button_a(self, old_port, new_port):
         """Fast update: only touch the two bA buttons that changed."""
         for n, pic in [(old_port, PIC_A_OFF), (new_port, PIC_A_ON)]:
             if n:
+                # Page 1
                 self._send(f'bA{n}.pic={pic}')
                 self._send(f'bA{n}.pic2={pic}')
                 self._send(f'ref bA{n}')
+                # Page 2 — vis indicator (t0-t7)
+                self._send(f"vis t{n+7},{"1" if pic == PIC_A_ON else "0"}")
 
     def _update_button_b(self, old_port, new_port):
         """Fast update: only touch the two bB buttons that changed."""
         for n, pic in [(old_port, PIC_B_OFF), (new_port, PIC_B_ON)]:
             if n:
+                # Page 1
                 self._send(f'bB{n}.pic={pic}')
                 self._send(f'bB{n}.pic2={pic}')
                 self._send(f'ref bB{n}')
+                # Page 2 — vis indicator (t8-t15)
+                self._send(f"vis t{n-1},{"1" if pic == PIC_B_ON else "0"}")
 
 
 # ---------------------------------------------------------------------------

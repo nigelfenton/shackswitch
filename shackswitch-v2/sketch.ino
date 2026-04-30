@@ -157,8 +157,8 @@ static int     nxt_evt_page = -1;
 static int     nxt_evt_comp = -1;
 
 void nextion_poll_serial() {
-    while (Serial.available()) {
-        uint8_t b = Serial.read();
+    while (Serial1.available()) {
+        uint8_t b = Serial1.read();
         nxt_buf[nxt_blen++] = b;
 
         // Custom button packet from HMI printh: 23 02 54 NN (NN = port 1-4)
@@ -190,26 +190,26 @@ void nextion_poll_serial() {
 }
 
 String nextion_cmd(String cmd) {
-    for (int i = 0; i < (int)cmd.length(); i++) Serial.write((uint8_t)cmd[i]);
-    Serial.write(0xFF); Serial.write(0xFF); Serial.write(0xFF);
+    for (int i = 0; i < (int)cmd.length(); i++) Serial1.write((uint8_t)cmd[i]);
+    Serial1.write(0xFF); Serial1.write(0xFF); Serial1.write(0xFF);
     return "ok";
 }
 
 String nextion_get_str(String comp_attr) {
     // Send "get comp.attr" then read the string response (0x70 + chars + FF FF FF)
     String cmd = "get " + comp_attr;
-    for (int i = 0; i < (int)cmd.length(); i++) Serial.write((uint8_t)cmd[i]);
-    Serial.write(0xFF); Serial.write(0xFF); Serial.write(0xFF);
+    for (int i = 0; i < (int)cmd.length(); i++) Serial1.write((uint8_t)cmd[i]);
+    Serial1.write(0xFF); Serial1.write(0xFF); Serial1.write(0xFF);
     delay(100);
     String result = "";
     unsigned long t = millis();
     while (millis() - t < 300) {
-        if (Serial.available()) {
-            uint8_t b = Serial.read();
+        if (Serial1.available()) {
+            uint8_t b = Serial1.read();
             if (b == 0x70) {  // string response header
-                while (Serial.available() < 3) {}
-                while (Serial.available()) {
-                    uint8_t c = Serial.read();
+                while (Serial1.available() < 3) {}
+                while (Serial1.available()) {
+                    uint8_t c = Serial1.read();
                     if (c == 0xFF) break;
                     result += (char)c;
                 }
@@ -223,18 +223,18 @@ String nextion_get_str(String comp_attr) {
 String nextion_get_num(String comp_attr) {
     // Send "get comp.val" then read the 4-byte int response (0x71 + 4 bytes LE + FF FF FF)
     String cmd = "get " + comp_attr;
-    for (int i = 0; i < (int)cmd.length(); i++) Serial.write((uint8_t)cmd[i]);
-    Serial.write(0xFF); Serial.write(0xFF); Serial.write(0xFF);
+    for (int i = 0; i < (int)cmd.length(); i++) Serial1.write((uint8_t)cmd[i]);
+    Serial1.write(0xFF); Serial1.write(0xFF); Serial1.write(0xFF);
     delay(100);
     unsigned long t = millis();
     while (millis() - t < 300) {
-        if (Serial.available() >= 8) {
-            uint8_t b = Serial.read();
+        if (Serial1.available() >= 8) {
+            uint8_t b = Serial1.read();
             if (b == 0x71) {
-                uint8_t b0 = Serial.read(), b1 = Serial.read(),
-                        b2 = Serial.read(), b3 = Serial.read();
+                uint8_t b0 = Serial1.read(), b1 = Serial1.read(),
+                        b2 = Serial1.read(), b3 = Serial1.read();
                 long val = (long)b0 | ((long)b1<<8) | ((long)b2<<16) | ((long)b3<<24);
-                Serial.read(); Serial.read(); Serial.read(); // FF FF FF
+                Serial1.read(); Serial1.read(); Serial1.read(); // FF FF FF
                 return String(val);
             }
         }
@@ -250,7 +250,7 @@ String nextion_get_event() {
     return evt;
 }
 void setup() {
-    Bridge.begin(); Monitor.begin();Serial.begin(9600); Wire1.begin();
+    Bridge.begin(); Monitor.begin();Serial1.begin(9600); Wire1.begin();
     for (int i = 0; i < NUM_RELAYS; i++) {
         pinMode(RELAY_PINS[i], OUTPUT);
         digitalWrite(RELAY_PINS[i], LOW);
