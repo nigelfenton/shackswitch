@@ -359,6 +359,20 @@ class _NextionDriver:
     # Internal helpers
     # ------------------------------------------------------------------
 
+    def _sync_port_state(self):
+        """Re-fetch actual port state from server and correct the display.
+        Called after a rejected or failed port select (interlock etc.)."""
+        try:
+            resp = urllib.request.urlopen('http://127.0.0.1:5000/status', timeout=3)
+            data = json.loads(resp.read())
+            active   = data.get('input1_port') or data.get('input1_relay')
+            active_b = data.get('input2_port') or data.get('input2_relay')
+            self._active_port   = int(active)   if active   else None
+            self._active_port_b = int(active_b) if active_b else None
+            self._push_buttons()
+        except Exception as exc:
+            log.warning(f'Nextion sync state failed: {exc}')
+
     def _push_labels(self):
         # Page 1: t3-t(3+count) — antenna name labels
         cmds = [f't{i+3}.txt="{self._labels[i]}"' for i in range(len(self._labels))]
@@ -372,39 +386,50 @@ class _NextionDriver:
         count = max(self._port_count, len(self._labels), 4)
         has_b = self._input_count >= 2 or self._active_port_b is not None
         for n in range(1, count + 1):
-            # Page 1 — bA/bB picture buttons
+            # Page 1 — bA/bB picture buttons (image-based)
             pa = PIC_A_ON if n == self._active_port   else PIC_A_OFF
             cmds += [f'bA{n}.pic={pa}', f'bA{n}.pic2={pa}', f'ref bA{n}']
             if has_b:
                 pb = PIC_B_ON if n == self._active_port_b else PIC_B_OFF
                 cmds += [f'bB{n}.pic={pb}', f'bB{n}.pic2={pb}', f'ref bB{n}']
-            # Page 2 — vis indicator pics (t0-t7 = Input A, t8-t15 = Input B)
-            cmds.append(f"vis t{n+7},{"1" if n == self._active_port else "0"}")
+            # Page 2 — bt0-bt7 = Input A, bt8-bt15 = Input B (colour-based)
+            # Port n → A button bt{n-1}, B button bt{n+7}
+            col_a = COL_ACTIVE_A if n == self._active_port else COL_INACTIVE
+            cmds += [f'bt{n-1}.bco={col_a}', f'ref bt{n-1}']
             if has_b:
-                cmds.append(f"vis t{n-1},{"1" if n == self._active_port_b else "0"}")
+                col_b = COL_ACTIVE_B if n == self._active_port_b else COL_INACTIVE
+                cmds += [f'bt{n+7}.bco={col_b}', f'ref bt{n+7}']
         self._send_many(cmds)
 
     def _update_button_a(self, old_port, new_port):
-        """Fast update: only touch the two bA buttons that changed."""
+        """Fast update: only touch the buttons that changed."""
         for n, pic in [(old_port, PIC_A_OFF), (new_port, PIC_A_ON)]:
             if n:
-                # Page 1
+                active = (pic == PIC_A_ON)
+                # Page 1 — image button
                 self._send(f'bA{n}.pic={pic}')
                 self._send(f'bA{n}.pic2={pic}')
                 self._send(f'ref bA{n}')
-                # Page 2 — vis indicator (t0-t7)
-                self._send(f"vis t{n+7},{"1" if pic == PIC_A_ON else "0"}")
+                # Page 2 — bt button colour + narrow indicator (t8-t15 over t0-t7)
+                col = COL_ACTIVE_A if active else COL_INACTIVE
+                self._send(f'bt{n-1}.bco={col}')
+                self._send(f'ref bt{n-1}')
+                self._send(f"vis t{n+7},{'1' if active else '0'}")
 
     def _update_button_b(self, old_port, new_port):
-        """Fast update: only touch the two bB buttons that changed."""
+        """Fast update: only touch the buttons that changed."""
         for n, pic in [(old_port, PIC_B_OFF), (new_port, PIC_B_ON)]:
             if n:
-                # Page 1
+                active = (pic == PIC_B_ON)
+                # Page 1 — image button
                 self._send(f'bB{n}.pic={pic}')
                 self._send(f'bB{n}.pic2={pic}')
                 self._send(f'ref bB{n}')
-                # Page 2 — vis indicator (t8-t15)
-                self._send(f"vis t{n-1},{"1" if pic == PIC_B_ON else "0"}")
+                # Page 2 — bt button colour + narrow indicator (t0-t7 under t8-t15)
+                col = COL_ACTIVE_B if active else COL_INACTIVE
+                self._send(f'bt{n+7}.bco={col}')
+                self._send(f'ref bt{n+7}')
+                self._send(f"vis t{n-1},{'1' if active else '0'}")
 
 
 # ---------------------------------------------------------------------------
@@ -412,11 +437,19 @@ class _NextionDriver:
 # ---------------------------------------------------------------------------
 
 def _select_port(port: int, input_n: int = 1):
+    """Send port select to Flask; revert Nextion display if server rejects."""
     try:
-        urllib.request.urlopen(
-            f'http://127.0.0.1:5000/kk1l/select?input={input_n}&port={port}', timeout=2)
+        resp = urllib.request.urlopen(
+            f'http://127.0.0.1:5000/kk1l/select?input={input_n}&port={port}',
+            timeout=2)
+        result = json.loads(resp.read())
+        if not result.get('ok'):
+            # Server rejected (e.g. interlock 409) — resync display from truth
+            log.warning(f'Nextion select rejected: {result}')
+            _driver._sync_port_state()
     except Exception as exc:
         log.warning(f'Nextion port select failed: {exc}')
+        _driver._sync_port_state()
 
 
 # ---------------------------------------------------------------------------
