@@ -315,9 +315,9 @@ class _NextionDriver:
         elif comp == COMP_NEXT:
             self._send('page page3')
         elif comp == COMP_WIFI_SCAN:
-            _wifi_scan_and_push()
+            threading.Thread(target=_wifi_scan_and_push, daemon=True).start()
         elif comp == COMP_WIFI_CONNECT:
-            _wifi_connect()
+            threading.Thread(target=_wifi_connect, daemon=True).start()
         elif comp == COMP_WIFI_BACK:
             self._navigate_to_main()
         elif comp == COMP_WIFI_RESET:
@@ -436,7 +436,13 @@ def _select_port(port: int, input_n: int = 1):
         log.warning(f'Nextion port select failed: {exc}')
 
 
+_scan_in_progress = False
+
 def _wifi_scan_and_push():
+    global _scan_in_progress
+    if _scan_in_progress:
+        return
+    _scan_in_progress = True
     try:
         _driver.update_wifi_status('Scanning...')
         resp = urllib.request.urlopen(WIFI_SCAN_SVC, timeout=25)
@@ -447,6 +453,8 @@ def _wifi_scan_and_push():
     except Exception as exc:
         log.warning(f'Nextion WiFi scan failed: {exc}')
         _driver.update_wifi_status('Scan failed')
+    finally:
+        _scan_in_progress = False
 
 def _wifi_connect():
     try:
