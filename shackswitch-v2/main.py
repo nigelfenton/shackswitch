@@ -1638,5 +1638,8 @@ radios.start()
 nextion.init(bridge_call)
 nextion.start()
 
-setup()
+t_setup = threading.Thread(target=setup, daemon=True)
+t_setup.start()
+print("MCP auto-detect thread started", flush=True)
+
 App.run(user_loop=loop)
