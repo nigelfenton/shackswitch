@@ -1606,7 +1606,7 @@ def setup():
         _mt = threading.Thread(target=_mc, daemon=True)
         _mt.start(); _mt.join(8)
         if _r[0] is None:
-            print("SETUP: mcp_status timed out — firmware not yet implemented, skipping", flush=True)
+            print("SETUP: mcp_status did not respond within 8 s — skipping auto-detect", flush=True)
             return
         mcp = _r[0]
         detected = 2 if ("0x20" in mcp and "0x21" in mcp) else 1
