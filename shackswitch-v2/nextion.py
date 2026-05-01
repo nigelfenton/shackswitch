@@ -242,12 +242,26 @@ class _NextionDriver:
 
     @staticmethod
     def _local_ip():
+        # Inside Docker, hostname -I only returns 172.x bridge addresses.
+        # Ask the host-side wifi_scan_svc (running outside Docker at the bridge
+        # gateway) for the real WiFi IP — it has full access to host interfaces.
+        try:
+            resp = urllib.request.urlopen('http://172.21.0.1:5555/ip', timeout=3)
+            ip = resp.read().decode().strip()
+            if ip:
+                return ip
+        except Exception:
+            pass
+        # Fallback: hostname -I works when not inside Docker (e.g. local dev)
         try:
             result = subprocess.run(['hostname', '-I'], capture_output=True, text=True)
-            ips = [ip for ip in result.stdout.strip().split() if not ip.startswith('172.')]
-            return ips[0] if ips else '10.0.0.145'
+            ips = [ip for ip in result.stdout.strip().split()
+                   if not ip.startswith('172.') and not ip.startswith('127.')]
+            if ips:
+                return ips[0]
         except Exception:
-            return '10.0.0.145'
+            pass
+        return '0.0.0.0'
 
     # ------------------------------------------------------------------
     # Touch handler

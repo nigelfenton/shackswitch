@@ -50,6 +50,20 @@ class Handler(BaseHTTPRequestHandler):
             self.send_header("Content-Type","application/json")
             self.end_headers()
             self.wfile.write(body)
+        elif parsed.path == "/ip":
+            # Return the host's WiFi IP (non-172/127 address).
+            # Called by the Docker container which can only see 172.x bridge IPs.
+            try:
+                r = subprocess.run(['hostname', '-I'], capture_output=True, text=True)
+                ips = [ip for ip in r.stdout.strip().split()
+                       if not ip.startswith('172.') and not ip.startswith('127.')]
+                body = (ips[0] if ips else '').encode()
+            except Exception:
+                body = b''
+            self.send_response(200)
+            self.send_header("Content-Type", "text/plain")
+            self.end_headers()
+            self.wfile.write(body)
         else:
             self.send_response(404); self.end_headers()
 

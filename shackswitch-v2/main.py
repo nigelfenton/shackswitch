@@ -608,6 +608,9 @@ def config_inputs():
             bridge_call("kk1l_deselect" if kk1l_ok else "relay_off", int(current2))
         config['input2_port'] = None
     save_config(config)
+    # Notify Nextion so it re-navigates to the correct main page immediately
+    nextion._driver._input_count = count
+    nextion._driver._navigate_to_main()
     return jsonify({"ok": True, "input_count": count})
 
 @flask_app.route('/config/reset', methods=['GET', 'POST'])
