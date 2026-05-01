@@ -171,6 +171,16 @@ class _NextionDriver:
 
     def _push_startup_state(self):
         try:
+            # Check WiFi before doing anything else.  If no IP is reachable,
+            # navigate straight to the WiFi setup page and return — the user
+            # needs to connect before any other setup makes sense.
+            ip = self._local_ip()
+            if not ip or ip == '0.0.0.0':
+                print('NEXTION: no WiFi IP — navigating to WiFi setup page', flush=True)
+                self._send('page 8')
+                self._ip = ''
+                return
+
             resp = urllib.request.urlopen('http://127.0.0.1:5000/status', timeout=5)
             data = json.loads(resp.read())
             bm_resp = urllib.request.urlopen('http://127.0.0.1:5000/bandmap', timeout=5)
