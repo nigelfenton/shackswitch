@@ -44,10 +44,33 @@ class Handler(BaseHTTPRequestHandler):
                 self.wfile.write(body)
                 return
             try:
-                cmd = ["nmcli","device","wifi","connect", ssid]
                 if password:
-                    cmd += ["password", password]
-                r = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+                    # nmcli device wifi connect can't set key-mgmt on a new
+                    # profile — use connection add + up instead so WPA2 works
+                    # reliably even when no profile exists yet.
+                    # Delete any stale profile first (ignore errors).
+                    subprocess.run(
+                        ["nmcli", "connection", "delete", ssid],
+                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                        timeout=10)
+                    r = subprocess.run([
+                        "nmcli", "connection", "add",
+                        "type", "wifi",
+                        "con-name", ssid,
+                        "ssid", ssid,
+                        "wifi-sec.key-mgmt", "wpa-psk",
+                        "wifi-sec.psk", password,
+                        "connection.autoconnect", "yes",
+                    ], capture_output=True, text=True, timeout=10)
+                    if r.returncode == 0:
+                        r = subprocess.run(
+                            ["nmcli", "connection", "up", ssid],
+                            capture_output=True, text=True, timeout=30)
+                else:
+                    # Open network — simple connect
+                    r = subprocess.run(
+                        ["nmcli", "device", "wifi", "connect", ssid],
+                        capture_output=True, text=True, timeout=30)
                 ok = r.returncode == 0
                 msg = (r.stdout or r.stderr).strip()
                 body = json.dumps({"ok": ok, "msg": msg}).encode()
