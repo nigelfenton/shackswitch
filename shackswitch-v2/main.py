@@ -1597,7 +1597,18 @@ def setup():
     # One or none              → single radio (input_count=1).
     # This runs on every boot so disconnecting MCP boards always reverts to single.
     try:
-        mcp = bridge_call("mcp_status")   # "none" | "0x20" | "0x20,0x21"
+        # bridge_call blocks forever if firmware doesn't implement the method.
+        # Run it in a sub-thread and bail out after 8 s if no response.
+        _r: list = [None]
+        def _mc():
+            try: _r[0] = bridge_call("mcp_status")
+            except Exception: pass
+        _mt = threading.Thread(target=_mc, daemon=True)
+        _mt.start(); _mt.join(8)
+        if _r[0] is None:
+            print("SETUP: mcp_status timed out — firmware not yet implemented, skipping", flush=True)
+            return
+        mcp = _r[0]
         detected = 2 if ("0x20" in mcp and "0x21" in mcp) else 1
         cfg     = load_config()
         profile = get_profile(cfg)
