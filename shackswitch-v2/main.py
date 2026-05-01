@@ -1592,6 +1592,26 @@ def loop():
 
 def setup():
     time.sleep(15)
+    # Auto-detect input count from MCP23017 hardware.
+    # Both 0x20 + 0x21 present → SO2R (input_count=2).
+    # One or none              → single radio (input_count=1).
+    # This runs on every boot so disconnecting MCP boards always reverts to single.
+    try:
+        mcp = bridge_call("mcp_status")   # "none" | "0x20" | "0x20,0x21"
+        detected = 2 if ("0x20" in mcp and "0x21" in mcp) else 1
+        cfg     = load_config()
+        profile = get_profile(cfg)
+        current = int(profile.get("input_count", 1))
+        if current != detected:
+            profile["input_count"] = detected
+            if detected == 1:
+                cfg["input2_port"] = None   # clear second input selection
+            save_config(cfg)
+            print(f"SETUP: MCP detected={mcp!r} → input_count set to {detected}", flush=True)
+        else:
+            print(f"SETUP: MCP detected={mcp!r} → input_count={detected} unchanged", flush=True)
+    except Exception as exc:
+        print(f"SETUP: MCP auto-detect failed: {exc}", flush=True)
 
 t1 = threading.Thread(target=run_flask, daemon=True)
 t1.start()
