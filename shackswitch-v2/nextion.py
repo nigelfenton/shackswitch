@@ -149,11 +149,11 @@ class _NextionDriver:
             self._push_clock()
 
     def _event_poll_loop(self):
-        """Poll STM32 for Nextion touch events every 150 ms."""
+        """Poll STM32 for Nextion touch events every 75 ms."""
         print('NEXTION: event poll loop started', flush=True)
         err_count = 0
         while self._running:
-            time.sleep(0.15)
+            time.sleep(0.075)
             if self._bridge is None:
                 continue
             try:
@@ -315,8 +315,11 @@ class _NextionDriver:
         elif comp == COMP_NEXT:
             self._send('page page3')
         elif comp == COMP_WIFI_SCAN:
+            # Immediate feedback so user knows first press registered
+            self._send('tStatus.txt="Scanning..."')
             threading.Thread(target=_wifi_scan_and_push, daemon=True).start()
         elif comp == COMP_WIFI_CONNECT:
+            self._send('tStatus.txt="Connecting..."')
             threading.Thread(target=_wifi_connect, daemon=True).start()
         elif comp == COMP_WIFI_BACK:
             self._navigate_to_main()
