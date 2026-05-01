@@ -1617,8 +1617,14 @@ def setup():
             profile["input_count"] = detected
             if detected == 1:
                 cfg["input2_port"] = None   # clear second input selection
+            elif detected == 2:
+                # First SO2R detection — default port_count to 8 (2×MCP23017).
+                # Operator can reduce this in settings; we only set it on the
+                # 1→2 transition so manual overrides survive subsequent reboots.
+                profile["port_count"] = 8
             save_config(cfg)
-            print(f"SETUP: MCP detected={mcp!r} → input_count set to {detected}", flush=True)
+            extra = ", port_count defaulted to 8" if detected == 2 else ""
+            print(f"SETUP: MCP detected={mcp!r} → input_count set to {detected}{extra}", flush=True)
         else:
             print(f"SETUP: MCP detected={mcp!r} → input_count={detected} unchanged", flush=True)
     except Exception as exc:
