@@ -374,10 +374,14 @@ class _NextionDriver:
             log.warning(f'Nextion sync state failed: {exc}')
 
     def _push_labels(self):
-        # Page 1: t3-t(3+count) — antenna name labels
-        cmds = [f't{i+3}.txt="{self._labels[i]}"' for i in range(len(self._labels))]
-        # Page 2: t16-t(16+count) — antenna name labels
-        cmds += [f't{i+16}.txt="{self._labels[i]}"' for i in range(len(self._labels))]
+        # Only push labels for the active page — sending both sets causes
+        # t3-t10 to overwrite the narrow-column indicator components on page 2.
+        if self._input_count >= 2:
+            # Page 2 (SO2R) — antenna name labels at t16-t(16+count)
+            cmds = [f't{i+16}.txt="{self._labels[i]}"' for i in range(len(self._labels))]
+        else:
+            # Page 1 (single radio) — antenna name labels at t3-t(3+count)
+            cmds = [f't{i+3}.txt="{self._labels[i]}"' for i in range(len(self._labels))]
         self._send_many(cmds)
 
     def _push_buttons(self):
