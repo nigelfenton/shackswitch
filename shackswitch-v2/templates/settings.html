@@ -1211,7 +1211,7 @@ async function wifiConnect() {
             result.innerHTML = `<span style="color:var(--green)">✓ Connected to ${esc(selectedSsid)}</span>`;
             document.getElementById('net-ssid').textContent = selectedSsid;
         } else {
-            result.innerHTML = `<span style="color:var(--red)">✗ Failed: ${esc(d.error || 'unknown error')}</span>`;
+            result.innerHTML = `<span style="color:var(--red)">✗ Failed: ${esc(d.error || d.msg || 'unknown error')}</span>`;
         }
     } catch(e) {
         result.innerHTML = '<span style="color:var(--orange)">Board may be reconnecting — try refreshing in a moment.</span>';

@@ -341,6 +341,33 @@ shackswitch/
 
 A deploy script is included to get ShackSwitch running on a fresh Arduino Uno Q in one command.
 
+### How the Board Becomes Reachable
+
+The Arduino Uno Q runs Linux. Flask and the Docker container start automatically on every power-up — no USB connection is needed for the app to run.
+
+What changes with USB is **network access**:
+
+| State | What's running | Can you reach it? |
+|---|---|---|
+| Power only, no WiFi | Flask running on port 5000 | ❌ No — board has no network IP |
+| Power + WiFi connected | Flask running on port 5000 | ✅ Yes — `http://[wifi-ip]:5000` from any device on your network |
+| Power + USB (App Lab) | Flask running on port 5000 | ✅ Yes — USB network link gives the board a local IP even without WiFi |
+
+When you plug in USB and launch App Lab, the Uno Q presents a **USB network interface** on your computer (Windows shows it as an RNDIS/USB Ethernet adapter). The board gets a USB link-local IP address — App Lab's web interface uses this to let you reach the board. The ShackSwitch web UI at port 5000 is accessible over that same USB link.
+
+**This is the first-time WiFi setup path:**
+1. Power up the board (no WiFi yet)
+2. Plug in USB → launch App Lab on your computer
+3. App Lab connects — board is now reachable over the USB network
+4. Open `http://[usb-ip]:5000` in your browser (check App Lab for the board's USB IP address)
+5. Go to **Settings → NETWORK** → scan for networks → select your SSID and enter the password → Connect
+6. Board joins your WiFi and gets a permanent IP (shown on screen / in App Lab)
+7. Unplug USB — from now on use `http://[wifi-ip]:5000` directly
+
+> **Note:** `127.0.0.1` (localhost) refers to *your own computer*, not the board. You cannot use `http://127.0.0.1:5000` in a browser on your PC to reach the board — you need either the WiFi IP or the USB network IP.
+
+---
+
 ### Prerequisites
 
 - Arduino Uno Q plugged in via USB-C to your computer
