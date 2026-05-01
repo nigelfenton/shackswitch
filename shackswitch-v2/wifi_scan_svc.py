@@ -9,9 +9,17 @@ class Handler(BaseHTTPRequestHandler):
         parsed = urlparse(self.path)
         if parsed.path == "/scan":
             try:
+                # Don't force --rescan yes — it blocks for 10-20s.
+                # When disconnected, NM scans continuously so results are
+                # already fresh. When connected, kick off a background rescan
+                # then return the cached list immediately.
+                subprocess.Popen(
+                    ["nmcli", "device", "wifi", "rescan"],
+                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+                )
                 r = subprocess.run(
-                    ["nmcli","-t","-f","SSID","device","wifi","list","--rescan","yes"],
-                    capture_output=True, text=True, timeout=20)
+                    ["nmcli","-t","-f","SSID","device","wifi","list"],
+                    capture_output=True, text=True, timeout=5)
                 seen, ssids = set(), []
                 for line in r.stdout.splitlines():
                     s = line.strip()
