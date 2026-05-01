@@ -392,13 +392,18 @@ class _NextionDriver:
             if has_b:
                 pb = PIC_B_ON if n == self._active_port_b else PIC_B_OFF
                 cmds += [f'bB{n}.pic={pb}', f'bB{n}.pic2={pb}', f'ref bB{n}']
-            # Page 2 — bt0-bt7 = Input A, bt8-bt15 = Input B (colour-based)
-            # Port n → A button bt{n-1}, B button bt{n+7}
+            # Page 2 — bt0-bt7 = Input A col buttons, bt8-bt15 = Input B col buttons
             col_a = COL_ACTIVE_A if n == self._active_port else COL_INACTIVE
             cmds += [f'bt{n-1}.bco={col_a}', f'ref bt{n-1}']
             if has_b:
                 col_b = COL_ACTIVE_B if n == self._active_port_b else COL_INACTIVE
                 cmds += [f'bt{n+7}.bco={col_b}', f'ref bt{n+7}']
+            # Page 2 narrow column — three-state indicator per row:
+            #   t{n+7} = Input A (cyan)  vis 1 when A here, else 0
+            #   t{n-1} = Input B (orange) vis 1 when B here, else 0
+            #   both 0 → background picture shows (idle state)
+            cmds.append(f"vis t{n+7},{'1' if n == self._active_port else '0'}")
+            cmds.append(f"vis t{n-1},{'1' if n == self._active_port_b else '0'}")
         self._send_many(cmds)
 
     def _update_button_a(self, old_port, new_port):
