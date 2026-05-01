@@ -222,7 +222,9 @@ class _NextionDriver:
     def _navigate_to_main(self):
         """Go to the correct main page based on current port/input config."""
         # Use numeric index: 1=single-radio main, 2=SO2R
-        page_n = 2 if (self._input_count == 2 or self._port_count > 4) else 1
+        # SO2R page is only appropriate when input_count==2; port_count alone
+        # must not force SO2R — a single-radio user can have 5–8 ports on page 1.
+        page_n = 2 if self._input_count == 2 else 1
         cmd = f'page {page_n}'
         print(f'NEXTION: navigate_to_main input_count={self._input_count} port_count={self._port_count} cmd={cmd!r}', flush=True)
         self._send(cmd)
