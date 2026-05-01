@@ -15,6 +15,20 @@ APP_VERSION = "v2.0"
 APP_DATE    = "21 Apr 2026"
 _START_TIME = time.time()
 
+# Docker bridge gateway — the host OS is reachable at this IP from inside the
+# container.  Discovered dynamically so it works on any board regardless of
+# which subnet Docker assigns.
+def _docker_gateway() -> str:
+    import subprocess as _sp
+    try:
+        r = _sp.run(['ip', 'route', 'show', 'default'],
+                    capture_output=True, text=True, timeout=3)
+        return r.stdout.split()[2]   # "default via X.X.X.X dev ..."
+    except Exception:
+        return '172.18.0.1'
+
+_GATEWAY = _docker_gateway()
+
 # ---------------------------------------------------------------------------
 # Config I/O
 # ---------------------------------------------------------------------------
@@ -537,7 +551,7 @@ def config_ports():
 def wifi_networks():
     import urllib.request as _ur
     try:
-        resp = _ur.urlopen('http://172.21.0.1:5555/scan', timeout=10)
+        resp = _ur.urlopen(f'http://{_GATEWAY}:5555/scan', timeout=10)
         return resp.read(), 200, {'Content-Type': 'application/json'}
     except Exception as e:
         return jsonify({'ok': False, 'error': str(e)}), 500
@@ -551,7 +565,7 @@ def wifi_connect_web():
     if not ssid:
         return jsonify({'ok': False, 'error': 'ssid required'}), 400
     try:
-        url  = 'http://172.21.0.1:5555/connect?' + _up.urlencode({'ssid': ssid, 'password': password})
+        url  = f'http://{_GATEWAY}:5555/connect?' + _up.urlencode({'ssid': ssid, 'password': password})
         resp = _ur.urlopen(url, timeout=30)
         return resp.read(), 200, {'Content-Type': 'application/json'}
     except Exception as e:
@@ -571,7 +585,7 @@ def wifi_connect_trigger():
             nextion._driver.update_wifi_status('Enter password')
             return jsonify({'ok': False, 'error': 'no password'}), 400
         import urllib.request as _ur, urllib.parse as _up
-        url = 'http://172.21.0.1:5555/connect?' + _up.urlencode({'ssid': ssid, 'password': password})
+        url = f'http://{_GATEWAY}:5555/connect?' + _up.urlencode({'ssid': ssid, 'password': password})
         nextion._driver.update_wifi_status('Connecting...')
         try:
             resp = _ur.urlopen(url, timeout=30)

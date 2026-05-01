@@ -24,6 +24,23 @@ import urllib.request
 
 log = logging.getLogger(__name__)
 
+
+def _docker_gateway() -> str:
+    """Return the Docker bridge gateway IP — the host is reachable here from
+    inside the container.  Reads the default route; falls back to 172.18.0.1."""
+    try:
+        r = subprocess.run(
+            ['ip', 'route', 'show', 'default'],
+            capture_output=True, text=True, timeout=3
+        )
+        # Output: "default via 172.18.0.1 dev eth0 ..."
+        return r.stdout.split()[2]
+    except Exception:
+        return '172.18.0.1'
+
+
+_GATEWAY = _docker_gateway()
+
 # ---------------------------------------------------------------------------
 # Page IDs  (match Nextion Editor page order)
 # ---------------------------------------------------------------------------
@@ -49,7 +66,7 @@ COMP_WIFI_SCAN    = 0x21  # b0 SCAN on page8 (printh 23 02 54 21)
 COMP_WIFI_CONNECT = 0x22  # b1 CONNECT on page8 (printh 23 02 54 22)
 COMP_WIFI_BACK    = 0xFF  # bBackt (if configured with printh 23 02 54 FF)
 COMP_WIFI_RESET   = 0x23  # b2 factory reset on page8 (printh 23 02 54 23)
-WIFI_SCAN_SVC     = "http://172.21.0.1:5555/scan"
+WIFI_SCAN_SVC     = f"http://{_GATEWAY}:5555/scan"
 
 # Nextion button image IDs (sta=image buttons — bco is ignored, use pic/pic2)
 PIC_A_OFF = 23   # bA button normal/inactive
@@ -246,7 +263,7 @@ class _NextionDriver:
         # Ask the host-side wifi_scan_svc (running outside Docker at the bridge
         # gateway) for the real WiFi IP — it has full access to host interfaces.
         try:
-            resp = urllib.request.urlopen('http://172.21.0.1:5555/ip', timeout=3)
+            resp = urllib.request.urlopen(f'http://{_GATEWAY}:5555/ip', timeout=3)
             ip = resp.read().decode().strip()
             if ip:
                 return ip
