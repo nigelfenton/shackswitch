@@ -456,7 +456,13 @@ def _wifi_scan_and_push():
     finally:
         _scan_in_progress = False
 
+_connect_in_progress = False
+
 def _wifi_connect():
+    global _connect_in_progress
+    if _connect_in_progress:
+        return
+    _connect_in_progress = True
     try:
         ssids = _driver._wifi_ssids
         if not ssids:
@@ -464,9 +470,12 @@ def _wifi_connect():
             return
         _driver.update_wifi_status('Connecting...')
         urllib.request.urlopen(
-            f'http://127.0.0.1:5000/wifi/connect_trigger', timeout=2)
-    except Exception:
-        pass
+            f'http://127.0.0.1:5000/wifi/connect_trigger', timeout=30)
+    except Exception as exc:
+        log.warning(f'Nextion WiFi connect failed: {exc}')
+        _driver.update_wifi_status('Connect error')
+    finally:
+        _connect_in_progress = False
 
 
 _reset_confirm_time = 0.0   # non-zero = waiting for second press
