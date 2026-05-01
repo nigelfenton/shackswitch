@@ -392,12 +392,11 @@ class _NextionDriver:
             if has_b:
                 pb = PIC_B_ON if n == self._active_port_b else PIC_B_OFF
                 cmds += [f'bB{n}.pic={pb}', f'bB{n}.pic2={pb}', f'ref bB{n}']
-            # Page 2 — bt0-bt7 = Input A col buttons, bt8-bt15 = Input B col buttons
-            col_a = COL_ACTIVE_A if n == self._active_port else COL_INACTIVE
-            cmds += [f'bt{n-1}.bco={col_a}', f'ref bt{n-1}']
+            # Page 2 — bt0-bt7 (Input A), bt8-bt15 (Input B)
+            # Dual-state image buttons: val=1 → pic2 (highlighted), val=0 → pic (empty/bg)
+            cmds += [f'bt{n-1}.val={"1" if n == self._active_port else "0"}', f'ref bt{n-1}']
             if has_b:
-                col_b = COL_ACTIVE_B if n == self._active_port_b else COL_INACTIVE
-                cmds += [f'bt{n+7}.bco={col_b}', f'ref bt{n+7}']
+                cmds += [f'bt{n+7}.val={"1" if n == self._active_port_b else "0"}', f'ref bt{n+7}']
             # Page 2 narrow column — three-state indicator per row:
             #   t{n+7} = Input A (cyan)  vis 1 when A here, else 0
             #   t{n-1} = Input B (orange) vis 1 when B here, else 0
@@ -408,32 +407,33 @@ class _NextionDriver:
 
     def _update_button_a(self, old_port, new_port):
         """Fast update: only touch the buttons that changed."""
-        for n, pic in [(old_port, PIC_A_OFF), (new_port, PIC_A_ON)]:
+        for n, pic, val in [(old_port, PIC_A_OFF, 0), (new_port, PIC_A_ON, 1)]:
             if n:
-                active = (pic == PIC_A_ON)
-                # Page 1 — image button
+                active = val == 1
+                # Page 1 — bA image buttons (pic-based)
                 self._send(f'bA{n}.pic={pic}')
                 self._send(f'bA{n}.pic2={pic}')
                 self._send(f'ref bA{n}')
-                # Page 2 — bt button colour + narrow indicator (t8-t15 over t0-t7)
-                col = COL_ACTIVE_A if active else COL_INACTIVE
-                self._send(f'bt{n-1}.bco={col}')
+                # Page 2 — bt dual-state image buttons (val-based, Nextion toggles on touch
+                # but doesn't deselect others — Python must explicitly clear old with val=0)
+                self._send(f'bt{n-1}.val={val}')
                 self._send(f'ref bt{n-1}')
+                # Narrow column three-state indicator
                 self._send(f"vis t{n+7},{'1' if active else '0'}")
 
     def _update_button_b(self, old_port, new_port):
         """Fast update: only touch the buttons that changed."""
-        for n, pic in [(old_port, PIC_B_OFF), (new_port, PIC_B_ON)]:
+        for n, pic, val in [(old_port, PIC_B_OFF, 0), (new_port, PIC_B_ON, 1)]:
             if n:
-                active = (pic == PIC_B_ON)
-                # Page 1 — image button
+                active = val == 1
+                # Page 1 — bB image buttons (pic-based)
                 self._send(f'bB{n}.pic={pic}')
                 self._send(f'bB{n}.pic2={pic}')
                 self._send(f'ref bB{n}')
-                # Page 2 — bt button colour + narrow indicator (t0-t7 under t8-t15)
-                col = COL_ACTIVE_B if active else COL_INACTIVE
-                self._send(f'bt{n+7}.bco={col}')
+                # Page 2 — bt dual-state image buttons (val-based)
+                self._send(f'bt{n+7}.val={val}')
                 self._send(f'ref bt{n+7}')
+                # Narrow column three-state indicator
                 self._send(f"vis t{n-1},{'1' if active else '0'}")
 
 
