@@ -13,6 +13,11 @@ TX/RX wiring (must be CROSSED):
     Nextion RX  →  Arduino D1 (TX)
     Nextion GND →  Arduino GND
     Nextion VCC →  5V supply (external — the 7" draws too much for the header)
+
+Display role: read-only status display.
+  - Shows band, active antenna, IP address, SO2R status, clock.
+  - All configuration is done via the web UI at http://[ip]:5000
+  - No WiFi setup page, no settings buttons — those are web-only.
 """
 
 import json
@@ -48,7 +53,6 @@ PAGE_SPLASH = 0   # splash shown on boot — auto-dismissed by startup push
 PAGE_MAIN   = 1   # single-radio 4-port main
 PAGE_SO2R   = 2   # dual-radio SO2R
 PAGE_RSSI   = 3
-PAGE_WIFI   = 8
 
 # ---------------------------------------------------------------------------
 # Component IDs on PAGE_MAIN
@@ -58,15 +62,9 @@ PAGE_WIFI   = 8
 COMP_BA   = {i: i        for i in range(1, 9)}  # bA1–bA8: NN = 0x01–0x08
 COMP_BB   = {i: i + 0x10 for i in range(1, 9)}  # bB1–bB8: NN = 0x11–0x18
 COMP_BB_INV = {v: k for k, v in COMP_BB.items()}
-COMP_WIFI      = 0x09  # bWiFiMonitor (page0 and page2)
-COMP_BACK      = 0x0A  # bBackt — navigate to main page
-COMP_NEXT      = 0x0B  # bNext  — navigate to RSSI page
-COMP_SKIP         = 0x30  # bNext on page0 splash — navigate to correct main page
-COMP_WIFI_SCAN    = 0x21  # b0 SCAN on page8 (printh 23 02 54 21)
-COMP_WIFI_CONNECT = 0x22  # b1 CONNECT on page8 (printh 23 02 54 22)
-COMP_WIFI_BACK    = 0xFF  # bBackt (if configured with printh 23 02 54 FF)
-COMP_WIFI_RESET   = 0x23  # b2 factory reset on page8 (printh 23 02 54 23)
-WIFI_SCAN_SVC     = f"http://{_GATEWAY}:5555/scan"
+COMP_BACK   = 0x0A  # bBack  — navigate to main page
+COMP_NEXT   = 0x0B  # bNext  — navigate to RSSI page
+COMP_SKIP   = 0x30  # bSkip on page0 splash — navigate to correct main page
 
 # Nextion button image IDs (sta=image buttons — bco is ignored, use pic/pic2)
 PIC_A_OFF = 23   # bA button normal/inactive
@@ -94,7 +92,6 @@ class _NextionDriver:
         self._active_port_b = None
         self._port_count    = 4
         self._input_count   = 1
-        self._wifi_ssids    = []
         self._labels        = ['', '', '', '']
         self._band_a        = '--'
         self._band_b        = '--'
@@ -171,16 +168,6 @@ class _NextionDriver:
 
     def _push_startup_state(self):
         try:
-            # Check WiFi before doing anything else.  If no IP is reachable,
-            # navigate straight to the WiFi setup page and return — the user
-            # needs to connect before any other setup makes sense.
-            ip = self._local_ip()
-            if not ip or ip == '0.0.0.0':
-                print('NEXTION: no WiFi IP — navigating to WiFi setup page', flush=True)
-                self._send('page 8')
-                self._ip = ''
-                return
-
             resp = urllib.request.urlopen('http://127.0.0.1:5000/status', timeout=5)
             data = json.loads(resp.read())
             bm_resp = urllib.request.urlopen('http://127.0.0.1:5000/bandmap', timeout=5)
@@ -216,7 +203,10 @@ class _NextionDriver:
             self._send(f't0.txt="{radio}"')
 
             ip = self._local_ip()
-            self._ip = f'{ip}:5000'
+            if ip and ip != '0.0.0.0':
+                self._ip = f'{ip}:5000'
+            else:
+                self._ip = 'No WiFi — use USB'
             self._send(f't1.txt="{self._ip}"')
 
             self._push_clock()
@@ -318,23 +308,10 @@ class _NextionDriver:
             return
         if comp == COMP_SKIP:
             self._navigate_to_main()
-        elif comp == COMP_WIFI:
-            self._send('page page8')
         elif comp == COMP_BACK:
             self._navigate_to_main()
         elif comp == COMP_NEXT:
             self._send('page page3')
-        elif comp == COMP_WIFI_SCAN:
-            # Immediate feedback so user knows first press registered
-            self._send('tStatus.txt="Scanning..."')
-            threading.Thread(target=_wifi_scan_and_push, daemon=True).start()
-        elif comp == COMP_WIFI_CONNECT:
-            self._send('tStatus.txt="Connecting..."')
-            threading.Thread(target=_wifi_connect, daemon=True).start()
-        elif comp == COMP_WIFI_BACK:
-            self._navigate_to_main()
-        elif comp == COMP_WIFI_RESET:
-            _factory_reset()
 
     # ------------------------------------------------------------------
     # Public update methods
@@ -377,13 +354,6 @@ class _NextionDriver:
             f'tRSSI.txt="{ssid}  {rssi_dbm}dBm"',
             f'nSignal.val={pct}',
         ])
-
-    def update_wifi_ssids(self, ssids: list):
-        cmds = [f't{i}.txt="{ssids[i] if i < len(ssids) else ""}"' for i in range(6)]
-        self._send_many(cmds)
-
-    def update_wifi_status(self, msg: str):
-        self._send(f'tStatus.txt="{msg}"')
 
     # ------------------------------------------------------------------
     # Internal helpers
@@ -447,70 +417,6 @@ def _select_port(port: int, input_n: int = 1):
             f'http://127.0.0.1:5000/kk1l/select?input={input_n}&port={port}', timeout=2)
     except Exception as exc:
         log.warning(f'Nextion port select failed: {exc}')
-
-
-_scan_in_progress = False
-
-def _wifi_scan_and_push():
-    global _scan_in_progress
-    if _scan_in_progress:
-        return
-    _scan_in_progress = True
-    try:
-        _driver.update_wifi_status('Scanning...')
-        resp = urllib.request.urlopen(WIFI_SCAN_SVC, timeout=25)
-        ssids = json.loads(resp.read())[:6]
-        _driver._wifi_ssids = ssids
-        _driver.update_wifi_ssids(ssids)
-        _driver.update_wifi_status(f'Found {len(ssids)} — pick n0 + password')
-    except Exception as exc:
-        log.warning(f'Nextion WiFi scan failed: {exc}')
-        _driver.update_wifi_status('Scan failed')
-    finally:
-        _scan_in_progress = False
-
-_connect_in_progress = False
-
-def _wifi_connect():
-    global _connect_in_progress
-    if _connect_in_progress:
-        return
-    _connect_in_progress = True
-    try:
-        ssids = _driver._wifi_ssids
-        if not ssids:
-            _driver.update_wifi_status('Scan first')
-            return
-        _driver.update_wifi_status('Connecting...')
-        urllib.request.urlopen(
-            f'http://127.0.0.1:5000/wifi/connect_trigger', timeout=30)
-    except Exception as exc:
-        log.warning(f'Nextion WiFi connect failed: {exc}')
-        _driver.update_wifi_status('Connect error')
-    finally:
-        _connect_in_progress = False
-
-
-_reset_confirm_time = 0.0   # non-zero = waiting for second press
-
-def _factory_reset():
-    global _reset_confirm_time
-    import time
-    now = time.monotonic()
-    if _reset_confirm_time == 0.0 or (now - _reset_confirm_time) > 10.0:
-        # First press — ask for confirmation
-        _reset_confirm_time = now
-        _driver.update_wifi_status('Press RESET again!')
-        return
-    # Second press within 10s — go ahead
-    _reset_confirm_time = 0.0
-    try:
-        _driver.update_wifi_status('Resetting...')
-        urllib.request.urlopen('http://127.0.0.1:5000/config/reset', timeout=5)
-        _driver.update_wifi_status('Done - restarting')
-    except Exception as exc:
-        _driver.update_wifi_status('Reset error')
-        log.error(f'factory reset failed: {exc}')
 
 
 # ---------------------------------------------------------------------------
