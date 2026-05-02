@@ -1853,8 +1853,8 @@ function executeCustomCommand(cmd) {
       <div class="settings-section">
         <h4>Acom 600S</h4>
         <div class="amp-ip-row">
-          <span class="amp-ip-label">Serial port:</span>
-          <input class="amp-ip-input" id="acom-port-input" placeholder="/dev/ttyUSB0" style="width:160px;" />
+          <span class="amp-ip-label">Port / Host:</span>
+          <input class="amp-ip-input" id="acom-port-input" placeholder="/dev/ttyUSB0 or 10.0.0.220:9600" style="width:210px;" />
           <label style="display:flex;align-items:center;gap:5px;font-size:12px;color:var(--muted);cursor:pointer;">
             <input type="checkbox" id="acom-enabled-cb" /> Enabled
           </label>
@@ -1862,7 +1862,7 @@ function executeCustomCommand(cmd) {
           <span class="save-msg" id="acom-cfg-msg"></span>
         </div>
         <div style="font-size:11px;color:var(--muted);margin-bottom:14px;margin-top:-8px;">
-          Connect amp RS-232 via USB adapter. Typically /dev/ttyUSB0 inside container.
+          Serial: /dev/ttyUSB0 — or TCP simulator: 10.0.0.220:9600
         </div>
         <div class="amp-unreachable" id="acom-unavailable" style="display:none;">
           Acom 600S not configured or unreachable.

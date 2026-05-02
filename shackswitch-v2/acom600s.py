@@ -18,6 +18,7 @@ Reference: ACOM 600S RS-232 Interface Specification (acom-bg.com)
            https://github.com/pingpongshow/AcomControl (ESP32 reference)
 """
 
+import socket as _socket
 import threading
 import time
 import logging
@@ -27,6 +28,51 @@ try:
     _SERIAL_AVAILABLE = True
 except ImportError:
     _SERIAL_AVAILABLE = False
+
+
+class _TcpStream:
+    """TCP socket wrapped to match the pyserial read/write interface used by
+    _read_packet() and _write(), so the rest of the driver is unchanged."""
+
+    def __init__(self, host: str, port: int, timeout: float = 2.0):
+        self._host    = host
+        self._port    = port
+        self.timeout  = timeout
+        self._sock: _socket.socket | None = None
+
+    def connect(self):
+        s = _socket.socket(_socket.AF_INET, _socket.SOCK_STREAM)
+        s.settimeout(self.timeout)
+        s.connect((self._host, self._port))
+        self._sock = s
+
+    def read(self, n: int) -> bytes:
+        if self._sock is None:
+            return b""
+        buf = b""
+        deadline = time.time() + self.timeout
+        while len(buf) < n and time.time() < deadline:
+            try:
+                self._sock.settimeout(max(0.01, deadline - time.time()))
+                chunk = self._sock.recv(n - len(buf))
+                if not chunk:
+                    raise OSError("Connection closed")
+                buf += chunk
+            except _socket.timeout:
+                break
+        return buf
+
+    def write(self, data: bytes):
+        if self._sock:
+            self._sock.sendall(data)
+
+    def close(self):
+        if self._sock:
+            try:
+                self._sock.close()
+            except OSError:
+                pass
+            self._sock = None
 
 log = logging.getLogger(__name__)
 
@@ -144,9 +190,17 @@ class Acom600S:
 
     def __init__(self, port: str):
         self.port  = port
-        self._ser  = None
+        # Detect TCP: "host:port_number" (not a /dev/... or COM path)
+        self._use_tcp = (":" in port
+                         and not port.startswith("/")
+                         and not port.upper().startswith("COM"))
+        if self._use_tcp:
+            host, tcp_port = port.rsplit(":", 1)
+            self._tcp_host = host
+            self._tcp_port = int(tcp_port)
+        self._ser  = None   # serial.Serial OR _TcpStream depending on mode
         self._lock       = threading.Lock()   # protects self.telemetry
-        self._write_lock = threading.Lock()   # serialises writes to serial port
+        self._write_lock = threading.Lock()   # serialises writes to port/socket
         self._stop_event = threading.Event()
         self._thread: threading.Thread | None = None
         self.telemetry: dict = self._empty_telemetry()
@@ -299,6 +353,24 @@ class Acom600S:
     # ------------------------------------------------------------------
 
     def _connect(self) -> bool:
+        if self._use_tcp:
+            return self._connect_tcp()
+        return self._connect_serial()
+
+    def _connect_tcp(self) -> bool:
+        try:
+            stream = _TcpStream(self._tcp_host, self._tcp_port, self.READ_TIMEOUT)
+            stream.connect()
+            self._ser = stream
+            log.info("Acom 600S TCP connected to %s:%d", self._tcp_host, self._tcp_port)
+            return True
+        except OSError as exc:
+            log.debug("Acom 600S TCP connect failed: %s", exc)
+            with self._lock:
+                self.telemetry["connected"] = False
+            return False
+
+    def _connect_serial(self) -> bool:
         try:
             ser = serial.Serial(
                 self.port, self.BAUD,
