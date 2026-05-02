@@ -938,7 +938,7 @@ def radios_status():
         {"host": "",           "port": 4992, "input": 2, "enabled": False},
     ]
     sources = []
-    for r in cfg.get('smartsdr_radios', _default_sdr):
+    for r in (cfg.get('smartsdr_radios') or _default_sdr):
         inp   = str(r['input'])
         state = sdr.get(r['input'], {})
         sources.append({
