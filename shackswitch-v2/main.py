@@ -792,9 +792,56 @@ def device_config():
 # ---------------------------------------------------------------------------
 
 import rfkit
+import kpa1500 as _kpa1500_mod
+import acom600s as _acom_mod
 import kenwood
 import radios
 import nextion
+
+# ---------------------------------------------------------------------------
+# KPA-1500 — singleton driver, config-driven
+# ---------------------------------------------------------------------------
+_kpa_driver = None
+_kpa_lock   = threading.Lock()
+
+def _kpa_apply_config(kpa_cfg: dict):
+    """Start/stop/restart the KPA-1500 driver to match current config."""
+    global _kpa_driver
+    with _kpa_lock:
+        if _kpa_driver:
+            _kpa_driver.stop()
+            _kpa_driver = None
+        if kpa_cfg.get("enabled") and kpa_cfg.get("host"):
+            host = kpa_cfg["host"]
+            port = int(kpa_cfg.get("port", 1500))
+            _kpa_driver = _kpa1500_mod.KPA1500(host, port)
+            _kpa_driver.start()
+            log_msg = f"KPA-1500 driver started → {host}:{port}"
+        else:
+            log_msg = "KPA-1500 driver stopped (disabled or no host)"
+    print(log_msg, flush=True)
+
+# ---------------------------------------------------------------------------
+# Acom 600S — singleton driver, config-driven
+# ---------------------------------------------------------------------------
+_acom_driver = None
+_acom_lock   = threading.Lock()
+
+def _acom_apply_config(acom_cfg: dict):
+    """Start/stop/restart the Acom 600S driver to match current config."""
+    global _acom_driver
+    with _acom_lock:
+        if _acom_driver:
+            _acom_driver.stop()
+            _acom_driver = None
+        if acom_cfg.get("enabled") and acom_cfg.get("port"):
+            port = acom_cfg["port"]
+            _acom_driver = _acom_mod.Acom600S(port)
+            _acom_driver.start()
+            log_msg = f"Acom 600S driver started → {port}"
+        else:
+            log_msg = "Acom 600S driver stopped (disabled or no port)"
+    print(log_msg, flush=True)
 
 # ---------------------------------------------------------------------------
 # Routes — Kenwood CAT
@@ -1116,6 +1163,130 @@ def rfkit_fault_reset():
     if not ip:
         return jsonify({"ok": False, "error": "No amp IP configured"})
     return jsonify(rfkit.reset_fault(ip))
+
+# ---------------------------------------------------------------------------
+# Routes — Elecraft KPA-1500
+# ---------------------------------------------------------------------------
+
+_KPA_DEFAULT = {"enabled": False, "host": "", "port": 1500}
+
+@flask_app.route("/kpa/config", methods=["GET"])
+def kpa_config_get():
+    cfg = load_config()
+    kpa_cfg = cfg.get("kpa1500", dict(_KPA_DEFAULT))
+    return jsonify({"ok": True, **kpa_cfg})
+
+@flask_app.route("/kpa/config", methods=["POST"])
+def kpa_config_post():
+    data = request.get_json(force=True)
+    cfg  = load_config()
+    kpa_cfg = cfg.get("kpa1500", dict(_KPA_DEFAULT))
+    if "host"    in data: kpa_cfg["host"]    = data["host"]
+    if "port"    in data: kpa_cfg["port"]    = int(data["port"])
+    if "enabled" in data: kpa_cfg["enabled"] = bool(data["enabled"])
+    cfg["kpa1500"] = kpa_cfg
+    save_config(cfg)
+    _kpa_apply_config(kpa_cfg)
+    return jsonify({"ok": True})
+
+@flask_app.route("/kpa/status")
+def kpa_status():
+    with _kpa_lock:
+        drv = _kpa_driver
+    if drv is None:
+        cfg = load_config()
+        reason = ("KPA-1500 disabled" if not cfg.get("kpa1500", {}).get("enabled")
+                  else "No host configured")
+        return jsonify({"ok": True, "available": False, "reason": reason})
+    tel = dict(drv.telemetry)
+    return jsonify({"ok": True, "available": True, **tel})
+
+@flask_app.route("/kpa/operate", methods=["PUT"])
+def kpa_operate():
+    with _kpa_lock:
+        drv = _kpa_driver
+    if drv is None:
+        return jsonify({"ok": False, "error": "KPA-1500 not configured or disabled"})
+    data = request.get_json(force=True)
+    mode = data.get("mode", "STBY")
+    ok   = drv.set_operate() if mode == "OPER" else drv.set_standby()
+    return jsonify({"ok": ok})
+
+@flask_app.route("/kpa/fault/clear", methods=["POST"])
+def kpa_fault_clear():
+    with _kpa_lock:
+        drv = _kpa_driver
+    if drv is None:
+        return jsonify({"ok": False, "error": "KPA-1500 not configured or disabled"})
+    ok = drv.clear_fault()
+    return jsonify({"ok": ok})
+
+@flask_app.route("/kpa/antenna", methods=["PUT"])
+def kpa_antenna():
+    with _kpa_lock:
+        drv = _kpa_driver
+    if drv is None:
+        return jsonify({"ok": False, "error": "KPA-1500 not configured or disabled"})
+    data = request.get_json(force=True)
+    n  = int(data.get("antenna", 1))
+    ok = drv.set_antenna(n)
+    return jsonify({"ok": ok})
+
+# ---------------------------------------------------------------------------
+# Routes — Acom 600S
+# ---------------------------------------------------------------------------
+
+_ACOM_DEFAULT = {"enabled": False, "port": "/dev/ttyUSB0"}
+
+@flask_app.route("/acom/config", methods=["GET"])
+def acom_config_get():
+    cfg = load_config()
+    acom_cfg = cfg.get("acom600s", dict(_ACOM_DEFAULT))
+    return jsonify({"ok": True, **acom_cfg})
+
+@flask_app.route("/acom/config", methods=["POST"])
+def acom_config_post():
+    data = request.get_json(force=True)
+    cfg  = load_config()
+    acom_cfg = cfg.get("acom600s", dict(_ACOM_DEFAULT))
+    if "port"    in data: acom_cfg["port"]    = data["port"]
+    if "enabled" in data: acom_cfg["enabled"] = bool(data["enabled"])
+    cfg["acom600s"] = acom_cfg
+    save_config(cfg)
+    _acom_apply_config(acom_cfg)
+    return jsonify({"ok": True})
+
+@flask_app.route("/acom/status")
+def acom_status():
+    with _acom_lock:
+        drv = _acom_driver
+    if drv is None:
+        cfg = load_config()
+        reason = ("Acom 600S disabled" if not cfg.get("acom600s", {}).get("enabled")
+                  else "No serial port configured")
+        return jsonify({"ok": True, "available": False, "reason": reason})
+    tel = dict(drv.telemetry)
+    return jsonify({"ok": True, "available": True, **tel})
+
+@flask_app.route("/acom/operate", methods=["PUT"])
+def acom_operate():
+    with _acom_lock:
+        drv = _acom_driver
+    if drv is None:
+        return jsonify({"ok": False, "error": "Acom 600S not configured or disabled"})
+    data = request.get_json(force=True)
+    mode = data.get("mode", "STBY")
+    ok   = drv.set_operate() if mode == "OPER" else drv.set_standby()
+    return jsonify({"ok": ok})
+
+@flask_app.route("/acom/fault/clear", methods=["POST"])
+def acom_fault_clear():
+    with _acom_lock:
+        drv = _acom_driver
+    if drv is None:
+        return jsonify({"ok": False, "error": "Acom 600S not configured or disabled"})
+    ok = drv.clear_fault()
+    return jsonify({"ok": ok})
 
 # ---------------------------------------------------------------------------
 # Antenna Genius emulation — UDP discovery + TCP command server
@@ -1658,6 +1829,18 @@ kenwood.start()
 radios.start()
 nextion.init(bridge_call)
 nextion.start()
+
+_kpa_startup_cfg = load_config().get("kpa1500", {})
+if _kpa_startup_cfg.get("enabled") and _kpa_startup_cfg.get("host"):
+    _kpa_apply_config(_kpa_startup_cfg)
+else:
+    print("KPA-1500 driver not started (disabled or no host)", flush=True)
+
+_acom_startup_cfg = load_config().get("acom600s", {})
+if _acom_startup_cfg.get("enabled") and _acom_startup_cfg.get("port"):
+    _acom_apply_config(_acom_startup_cfg)
+else:
+    print("Acom 600S driver not started (disabled or no port)", flush=True)
 
 t_setup = threading.Thread(target=setup, daemon=True)
 t_setup.start()
