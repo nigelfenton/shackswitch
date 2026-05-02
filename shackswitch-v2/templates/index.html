@@ -1192,23 +1192,58 @@ function showAmpContent(d) {
   document.getElementById("amp-unreachable").style.display = "none";
   document.getElementById("amp-content").style.display = "block";
   currentAmpMode = d.operate_mode || "STANDBY";
-  const badge = document.getElementById("amp-mode-badge");
-  const toggleBtn = document.getElementById("amp-toggle-btn");
-  badge.textContent = currentAmpMode;
-  badge.className = "amp-mode-badge " + (currentAmpMode === "OPERATE" ? "operate" : "standby");
-  toggleBtn.textContent = currentAmpMode === "OPERATE" ? "Switch to Standby" : "Switch to Operate";
+  const isOper   = currentAmpMode === "OPERATE";
   const hasFault = d.fault && d.fault !== "" && d.fault !== "OK";
-  document.getElementById("amp-fault-badge").className = "amp-fault-badge" + (hasFault ? " visible" : "");
-  document.getElementById("amp-reset-btn").className = "amp-reset-btn" + (hasFault ? " visible" : "");
-  if (hasFault) document.getElementById("amp-fault-badge").textContent = "FAULT: " + d.fault;
-  setText("amp-band", d.band ? d.band + "m" : "--");
-  setMetric("amp-fwd", d.forward_power, null, 1000, 1300);
-  setMetric("amp-ref", d.reflected_power, null, 50, 100);
-  setMetric("amp-swr", d.swr != null ? d.swr.toFixed(1) : null, null, 2.0, 3.0);
-  setMetric("amp-temp", d.temperature, null, 60, 70);
-  setText("amp-volts", d.voltage != null ? d.voltage.toFixed(1) : "--");
-  setText("amp-amps", d.current != null ? d.current.toFixed(1) : "--");
+
+  document.getElementById("rfk-oper-btn").className = "kpa-oper-btn" + (isOper  ? " active" : "");
+  document.getElementById("rfk-stby-btn").className = "kpa-stby-btn" + (!isOper ? " active" : "");
+  setText("rfk-band", d.band ? d.band + "m" : "--");
+
+  // Power (0–1500 W, warn 1000, danger 1300)
+  const fwd = d.forward_power || 0;
+  _kpaBarSet("rfk-fwd-bar", fwd / 1500 * 100, fwd >= 1000, fwd >= 1300);
+  document.getElementById("rfk-fwd").textContent = String(fwd).padStart(4, "0");
+
+  // Reflected (0–200 W, warn 50, danger 100)
+  const ref = d.reflected_power || 0;
+  _kpaBarSet("rfk-ref-bar", ref / 200 * 100, ref >= 50, ref >= 100);
+  document.getElementById("rfk-ref").textContent = String(ref).padStart(4, "0");
+
+  // SWR (1.0–4.0, warn ≥1.5, danger ≥2.0)
+  const swr = d.swr || 1.0;
+  _kpaBarSet("rfk-swr-bar", Math.max(0, (swr - 1.0) / 3.0 * 100), swr >= 1.5, swr >= 2.0);
+  setText("rfk-swr", fwd < 5 ? "NO RF" : swr.toFixed(1));
+
+  // Current (0–30 A, warn 22, danger 26)
+  const curr = d.current || 0;
+  _kpaBarSet("rfk-amps-bar", curr / 30 * 100, curr >= 22, curr >= 26);
+  setText("rfk-amps", curr != null ? curr.toFixed(1) : "--");
+
+  // Voltage (40–60 V, blue only)
+  const volt = d.voltage || 0;
+  _kpaBarSet("rfk-volts-bar", Math.max(0, (volt - 40) / 20 * 100), false, false);
+  setText("rfk-volts", volt > 0 ? volt.toFixed(1) : "--");
+
+  // Temperature (0–80 °C, warn 60, danger 70)
+  const temp = d.temperature || 0;
+  _kpaBarSet("rfk-temp-bar", temp / 80 * 100, temp >= 60, temp >= 70);
+  setText("rfk-temp", temp != null ? Math.round(temp).toString() : "--");
+
+  // Banner
+  const banner = document.getElementById("rfk-amp-banner");
+  if (hasFault) {
+    banner.textContent = "FAULT — " + d.fault;
+    banner.className   = "kpa-amp-banner fault";
+  } else if (isOper) {
+    banner.textContent = "AMP ON";
+    banner.className   = "kpa-amp-banner";
+  } else {
+    banner.textContent = "STANDBY";
+    banner.className   = "kpa-amp-banner standby";
+  }
+  document.getElementById("rfk-reset-btn").style.opacity = hasFault ? "1" : "0.35";
   checkAmpAnnouncements(d);
+  document.getElementById("amp-status-bar").textContent = "Last update: " + new Date().toLocaleTimeString();
 }
 
 function setText(id, val) {
@@ -1216,30 +1251,19 @@ function setText(id, val) {
   if (el) el.textContent = (val != null) ? val : "--";
 }
 
-function setMetric(id, val, warnLow, warnHigh, dangerHigh) {
-  const el = document.getElementById(id);
-  if (!el) return;
-  if (val == null) { el.textContent = "--"; el.className = "amp-metric-value"; return; }
-  el.textContent = val;
-  if (dangerHigh != null && parseFloat(val) >= dangerHigh) {
-    el.className = "amp-metric-value danger";
-  } else if (warnHigh != null && parseFloat(val) >= warnHigh) {
-    el.className = "amp-metric-value warn";
-  } else {
-    el.className = "amp-metric-value";
-  }
-}
-
-function toggleAmpMode() {
-  const newMode = currentAmpMode === "OPERATE" ? "STANDBY" : "OPERATE";
+function rfkSetMode(mode) {
   fetch("/rfkit/operate", {
     method: "PUT",
     headers: {"Content-Type": "application/json"},
-    body: JSON.stringify({operate_mode: newMode})
+    body: JSON.stringify({operate_mode: mode})
   }).then(r => r.json()).then(d => {
-    if (d.ok) pollAmp();
+    if (d.ok) setTimeout(pollAmp, 600);
     else showMsg("amp-fault-msg", "Error: " + (d.error || "unknown"));
   }).catch(e => showMsg("amp-fault-msg", "Error: " + e));
+}
+
+function toggleAmpMode() {
+  rfkSetMode(currentAmpMode === "OPERATE" ? "STANDBY" : "OPERATE");
 }
 
 function resetAmpFault() {
@@ -1449,34 +1473,83 @@ function showAcomContent(d) {
   document.getElementById("acom-unavailable").style.display = "none";
   document.getElementById("acom-content").style.display = "block";
   acomCurrentMode = d.mode || "STBY";
-  const badge     = document.getElementById("acom-mode-badge");
-  const toggleBtn = document.getElementById("acom-toggle-btn");
-  badge.textContent = acomCurrentMode;
-  badge.className = "amp-mode-badge " + (acomCurrentMode === "OPER" ? "operate" : "standby");
-  toggleBtn.textContent = acomCurrentMode === "OPER" ? "Switch to Standby" : "Switch to Operate";
+  const isOper   = acomCurrentMode === "OPER";
   const hasFault = d.fault_code && d.fault_code !== 0;
-  document.getElementById("acom-fault-badge").className = "amp-fault-badge" + (hasFault ? " visible" : "");
-  document.getElementById("acom-reset-btn").className   = "amp-reset-btn"   + (hasFault ? " visible" : "");
-  if (hasFault) document.getElementById("acom-fault-badge").textContent = d.fault_desc || "FAULT";
+
+  document.getElementById("acom-oper-btn").className = "kpa-oper-btn" + (isOper  ? " active" : "");
+  document.getElementById("acom-stby-btn").className = "kpa-stby-btn" + (!isOper ? " active" : "");
   setText("acom-band", d.band || "--");
-  setMetric("acom-fwd",  d.fwd_power,   null, 550, 630);
-  setMetric("acom-ref",  d.ref_power,   null, 30,  60);
-  setMetric("acom-swr",  d.swr  != null ? d.swr.toFixed(2)           : null, null, 2.0, 3.0);
-  setMetric("acom-temp", d.temperature  != null ? d.temperature       : null, null, 60,  75);
-  setText("acom-hv",   d.hv_supply   != null ? d.hv_supply.toFixed(1) : "--");
-  setText("acom-amps", d.pa_current  != null ? d.pa_current.toString() : "--");
+
+  // Forward power (0–600 W, warn 500, danger 580)
+  const fwd = d.fwd_power || 0;
+  _kpaBarSet("acom-fwd-bar", fwd / 600 * 100, fwd >= 500, fwd >= 580);
+  document.getElementById("acom-fwd").textContent = String(fwd).padStart(4, "0");
+
+  // Reflected (0–100 W, warn 30, danger 60)
+  const ref = d.ref_power || 0;
+  _kpaBarSet("acom-ref-bar", ref / 100 * 100, ref >= 30, ref >= 60);
+  document.getElementById("acom-ref").textContent = String(ref).padStart(3, "0");
+
+  // SWR (1.0–4.0, warn ≥1.5, danger ≥2.0)
+  const swr = d.swr || 1.0;
+  _kpaBarSet("acom-swr-bar", Math.max(0, (swr - 1.0) / 3.0 * 100), swr >= 1.5, swr >= 2.0);
+  setText("acom-swr", fwd < 2 ? "NO RF" : swr.toFixed(2));
+
+  // Input power (0–100 W, warn 70, danger 90)
+  const inp = d.inp_power || 0;
+  _kpaBarSet("acom-inp-bar", inp / 100 * 100, inp >= 70, inp >= 90);
+  setText("acom-inp", inp.toFixed(1));
+
+  // Temperature (0–80 °C, warn 60, danger 70)
+  const temp = d.temperature || 0;
+  _kpaBarSet("acom-temp-bar", temp / 80 * 100, temp >= 60, temp >= 70);
+  setText("acom-temp", temp != null ? temp.toFixed(1) : "--");
+
+  // HV Supply (40–80 V range, blue only)
+  const hv = d.hv_supply || 0;
+  _kpaBarSet("acom-hv-bar", Math.max(0, (hv - 40) / 40 * 100), false, false);
+  setText("acom-hv", hv > 0 ? hv.toFixed(1) : "--");
+
+  // PA current (mA → A, 0–30 A, warn 22, danger 26)
+  const pa_mA = d.pa_current || 0;
+  const pa_A  = pa_mA / 1000;
+  _kpaBarSet("acom-amps-bar", pa_A / 30 * 100, pa_A >= 22, pa_A >= 26);
+  setText("acom-amps", pa_A.toFixed(1));
+
+  // Fan PWM (0–15)
+  const fan = d.fan_pwm || 0;
+  _kpaBarSet("acom-fan-bar", fan / 15 * 100, fan >= 10, fan >= 14);
+  setText("acom-fan-val", fan.toString());
+
+  // Banner
+  const banner = document.getElementById("acom-amp-banner");
+  if (hasFault) {
+    banner.textContent = "FAULT — " + (d.fault_desc || "Fault 0x" + (d.fault_code || 0).toString(16).toUpperCase());
+    banner.className   = "kpa-amp-banner fault";
+  } else if (isOper) {
+    banner.textContent = "AMP ON";
+    banner.className   = "kpa-amp-banner";
+  } else {
+    banner.textContent = acomCurrentMode === "OFF" ? "POWERED OFF" : "STANDBY";
+    banner.className   = "kpa-amp-banner standby";
+  }
+  document.getElementById("acom-reset-btn").style.opacity = hasFault ? "1" : "0.35";
+  document.getElementById("acom-status-bar").textContent = "Last update: " + new Date().toLocaleTimeString();
 }
 
-function toggleAcomMode() {
-  const newMode = acomCurrentMode === "OPER" ? "STBY" : "OPER";
+function acomSetMode(mode) {
   fetch("/acom/operate", {
     method: "PUT",
     headers: {"Content-Type": "application/json"},
-    body: JSON.stringify({mode: newMode})
+    body: JSON.stringify({mode})
   }).then(r => r.json()).then(d => {
     if (d.ok) setTimeout(pollAcom, 600);
     else showMsg("acom-fault-msg", "Error: " + (d.error || "unknown"));
   }).catch(e => showMsg("acom-fault-msg", "Error: " + e));
+}
+
+function toggleAcomMode() {
+  acomSetMode(acomCurrentMode === "OPER" ? "STBY" : "OPER");
 }
 
 function clearAcomFault() {
@@ -1624,54 +1697,56 @@ function executeCustomCommand(cmd) {
           Amplifier unreachable — check IP and network connection.
         </div>
         <div id="amp-content" style="display:none;">
-          <div class="amp-operate-row">
-            <span class="amp-metric-title">MODE</span>
-            <span class="amp-mode-badge standby" id="amp-mode-badge">STANDBY</span>
-            <button class="amp-toggle-btn" id="amp-toggle-btn" onclick="toggleAmpMode()">Switch to Operate</button>
+          <!-- Operate / Standby buttons + Band chip -->
+          <div class="kpa-ctrl-row">
+            <button class="kpa-oper-btn" id="rfk-oper-btn" onclick="rfkSetMode('OPERATE')">Operate</button>
+            <button class="kpa-stby-btn" id="rfk-stby-btn" onclick="rfkSetMode('STANDBY')">Standby</button>
+            <span style="flex:1"></span>
+            <span class="kpa-band-chip" id="rfk-band">--</span>
           </div>
-          <div class="amp-fault-row">
-            <span class="amp-fault-badge" id="amp-fault-badge">FAULT</span>
-            <button class="amp-reset-btn" id="amp-reset-btn" onclick="resetAmpFault()">Reset Fault</button>
+          <!-- Bar meters -->
+          <div class="kpa-meter-row">
+            <span class="kpa-mlabel">Power</span>
+            <div class="kpa-bar"><div class="kpa-bar-fill" id="rfk-fwd-bar"></div></div>
+            <span class="kpa-mval" id="rfk-fwd">0000</span>
+            <span class="kpa-munit">W</span>
+          </div>
+          <div class="kpa-meter-row">
+            <span class="kpa-mlabel">Reflected</span>
+            <div class="kpa-bar"><div class="kpa-bar-fill" id="rfk-ref-bar"></div></div>
+            <span class="kpa-mval" id="rfk-ref">0000</span>
+            <span class="kpa-munit">W</span>
+          </div>
+          <div class="kpa-meter-row">
+            <span class="kpa-mlabel">SWR</span>
+            <div class="kpa-bar"><div class="kpa-bar-fill" id="rfk-swr-bar"></div></div>
+            <span class="kpa-mval" id="rfk-swr">NO RF</span>
+          </div>
+          <div class="kpa-meter-row">
+            <span class="kpa-mlabel">Current</span>
+            <div class="kpa-bar"><div class="kpa-bar-fill" id="rfk-amps-bar"></div></div>
+            <span class="kpa-mval" id="rfk-amps">0</span>
+            <span class="kpa-munit">A</span>
+          </div>
+          <div class="kpa-meter-row">
+            <span class="kpa-mlabel">Voltage</span>
+            <div class="kpa-bar"><div class="kpa-bar-fill" id="rfk-volts-bar"></div></div>
+            <span class="kpa-mval" id="rfk-volts">--</span>
+            <span class="kpa-munit">V</span>
+          </div>
+          <div class="kpa-meter-row">
+            <span class="kpa-mlabel">Temp</span>
+            <div class="kpa-bar"><div class="kpa-bar-fill" id="rfk-temp-bar"></div></div>
+            <span class="kpa-mval" id="rfk-temp">--</span>
+            <span class="kpa-munit">°C</span>
+          </div>
+          <!-- AMP ON / STANDBY / FAULT banner -->
+          <div class="kpa-amp-banner standby" id="rfk-amp-banner">STANDBY</div>
+          <!-- Fault row -->
+          <div class="kpa-bot-row">
+            <span style="flex:1"></span>
             <span class="save-msg" id="amp-fault-msg"></span>
-          </div>
-          <div class="amp-metric" style="margin-bottom:16px;">
-            <div class="amp-metric-title">Band</div>
-            <div class="amp-metric-value" id="amp-band" style="font-size:22px;">--</div>
-          </div>
-          <div class="amp-status-row">
-            <div class="amp-metric">
-              <div class="amp-metric-title">Forward Power</div>
-              <div class="amp-metric-value" id="amp-fwd">--</div>
-              <div class="amp-metric-unit">Watts</div>
-            </div>
-            <div class="amp-metric">
-              <div class="amp-metric-title">Reflected Power</div>
-              <div class="amp-metric-value" id="amp-ref">--</div>
-              <div class="amp-metric-unit">Watts</div>
-            </div>
-          </div>
-          <div class="amp-status-row">
-            <div class="amp-metric">
-              <div class="amp-metric-title">SWR</div>
-              <div class="amp-metric-value" id="amp-swr">--</div>
-            </div>
-            <div class="amp-metric">
-              <div class="amp-metric-title">Temperature</div>
-              <div class="amp-metric-value" id="amp-temp">--</div>
-              <div class="amp-metric-unit">°C</div>
-            </div>
-          </div>
-          <div class="amp-status-row">
-            <div class="amp-metric">
-              <div class="amp-metric-title">Supply Voltage</div>
-              <div class="amp-metric-value" id="amp-volts">--</div>
-              <div class="amp-metric-unit">V</div>
-            </div>
-            <div class="amp-metric">
-              <div class="amp-metric-title">Current</div>
-              <div class="amp-metric-value" id="amp-amps">--</div>
-              <div class="amp-metric-unit">A</div>
-            </div>
+            <button class="kpa-fault-btn" id="rfk-reset-btn" style="opacity:0.35" onclick="resetAmpFault()">Reset Fault</button>
           </div>
         </div>
         <div class="amp-status-bar" id="amp-status-bar"></div>
@@ -1793,54 +1868,68 @@ function executeCustomCommand(cmd) {
           Acom 600S not configured or unreachable.
         </div>
         <div id="acom-content" style="display:none;">
-          <div class="amp-operate-row">
-            <span class="amp-metric-title">MODE</span>
-            <span class="amp-mode-badge standby" id="acom-mode-badge">STBY</span>
-            <button class="amp-toggle-btn" id="acom-toggle-btn" onclick="toggleAcomMode()">Switch to Operate</button>
+          <!-- Operate / Standby buttons + Band chip -->
+          <div class="kpa-ctrl-row">
+            <button class="kpa-oper-btn" id="acom-oper-btn" onclick="acomSetMode('OPER')">Operate</button>
+            <button class="kpa-stby-btn" id="acom-stby-btn" onclick="acomSetMode('STBY')">Standby</button>
+            <span style="flex:1"></span>
+            <span class="kpa-band-chip" id="acom-band">--</span>
           </div>
-          <div class="amp-fault-row">
-            <span class="amp-fault-badge" id="acom-fault-badge">FAULT</span>
-            <button class="amp-reset-btn" id="acom-reset-btn" onclick="clearAcomFault()">Clear Fault</button>
+          <!-- Bar meters -->
+          <div class="kpa-meter-row">
+            <span class="kpa-mlabel">Power</span>
+            <div class="kpa-bar"><div class="kpa-bar-fill" id="acom-fwd-bar"></div></div>
+            <span class="kpa-mval" id="acom-fwd">0000</span>
+            <span class="kpa-munit">W</span>
+          </div>
+          <div class="kpa-meter-row">
+            <span class="kpa-mlabel">Reflected</span>
+            <div class="kpa-bar"><div class="kpa-bar-fill" id="acom-ref-bar"></div></div>
+            <span class="kpa-mval" id="acom-ref">000</span>
+            <span class="kpa-munit">W</span>
+          </div>
+          <div class="kpa-meter-row">
+            <span class="kpa-mlabel">SWR</span>
+            <div class="kpa-bar"><div class="kpa-bar-fill" id="acom-swr-bar"></div></div>
+            <span class="kpa-mval" id="acom-swr">NO RF</span>
+          </div>
+          <div class="kpa-meter-row">
+            <span class="kpa-mlabel">Input</span>
+            <div class="kpa-bar"><div class="kpa-bar-fill" id="acom-inp-bar"></div></div>
+            <span class="kpa-mval" id="acom-inp">--</span>
+            <span class="kpa-munit">W</span>
+          </div>
+          <div class="kpa-meter-row">
+            <span class="kpa-mlabel">Temp</span>
+            <div class="kpa-bar"><div class="kpa-bar-fill" id="acom-temp-bar"></div></div>
+            <span class="kpa-mval" id="acom-temp">--</span>
+            <span class="kpa-munit">°C</span>
+          </div>
+          <div class="kpa-meter-row">
+            <span class="kpa-mlabel">HV Supply</span>
+            <div class="kpa-bar"><div class="kpa-bar-fill" id="acom-hv-bar"></div></div>
+            <span class="kpa-mval" id="acom-hv">--</span>
+            <span class="kpa-munit">V</span>
+          </div>
+          <div class="kpa-meter-row">
+            <span class="kpa-mlabel">Current</span>
+            <div class="kpa-bar"><div class="kpa-bar-fill" id="acom-amps-bar"></div></div>
+            <span class="kpa-mval" id="acom-amps">--</span>
+            <span class="kpa-munit">A</span>
+          </div>
+          <div class="kpa-meter-row">
+            <span class="kpa-mlabel">Fan</span>
+            <div class="kpa-bar"><div class="kpa-bar-fill" id="acom-fan-bar"></div></div>
+            <span class="kpa-mval" id="acom-fan-val">0</span>
+            <span class="kpa-munit">/15</span>
+          </div>
+          <!-- AMP ON / STANDBY / FAULT banner -->
+          <div class="kpa-amp-banner standby" id="acom-amp-banner">STANDBY</div>
+          <!-- Fault row -->
+          <div class="kpa-bot-row">
+            <span style="flex:1"></span>
             <span class="save-msg" id="acom-fault-msg"></span>
-          </div>
-          <div class="amp-metric" style="margin-bottom:16px;">
-            <div class="amp-metric-title">Band</div>
-            <div class="amp-metric-value" id="acom-band" style="font-size:22px;">--</div>
-          </div>
-          <div class="amp-status-row">
-            <div class="amp-metric">
-              <div class="amp-metric-title">Forward Power</div>
-              <div class="amp-metric-value" id="acom-fwd">--</div>
-              <div class="amp-metric-unit">Watts</div>
-            </div>
-            <div class="amp-metric">
-              <div class="amp-metric-title">Reflected Power</div>
-              <div class="amp-metric-value" id="acom-ref">--</div>
-              <div class="amp-metric-unit">Watts</div>
-            </div>
-          </div>
-          <div class="amp-status-row">
-            <div class="amp-metric">
-              <div class="amp-metric-title">SWR</div>
-              <div class="amp-metric-value" id="acom-swr">--</div>
-            </div>
-            <div class="amp-metric">
-              <div class="amp-metric-title">Temperature</div>
-              <div class="amp-metric-value" id="acom-temp">--</div>
-              <div class="amp-metric-unit">°C</div>
-            </div>
-          </div>
-          <div class="amp-status-row">
-            <div class="amp-metric">
-              <div class="amp-metric-title">HV Supply</div>
-              <div class="amp-metric-value" id="acom-hv">--</div>
-              <div class="amp-metric-unit">V</div>
-            </div>
-            <div class="amp-metric">
-              <div class="amp-metric-title">PA Current</div>
-              <div class="amp-metric-value" id="acom-amps">--</div>
-              <div class="amp-metric-unit">mA</div>
-            </div>
+            <button class="kpa-fault-btn" id="acom-reset-btn" style="opacity:0.35" onclick="clearAcomFault()">Clear Fault</button>
           </div>
         </div>
         <div class="amp-status-bar" id="acom-status-bar"></div>
