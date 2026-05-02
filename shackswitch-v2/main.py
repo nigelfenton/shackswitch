@@ -1057,8 +1057,12 @@ def smartsdr_radio_update():
     data = request.get_json(force=True)
     host    = data.get('host', '')
     enabled = bool(data.get('enabled', True))
+    _default_sdr = [
+        {"host": "10.0.0.250", "port": 4992, "input": 1, "enabled": True},
+        {"host": "",           "port": 4992, "input": 2, "enabled": False},
+    ]
     cfg = load_config()
-    radios = cfg.get('smartsdr_radios', [])
+    radios = cfg.get('smartsdr_radios') or _default_sdr
     for r in radios:
         if r.get('host') == host:
             r['enabled'] = enabled
