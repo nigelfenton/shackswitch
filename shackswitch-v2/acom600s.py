@@ -213,8 +213,8 @@ class Acom600S:
         """Start background thread."""
         if self._thread and self._thread.is_alive():
             return
-        if not _SERIAL_AVAILABLE:
-            log.error("Acom 600S: pyserial is not installed")
+        if not self._use_tcp and not _SERIAL_AVAILABLE:
+            log.error("Acom 600S: pyserial is not installed (needed for serial mode)")
             return
         self._stop_event.clear()
         self._thread = threading.Thread(
