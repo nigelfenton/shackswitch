@@ -34,8 +34,11 @@ if ($dirty) {
         # Stage tracked changed files (won't accidentally add secrets)
         git add shackswitch-v2/main.py `
                 shackswitch-v2/nextion.py `
+                shackswitch-v2/kpa1500.py `
+                shackswitch-v2/acom600s.py `
                 shackswitch-v2/wifi_scan_svc.py `
                 "shackswitch-v2/templates/settings.html" `
+                "shackswitch-v2/templates/index.html" `
                 README.md 2>$null
 
         git commit -m "$msg
