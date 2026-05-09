@@ -10,7 +10,7 @@ param(
     [switch]$deploy = $false
 )
 
-$repo  = "C:\Users\nigel\Documents\shackswitch"
+$repo  = "C:\Users\nigel\Documents\GitHub\shackswitch"
 $v2    = "$repo\shackswitch-v2"
 $board = "arduino@10.0.0.56"
 
