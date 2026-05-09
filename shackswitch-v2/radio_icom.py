@@ -28,8 +28,9 @@ Read transceiver ID (cmd 19, sub 00) — used for auto-discovery:
   Reply: FE FE E0 [addr] 19 00 [addr] FD
 
 Default CI-V addresses:
-  IC-9700: 0x98   IC-7300: 0x94   IC-705: 0xA4   IC-7100: 0x88
-  (IC-7610 also defaults to 0x98 — change one if both on same bus)
+  IC-9700: 0xA2   IC-7300: 0x94   IC-705: 0xA4
+  IC-7610: 0x98   IC-7100: 0x88
+  (auto-discovery — see discover_civ_address — avoids hard-coding these)
 
 Controller address: 0xE0 (standard for external controllers)
 """
@@ -144,7 +145,7 @@ class IcomCIVDriver(RadioDriver):
     protocol_name = 'icom'
     vhf_capable   = True   # IC-9700 covers 2m, 70cm, 23cm
 
-    def __init__(self, civ_address=0x98):
+    def __init__(self, civ_address=0xA2):
         if civ_address in (None, '', 'auto'):
             self.civ_address = None
         else:
