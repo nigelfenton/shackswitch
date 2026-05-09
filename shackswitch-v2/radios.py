@@ -98,7 +98,7 @@ def _make_driver(cfg: dict):
     if cls is None:
         return None
     if protocol == 'icom':
-        return cls(civ_address=cfg.get('civ_address', '0x98'))
+        return cls(civ_address=cfg.get('civ_address') or None)
     return cls()
 
 

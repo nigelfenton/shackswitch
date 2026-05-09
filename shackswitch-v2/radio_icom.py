@@ -23,6 +23,10 @@ Mode read (cmd 04):
   Send:  FE FE [addr] E0 04 FD
   Reply: FE FE E0 [addr] 04 [mode byte] [filter byte] FD
 
+Read transceiver ID (cmd 19, sub 00) — used for auto-discovery:
+  Send:  FE FE 00 E0 19 00 FD       (broadcast to address 0x00)
+  Reply: FE FE E0 [addr] 19 00 [addr] FD
+
 Default CI-V addresses:
   IC-9700: 0x98   IC-7300: 0x94   IC-705: 0xA4   IC-7100: 0x88
   (IC-7610 also defaults to 0x98 — change one if both on same bus)
@@ -33,6 +37,7 @@ Controller address: 0xE0 (standard for external controllers)
 from radio_driver import RadioDriver
 
 CONTROLLER_ADDR = 0xE0
+BROADCAST_ADDR  = 0x00
 
 MODE_BYTES = {
     0x00: 'LSB',   0x01: 'USB',    0x02: 'AM',
@@ -41,8 +46,10 @@ MODE_BYTES = {
     0x12: 'FM-N',
 }
 
-CMD_READ_FREQ = 0x03
-CMD_READ_MODE = 0x04
+CMD_READ_FREQ           = 0x03
+CMD_READ_MODE           = 0x04
+CMD_READ_TRANSCEIVER_ID = 0x19
+SUBCMD_READ_TX_ID       = 0x00
 
 
 def _build_cmd(radio_addr: int, cmd: int, subcmd=None, data=b'') -> bytes:
@@ -65,6 +72,43 @@ def _decode_bcd_freq(data: bytes) -> int:
         freq += ((byte >> 4) & 0x0F) * multiplier
         multiplier *= 10
     return freq
+
+
+def discover_civ_address(transport):
+    """
+    Probe the CI-V bus for a connected radio's address.
+
+    Sends 'Read transceiver ID' (cmd 0x19, sub 0x00) to broadcast 0x00.
+    Any Icom radio on the bus replies with its own CI-V address as both
+    the 'from' field and the data byte. Returns the discovered address
+    as int (0x01-0xFE), or None if nothing answers in time.
+
+    Only the FIRST responder is returned — for shared CI-V buses with
+    multiple radios, configure each with an explicit civ_address.
+    """
+    try:
+        transport.send(_build_cmd(BROADCAST_ADDR, CMD_READ_TRANSCEIVER_ID,
+                                   subcmd=SUBCMD_READ_TX_ID))
+        raw = transport.recv(32)
+    except Exception:
+        return None
+
+    i = 0
+    while i + 6 < len(raw):
+        if raw[i] != 0xFE or raw[i + 1] != 0xFE:
+            i += 1
+            continue
+        to_addr   = raw[i + 2]
+        from_addr = raw[i + 3]
+        cmd_byte  = raw[i + 4]
+        sub_byte  = raw[i + 5]
+        if (to_addr == CONTROLLER_ADDR
+                and cmd_byte == CMD_READ_TRANSCEIVER_ID
+                and sub_byte == SUBCMD_READ_TX_ID
+                and from_addr not in (BROADCAST_ADDR, CONTROLLER_ADDR)):
+            return from_addr
+        i += 1
+    return None
 
 
 def _parse_civ_response(raw: bytes, radio_addr: int, expected_cmd: int):
@@ -92,18 +136,30 @@ def _parse_civ_response(raw: bytes, radio_addr: int, expected_cmd: int):
 class IcomCIVDriver(RadioDriver):
     """
     Icom CI-V driver. Reads frequency and mode via two separate commands.
-    Config key: civ_address — hex string or int, default '0x98' (IC-9700).
+
+    Config key: civ_address — hex string ('0x98') or int. Pass None,
+    omit, or use 'auto'/'' to probe the bus on first poll.
     """
 
     protocol_name = 'icom'
     vhf_capable   = True   # IC-9700 covers 2m, 70cm, 23cm
 
     def __init__(self, civ_address=0x98):
-        if isinstance(civ_address, str):
-            civ_address = int(civ_address, 16) if civ_address.startswith('0x') else int(civ_address)
-        self.civ_address = civ_address
+        if civ_address in (None, '', 'auto'):
+            self.civ_address = None
+        else:
+            if isinstance(civ_address, str):
+                s = civ_address.lower()
+                civ_address = int(s, 16) if s.startswith('0x') else int(s)
+            self.civ_address = civ_address
 
     def poll(self, transport) -> tuple:
+        if self.civ_address is None:
+            found = discover_civ_address(transport)
+            if found is None:
+                return (None, None)
+            self.civ_address = found
+            print(f'icom: auto-discovered CI-V address 0x{found:02X}')
         return self._read_freq(transport), self._read_mode(transport)
 
     def _read_freq(self, transport):
