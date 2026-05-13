@@ -1825,6 +1825,16 @@ t5 = threading.Thread(target=ag_test_client, daemon=True)
 t5.start()
 print("AG test harness client started")
 
+# mDNS / DNS-SD advertisement under _tci._tcp.local
+# (github.com/ten9876/AetherSDR/docs/tci-discovery.md).  Coexists with
+# the existing AG UDP broadcast — the two discovery channels are
+# independent.  SRV port is 0 (ShackSwitch v2 has no TCI server yet);
+# this entry is informational so AetherSDR's mDNS browse (once it
+# lands) can list us without manual IP entry.
+import mdns_tci
+mdns_tci.start()
+print("mDNS TCI advertiser started")
+
 kenwood.start()
 radios.start()
 nextion.init(bridge_call)
